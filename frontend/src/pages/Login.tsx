@@ -130,7 +130,7 @@ const Login = () => {
                 )}
 
                 <div className="mt-6 text-center text-sm text-gray-400">
-                    Test: al3ren0@gmail.com
+                    {/* Test text removed */}
                 </div>
             </div>
         </div>
