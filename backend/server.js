@@ -39,7 +39,15 @@ app.use('/api/events', eventRoutes);
 app.use('/api/tickets/:id', medicalRoutes);
 
 app.get('/', (req, res) => {
-    res.json({ message: 'Incident System API is running' });
+    res.json({
+        message: 'Incident System API is running',
+        version: '1.2.0 (OTP Enabled)', // Version Bump
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/health', (req, res) => {
+    res.status(200).send('OK');
 });
 
 // Start Server
