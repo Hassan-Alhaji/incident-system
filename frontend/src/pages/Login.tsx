@@ -23,10 +23,13 @@ const Login = () => {
             setStep(2);
         } catch (err: any) {
             console.error('Login Error:', err);
-            // detailed error message from backend OR fallback to network error message
+
+            // DEBUG: Show exact URL that failed
+            const failedUrl = `${err.config?.baseURL || ''}${err.config?.url || ''}`;
             const serverMsg = err.response?.data?.message;
-            const networkMsg = err.message;
-            setError(serverMsg || networkMsg || 'Failed to send code (Unknown Error)');
+            const status = err.response?.status;
+
+            setError(`[${status}] ${serverMsg || err.message} \nTarget: ${failedUrl}`);
         } finally {
             setLoading(false);
         }
