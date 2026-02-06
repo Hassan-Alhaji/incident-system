@@ -19,12 +19,12 @@ const createUser = async (req, res) => {
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-        const hashedPassword = await hashPassword(password);
+        // const hashedPassword = await hashPassword(password); // Removed for OTP
         const user = await prisma.user.create({
             data: {
                 name,
                 email,
-                password: hashedPassword,
+                password: '', // No password for OTP users
                 role,
                 isIntakeEnabled: isIntakeEnabled || false
             }

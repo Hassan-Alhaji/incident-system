@@ -237,10 +237,13 @@ const Settings = () => {
                                 <label className="block text-sm font-medium mb-1">Email</label>
                                 <input className="w-full border rounded-lg p-2" value={userFormData.email} onChange={e => setUserFormData({ ...userFormData, email: e.target.value })} />
                             </div>
+                            {/* Password field removed for OTP auth */}
+                            {/* 
                             <div>
                                 <label className="block text-sm font-medium mb-1">Password</label>
                                 <input type="password" className="w-full border rounded-lg p-2" value={userFormData.password} onChange={e => setUserFormData({ ...userFormData, password: e.target.value })} />
-                            </div>
+                            </div> 
+                            */}
                             <div>
                                 <label className="block text-sm font-medium mb-1">Role</label>
                                 <select className="w-full border rounded-lg p-2" value={userFormData.role} onChange={e => setUserFormData({ ...userFormData, role: e.target.value })}>
