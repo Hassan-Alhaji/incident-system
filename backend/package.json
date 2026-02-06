@@ -27,10 +27,9 @@
     "pdfkit": "^0.17.2",
     "pg": "^8.18.0",
     "qrcode": "^1.5.4",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
+    "xlsx": "^0.18.5",
     "@prisma/client": "^6.19.2",
     "prisma": "^6.19.2"
-  }
+  },
+  "devDependencies": {}
 }
