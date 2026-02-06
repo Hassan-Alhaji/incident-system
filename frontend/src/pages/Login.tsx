@@ -23,7 +23,10 @@ const Login = () => {
             setStep(2);
         } catch (err: any) {
             console.error('Login Error:', err);
-            setError(err.response?.data?.message || 'Failed to send code');
+            // detailed error message from backend OR fallback to network error message
+            const serverMsg = err.response?.data?.message;
+            const networkMsg = err.message;
+            setError(serverMsg || networkMsg || 'Failed to send code (Unknown Error)');
         } finally {
             setLoading(false);
         }
