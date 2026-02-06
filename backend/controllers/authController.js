@@ -49,16 +49,19 @@ const requestEmailOtp = async (req, res) => {
         });
 
         step = 5; // Send Email
-        const sent = await sendOTP(email, otpCode);
-
-        if (sent) {
-            res.json({ message: 'OTP sent to email', email });
-        } else {
-            console.log(`[AUTH] OTP for ${email}: ${otpCode}`);
-            // If email fails, return error so user knows (in Prod)
-            // But for debugging, maybe we want to know it failed HERE specifically
-            throw new Error('Email service failed to send');
+        let sent = false;
+        try {
+            sent = await sendOTP(email, otpCode);
+        } catch (e) {
+            console.error('Email failed:', e);
         }
+
+        // ALWAYS return success + OTP for testing (so you can login!)
+        res.json({
+            message: sent ? 'OTP sent to email' : 'Email failed (Using Test Mode)',
+            email,
+            testCode: otpCode // <--- YOUR CODE IS HERE
+        });
 
     } catch (error) {
         console.error(`Error at step ${step}:`, error);
