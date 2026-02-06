@@ -1,7 +1,16 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+    let url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    if (!url.endsWith('/api')) {
+        url += '/api';
+    }
+    console.log('API Base URL:', url); // Debugging 404
+    return url;
+};
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+    baseURL: getBaseUrl(),
 });
 
 // Add a request interceptor to add the token
