@@ -22,6 +22,7 @@ const Login = () => {
             await api.post('/auth/otp/request', { email });
             setStep(2);
         } catch (err: any) {
+            console.error('Login Error:', err);
             setError(err.response?.data?.message || 'Failed to send code');
         } finally {
             setLoading(false);
