@@ -6,13 +6,16 @@ const { sendOTP } = require('../utils/emailService');
 // @route   POST /api/auth/otp/request
 // @access  Public
 const requestEmailOtp = async (req, res) => {
+    let step = 0;
     const { email } = req.body;
 
     try {
+        step = 1; // Validate Input
         if (!email) {
             return res.status(400).json({ message: 'Email is required' });
         }
 
+        step = 2; // Find/Create User
         let user = await prisma.user.findUnique({ where: { email } });
 
         // Auto-create Admin if missing
@@ -35,27 +38,34 @@ const requestEmailOtp = async (req, res) => {
             return res.status(403).json({ message: 'Account suspended' });
         }
 
-        // Generate 4-digit OTP
+        step = 3; // Generate OTP
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
+        step = 4; // Update Database (Critical Step)
         await prisma.user.update({
             where: { id: user.id },
             data: { otpCode, otpExpires }
         });
 
+        step = 5; // Send Email
         const sent = await sendOTP(email, otpCode);
+
         if (sent) {
             res.json({ message: 'OTP sent to email', email });
         } else {
-            // Fallback for dev if email fails (or just error out)
             console.log(`[AUTH] OTP for ${email}: ${otpCode}`);
-            res.json({ message: 'OTP sent (Logged for Dev)', email }); // In prod might want to return 500
+            // If email fails, return error so user knows (in Prod)
+            // But for debugging, maybe we want to know it failed HERE specifically
+            throw new Error('Email service failed to send');
         }
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: error.message || 'Server error' });
+        console.error(`Error at step ${step}:`, error);
+        res.status(500).json({
+            message: `Login Failed at Step ${step}: ${error.message || 'Unknown error'}`,
+            step
+        });
     }
 };
 
