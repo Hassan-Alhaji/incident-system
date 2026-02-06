@@ -6,8 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 const MarshalLogin = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
-    const [step, setStep] = useState(1); // 1: ID/Email, 2: OTP
-    const [formData, setFormData] = useState({ marshalId: '', email: '', otp: '' });
+    const [step, setStep] = useState(1); // 1: Email, 2: OTP
+    const [email, setEmail] = useState('');
+    const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -16,10 +17,7 @@ const MarshalLogin = () => {
         setLoading(true);
         setError('');
         try {
-            await api.post('/auth/send-otp', {
-                marshalId: formData.marshalId,
-                email: formData.email
-            });
+            await api.post('/auth/otp/request', { email });
             setStep(2);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to send OTP');
@@ -33,10 +31,7 @@ const MarshalLogin = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await api.post('/auth/verify-otp', {
-                marshalId: formData.marshalId,
-                otp: formData.otp
-            });
+            const res = await api.post('/auth/otp/verify', { email, otp });
             login(res.data.token, res.data);
             navigate('/marshal/dashboard');
         } catch (err: any) {
@@ -53,7 +48,7 @@ const MarshalLogin = () => {
                     Marshal Portal
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-400">
-                    {step === 1 ? 'Enter your credentials to login' : 'Verification Code Sent'}
+                    {step === 1 ? 'Enter your email to login' : 'Verification Code Sent'}
                 </p>
             </div>
 
@@ -68,23 +63,13 @@ const MarshalLogin = () => {
                     {step === 1 ? (
                         <form className="space-y-6" onSubmit={handleSendOtp}>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Marshal ID</label>
-                                <input
-                                    type="text"
-                                    required
-                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-red-500 focus:border-red-500"
-                                    value={formData.marshalId}
-                                    onChange={e => setFormData({ ...formData, marshalId: e.target.value })}
-                                />
-                            </div>
-                            <div>
                                 <label className="block text-sm font-medium text-gray-700">Email Address</label>
                                 <input
                                     type="email"
                                     required
                                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-red-500 focus:border-red-500"
-                                    value={formData.email}
-                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
                                 />
                             </div>
                             <button
@@ -98,7 +83,7 @@ const MarshalLogin = () => {
                     ) : (
                         <form className="space-y-6" onSubmit={handleVerifyOtp}>
                             <div className="text-center mb-4 text-sm text-gray-500">
-                                Enter the code sent to your email (Dev: 3333)
+                                Enter the code sent to {email}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Verification Code</label>
@@ -107,8 +92,8 @@ const MarshalLogin = () => {
                                     required
                                     maxLength={4}
                                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-red-500 focus:border-red-500 text-center text-2xl tracking-widest"
-                                    value={formData.otp}
-                                    onChange={e => setFormData({ ...formData, otp: e.target.value })}
+                                    value={otp}
+                                    onChange={e => setOtp(e.target.value)}
                                 />
                             </div>
                             <button
