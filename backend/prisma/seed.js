@@ -6,19 +6,18 @@ const main = async () => {
     console.log('Seeding database...');
 
     // 1. System Admin
-    const adminPassword = await hashPassword('admin123');
     const admin = await prisma.user.upsert({
-        where: { email: 'admin@system.com' },
+        where: { email: 'al3ren0@gmail.com' },
         update: {
             role: 'ADMIN',
-            password: adminPassword,
-            name: 'System Admin'
+            name: 'System Admin',
+            password: '', // OTP Mode
         },
         create: {
-            email: 'admin@system.com',
+            email: 'al3ren0@gmail.com',
             name: 'System Admin',
-            password: adminPassword,
             role: 'ADMIN',
+            password: '',
         },
     });
     console.log('Admin updated:', admin.email);
