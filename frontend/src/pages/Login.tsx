@@ -60,11 +60,10 @@ const Login = () => {
                     id: data.user?.id || 'supa-id',
                     name: data.user?.email?.split('@')[0] || 'User',
                     email: data.user?.email || '',
-                    role: 'ADMIN', // Defaulting for testing, should fetch real role
-                    token: data.session.access_token
+                    role: 'ADMIN', // Defaulting for testing
                 };
 
-                login(user.token, user);
+                login(data.session.access_token, user);
                 navigate('/dashboard');
             }
         } catch (err: any) {
