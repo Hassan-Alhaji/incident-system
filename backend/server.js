@@ -57,7 +57,7 @@ app.use('/api/tickets/:id', medicalRoutes);
 app.get('/', (req, res) => {
     res.json({
         message: 'Incident System API is running',
-        version: '1.2.1 (Debug Mode)',
+        version: '1.0.0',
         timestamp: new Date().toISOString()
     });
 });

@@ -4,7 +4,7 @@ import api from '../utils/api';
 import { ShieldAlert, CheckCircle, Save } from 'lucide-react';
 
 const OnboardingModal = () => {
-    const { user, login, token } = useAuth();
+    const { user, login, logout, token } = useAuth();
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -119,18 +119,23 @@ const OnboardingModal = () => {
                             <p className="text-xs text-gray-400 mt-1">Start with country code (e.g. 00966 or +1...)</p>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
-                        >
-                            {loading ? 'Saving...' : (
-                                <>
-                                    <Save size={20} />
-                                    Save & Continue
-                                </>
-                            )}
-                        </button>
+                        <div className="flex gap-4 pt-2">
+                            <button
+                                type="button"
+                                onClick={logout}
+                                disabled={loading}
+                                className="bg-gray-100 text-gray-700 font-bold py-3 px-6 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                            >
+                                Logout
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="flex-1 bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {loading ? 'Saving...' : <><Save size={20} /> Save & Continue</>}
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>

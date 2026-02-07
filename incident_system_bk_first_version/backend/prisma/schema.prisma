@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String                @id @default(uuid())
+  email           String                @unique
+  password        String?
+  name            String
+  firstName       String?
+  lastName        String?
+  isProfileCompleted Boolean            @default(false)
+  role            Role                  @default(SPORT_MARSHAL)
+  isIntakeEnabled Boolean               @default(false)
+  marshalId       String?               @unique
+  mobile          String?
+  status          UserStatus            @default(ACTIVE)
+  isMedical       Boolean               @default(false)
+  otpCode         String?
+  otpExpires      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  activityLogs    ActivityLog[]
+  investigations  InvestigationReport[]
+  medicalReports  MedicalReport[]
+  notifications   Notification[]
+  assignedTickets Ticket[]              @relation("AssignedTickets")
+  createdTickets  Ticket[]              @relation("CreatedTickets")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  type      String
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Ticket {
+  id                  String               @id @default(uuid())
+  ticketNo            String               @unique
+  type                TicketType
+  status              TicketStatus         @default(DRAFT)
+  priority            Priority             @default(MEDIUM)
+  escalatedToRole     String?
+  eventId             String?
+  eventName           String?
+  venue               String?
+  marshalId           String?
+  marshalMobile       String?
+  reporterName        String?
+  reporterSignature   String?
+  postNumber          String?
+  incidentDate        DateTime?
+  incidentTime        String?
+  location            String?
+  description         String
+  drivers             String?
+  witnesses           String?
+  createdById         String?
+  assignedToId        String?
+  closureReason       String?
+  closedBy            String?
+  closedByRole        String?
+  closedAt            DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  activityLogs        ActivityLog[]
+  attachments         Attachment[]
+  controlReport       ControlReport?
+  investigationReport InvestigationReport?
+  medicalReport       MedicalReport?
+  pitGridReport       PitGridReport?
+  safetyReport        SafetyReport?
+  assignedTo          User?                @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
+  ticketExports       TicketExport[]
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  url       String
+  type      String
+  name      String
+  size      Int
+  mimeType  String
+  refId     String?
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  ticketId  String
+  actorId   String?
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id])
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model MedicalReport {
+  id                      String    @id @default(uuid())
+  ticketId                String    @unique
+  authorId                String?
+  patientName             String?
+  patientSurname          String?
+  patientGivenName        String?
+  patientDob              DateTime?
+  patientGender           String?
+  patientAddress          String?
+  patientSuburb           String?
+  patientState            String?
+  patientPostcode         String?
+  patientEmail            String?
+  patientMobile           String?
+  patientPhone            String?
+  patientOccupation       String?
+  motorsportId            String?
+  carNumber               String?
+  patientRole             String?
+  permitNumber            String?
+  licenseAction           String?
+  injuryType              String?
+  treatmentLocation       String?
+  treatmentLocationDetail String?
+  arrivalMethod           String?
+  incidentDescription     String?
+  whereSeen               String?
+  initialCondition        String?
+  treatmentGiven          String?
+  subsequentTreatment     String?
+  subsequentDetail        String?
+  summary                 String?
+  recommendation          String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  author                  User?     @relation(fields: [authorId], references: [id])
+  ticket                  Ticket    @relation(fields: [ticketId], references: [id])
+}
+
+model ControlReport {
+  id               String   @id @default(uuid())
+  ticketId         String   @unique
+  competitorNumber String?
+  lapNumber        Int?
+  sector           Int?
+  violationType    String?
+  competitors      String?
+  actionTaken      String?
+  penaltyValue     String?
+  reasoning        String?
+  published        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model PitGridReport {
+  id                 String   @id @default(uuid())
+  ticketId           String   @unique
+  sessionCategory    String?
+  teamName           String?
+  carNumber          String?
+  driverName         String?
+  pitNumber          String?
+  lapNumber          Int?
+  speedLimit         String?
+  speedRecorded      String?
+  radarOperatorName  String?
+  radarOperatorPhone String?
+  drivingOnWhiteLine Boolean  @default(false)
+  refueling          Boolean  @default(false)
+  driverChange       Boolean  @default(false)
+  excessMechanics    Boolean  @default(false)
+  remarks            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  ticket             Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model SafetyReport {
+  id                   String   @id @default(uuid())
+  ticketId             String   @unique
+  hazardType           String?
+  locationDetail       String?
+  interventionRequired Boolean  @default(false)
+  resourcesDeployed    String?
+  trackStatus          String?
+  damageDescription    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ticket               Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model InvestigationReport {
+  id               String   @id @default(uuid())
+  ticketId         String   @unique
+  authorId         String
+  responsibleParty String?
+  summary          String
+  decision         String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  author           User     @relation(fields: [authorId], references: [id])
+  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model TicketExport {
+  id           String   @id @default(uuid())
+  ticketId     String
+  verifyToken  String   @unique
+  version      Int      @default(1)
+  snapshotJson String?
+  pdfUrl       String
+  generatedBy  String?
+  createdAt    DateTime @default(now())
+  ticket       Ticket   @relation(fields: [ticketId], references: [id])
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  ADMIN
+  
+  // Sport / Control
+  SPORT_MARSHAL
+  OPERATION_CONTROL_TEAM
+  DEPUTY_CHIEF_CONTROL_OFFICER
+  CHIEF_OF_CONTROL
+  CONTROL_OP_TEAM           // Legacy? Keeping to avoid delete
+  DEPUTY_CONTROL_OP_OFFICER // Legacy? Keeping to avoid delete
+
+  // Safety
+  SAFETY_MARSHAL
+  OPERATION_SAFETY_TEAM
+  DEPUTY_CHIEF_SAFETY_OFFICER
+  CHIEF_SAFETY_OFFICER
+  SAFETY_OP_TEAM        // Legacy? Keeping to avoid delete
+  DEPUTY_SAFETY_OFFICER // Legacy? Keeping to avoid delete
+  SAFETY_OFFICER_CHIEF  // Legacy? Keeping to avoid delete
+
+  // Medical
+  MEDICAL_MARSHAL
+  MEDICAL_EVACUATION_CREW
+  OPERATION_MEDICAL_TEAM
+  DEPUTY_CHIEF_MEDICAL_OFFICER
+  CHIEF_MEDICAL_OFFICER
+  MEDICAL_VENDOR          // Legacy? Keeping to avoid delete
+  MEDICAL_EVACUATION      // Legacy? Keeping to avoid delete
+  MEDICAL_OP_TEAM         // Legacy? Keeping to avoid delete
+  DEPUTY_MEDICAL_OFFICER  // Legacy? Keeping to avoid delete
+
+  // Other
+  SCRUTINEERS
+  JUDGEMENT
+  OPERATIONS
+  VIEWER
+}
+
+enum TicketType {
+  MEDICAL
+  SAFETY
+  SPORT
+  TECHNICAL
+  JUDGEMENT
+  ACCIDENT
+  INJURY
+  VIOLATION
+  MISSING_ITEM
+}
+
+enum TicketStatus {
+  DRAFT
+  OPEN
+  UNDER_REVIEW
+  ESCALATED
+  AWAITING_MEDICAL
+  AWAITING_DECISION
+  RETURNED_TO_CONTROL
+  RETURNED_TO_MARSHAL
+  RESOLVED
+  CLOSED
+  CLOSED_REJECTED
+  REOPENED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
