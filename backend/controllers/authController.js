@@ -100,26 +100,40 @@ const verifyEmailOtp = async (req, res) => {
             return res.status(400).json({ message: 'Invalid code' });
         }
 
+
         if (new Date() > user.otpExpires) {
             return res.status(400).json({ message: 'Code expired' });
         }
 
-        // Clear OTP
-        await prisma.user.update({
+        // Auto-Complete Profile if Data Exists (Migration helper)
+        let isProfileCompleted = user.isProfileCompleted;
+        const hasName = (user.firstName && user.lastName) || (user.name && user.name.trim().split(' ').length >= 2);
+        const hasMobile = !!user.mobile;
+
+        if (!isProfileCompleted && hasName && hasMobile) {
+            isProfileCompleted = true;
+        }
+
+        // Clear OTP and Update Profile Status
+        const updatedUser = await prisma.user.update({
             where: { id: user.id },
-            data: { otpCode: null, otpExpires: null }
+            data: {
+                otpCode: null,
+                otpExpires: null,
+                isProfileCompleted: isProfileCompleted
+            }
         });
 
         res.json({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            mobile: user.mobile,
-            isProfileCompleted: user.isProfileCompleted,
-            role: user.role,
-            token: generateToken(user.id, user.role),
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            firstName: updatedUser.firstName,
+            lastName: updatedUser.lastName,
+            mobile: updatedUser.mobile,
+            isProfileCompleted: updatedUser.isProfileCompleted,
+            role: updatedUser.role,
+            token: generateToken(updatedUser.id, updatedUser.role),
         });
 
     } catch (error) {
