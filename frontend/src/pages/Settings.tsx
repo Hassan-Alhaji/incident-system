@@ -113,7 +113,7 @@ const Settings = () => {
 
     const closeEventModal = () => { setShowEventModal(false); };
 
-    if (user?.role !== 'ADMIN') return <div className="p-8 text-center text-red-500">Access Denied</div>;
+    if (user?.role !== 'ADMIN' && user?.role !== 'CHIEF_OF_CONTROL') return <div className="p-8 text-center text-red-500">Access Denied</div>;
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
@@ -248,10 +248,22 @@ const Settings = () => {
                                 <label className="block text-sm font-medium mb-1">Role</label>
                                 <select className="w-full border rounded-lg p-2" value={userFormData.role} onChange={e => setUserFormData({ ...userFormData, role: e.target.value })}>
                                     <option value="SPORT_MARSHAL">Sport Marshal</option>
-                                    <option value="ADMIN">Admin</option>
-                                    <option value="MEDICAL_MARSHAL">Medical Marshal</option>
+                                    <option value="OPERATION_CONTROL_TEAM">Operation Control Team</option>
+                                    <option value="DEPUTY_CHIEF_CONTROL_OFFICER">Deputy Chief Control Officer</option>
+                                    <option value="CHIEF_OF_CONTROL">Chief of Control</option>
+
                                     <option value="SAFETY_MARSHAL">Safety Marshal</option>
-                                    <option value="CONTROL_OP_TEAM">Control Op Team</option>
+                                    <option value="OPERATION_SAFETY_TEAM">Operation Safety Team</option>
+                                    <option value="DEPUTY_CHIEF_SAFETY_OFFICER">Deputy Chief Safety Officer</option>
+                                    <option value="CHIEF_SAFETY_OFFICER">Chief Safety Officer</option>
+
+                                    <option value="MEDICAL_MARSHAL">Medical Marshal</option>
+                                    <option value="MEDICAL_EVACUATION_CREW">Medical Evacuation Crew</option>
+                                    <option value="OPERATION_MEDICAL_TEAM">Operation Medical Team</option>
+                                    <option value="DEPUTY_CHIEF_MEDICAL_OFFICER">Deputy Chief Medical Officer</option>
+                                    <option value="CHIEF_MEDICAL_OFFICER">Chief Medical Officer</option>
+
+                                    {user?.role === 'ADMIN' && <option value="ADMIN">Admin</option>}
                                 </select>
                             </div>
                             <div className="flex items-center gap-2">
