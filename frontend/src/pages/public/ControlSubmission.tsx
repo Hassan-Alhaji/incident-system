@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../../utils/api';
 import MarshalIdentityForm from '../../components/public/MarshalIdentityForm';
 
 const ControlSubmission: React.FC = () => {
@@ -54,7 +54,7 @@ const ControlSubmission: React.FC = () => {
                 formData.append('attachments', file);
             });
 
-            const res = await axios.post('http://localhost:3000/api/public/control', formData, {
+            const res = await api.post('/public/control', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 

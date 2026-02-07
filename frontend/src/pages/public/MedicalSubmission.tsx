@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../../utils/api';
 import MarshalIdentityForm from '../../components/public/MarshalIdentityForm';
 import { Camera, FileText } from 'lucide-react'; // Assuming lucide-react is installed, else use standard icons
 
@@ -61,7 +61,7 @@ const MedicalSubmission: React.FC = () => {
                 formData.append('attachments', file);
             });
 
-            const res = await axios.post('http://localhost:3000/api/public/medical', formData, {
+            const res = await api.post('/public/medical', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 

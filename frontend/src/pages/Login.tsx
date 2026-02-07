@@ -1,32 +1,37 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../utils/supabase'; // Using Supabase Direct
+import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Mail, ArrowLeft } from 'lucide-react';
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login } = useAuth(); // We might need to update this to accept Supabase session
+    const { login } = useAuth();
     const [step, setStep] = useState(1); // 1: Email, 2: OTP
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Force Redeploy Trigger - V2
-    console.log('Login Page Loaded - Version: Supabase Direct Auth');
-
     const handleSendOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError('');
         try {
-            const { error } = await supabase.auth.signInWithOtp({ email });
-            if (error) throw error;
+            console.log('Attempting to send OTP via API...');
+            const response = await api.post('/auth/otp/request', { email });
+            console.log('OTP Request Response:', response.data);
+
+            // If we're in test mode, the backend sends the code back for convenience
+            if (response.data.testCode) {
+                console.log('TEST MODE: OTP Code is', response.data.testCode);
+            }
+
             setStep(2);
         } catch (err: any) {
             console.error('Login Error:', err);
-            setError(err.message || 'Failed to send code');
+            const message = err.response?.data?.message || err.message || 'Failed to send code';
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -37,37 +42,21 @@ const Login = () => {
         setLoading(true);
         setError('');
         try {
-            const { data, error } = await supabase.auth.verifyOtp({
+            const { data } = await api.post('/auth/otp/verify', {
                 email,
-                token: otp,
-                type: 'email',
+                otp,
             });
 
-            if (error) throw error;
-
-            if (data.session) {
-                // Login successful via Supabase!
-                // We need to map this to our app's user structure.
-                // For now, we pass a dummy token or the session token.
-                // Ideally, we fetch the user role from our DB or metadata.
-                // Assuming "admin" for al3ren0 or fetching from DB if needed.
-
-                // Fetch user role from DB matching email (Fallback to API)
-                // OR just letting them in for now to verify ID.
-
-                // Temporary: Create a compatible user object
-                const user = {
-                    id: data.user?.id || 'supa-id',
-                    name: data.user?.email?.split('@')[0] || 'User',
-                    email: data.user?.email || '',
-                    role: 'ADMIN', // Defaulting for testing
-                };
-
-                login(data.session.access_token, user);
+            if (data.token) {
+                login(data.token, data);
                 navigate('/dashboard');
+            } else {
+                throw new Error('No token received');
             }
         } catch (err: any) {
-            setError(err.message || 'Invalid code');
+            console.error('Verify Error:', err);
+            const message = err.response?.data?.message || err.message || 'Invalid code';
+            setError(message);
         } finally {
             setLoading(false);
         }
