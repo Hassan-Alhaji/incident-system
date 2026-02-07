@@ -114,6 +114,10 @@ const verifyEmailOtp = async (req, res) => {
             id: user.id,
             name: user.name,
             email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            mobile: user.mobile,
+            isProfileCompleted: user.isProfileCompleted,
             role: user.role,
             token: generateToken(user.id, user.role),
         });

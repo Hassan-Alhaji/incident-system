@@ -68,13 +68,42 @@ const updateUser = async (req, res) => {
 
 const updateProfile = async (req, res) => {
     try {
-        const { name, email, mobile } = req.body;
+        const { firstName, lastName, mobile } = req.body;
         const userId = req.user.id; // From authMiddleware
 
+        // Validation: English Only and Required for these fields
+        const englishRegex = /^[A-Za-z\s]+$/;
+        // Mobile: Must start with 00966 and be numbers only
+        const mobileRegex = /^00966\d+$/;
+
+        if (firstName && !englishRegex.test(firstName)) {
+            return res.status(400).json({ message: 'First Name must be English letters only' });
+        }
+        if (lastName && !englishRegex.test(lastName)) {
+            return res.status(400).json({ message: 'Last Name must be English letters only' });
+        }
+        if (mobile && !mobileRegex.test(mobile)) {
+            return res.status(400).json({ message: 'Mobile must start with 00966 and contain numbers only' });
+        }
+
         const updateData = {};
-        if (name) updateData.name = name;
-        if (email) updateData.email = email;
+        if (firstName) updateData.firstName = firstName;
+        if (lastName) updateData.lastName = lastName;
+        if (firstName && lastName) updateData.name = `${firstName} ${lastName}`;
         if (mobile) updateData.mobile = mobile;
+
+        // Check isProfileCompleted
+        // It becomes true if ALL required fields are present (either in this update or already in DB)
+        // We'll fetch current user to check missing fields if not provided in update
+        const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+
+        const finalFirstName = firstName || currentUser.firstName;
+        const finalLastName = lastName || currentUser.lastName;
+        const finalMobile = mobile || currentUser.mobile;
+
+        if (finalFirstName && finalLastName && finalMobile) {
+            updateData.isProfileCompleted = true;
+        }
 
         const user = await prisma.user.update({
             where: { id: userId },
@@ -86,16 +115,19 @@ const updateProfile = async (req, res) => {
             user: {
                 id: user.id,
                 name: user.name,
+                firstName: user.firstName,
+                lastName: user.lastName,
                 email: user.email,
                 mobile: user.mobile,
                 marshalId: user.marshalId,
-                role: user.role
+                role: user.role,
+                isProfileCompleted: user.isProfileCompleted
             }
         });
     } catch (error) {
         console.error(error);
         if (error.code === 'P2002') {
-            return res.status(400).json({ message: 'Email already in use' });
+            return res.status(400).json({ message: 'Email or Mobile already in use' });
         }
         res.status(500).json({ message: 'Error updating profile' });
     }

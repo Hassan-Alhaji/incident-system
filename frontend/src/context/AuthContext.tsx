@@ -10,6 +10,9 @@ interface User {
     status?: string;
     isMedical?: boolean;
     mobile?: string;
+    firstName?: string;
+    lastName?: string;
+    isProfileCompleted?: boolean;
 }
 
 interface AuthContextType {

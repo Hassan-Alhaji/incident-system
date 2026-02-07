@@ -6,6 +6,7 @@ import {
     Menu, X, ShieldAlert, BadgeCheck, Settings
 } from 'lucide-react';
 import api from '../utils/api';
+import OnboardingModal from './OnboardingModal';
 
 function Layout() {
     const { user, logout } = useAuth();
@@ -74,6 +75,8 @@ function Layout() {
 
     return (
         <div className="flex h-screen bg-gray-50">
+            <OnboardingModal />
+
             {/* Sidebar */}
             <aside className={`bg-emerald-950 text-white transition-all duration-300 flex flex-col ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
                 <div className="p-6 flex items-center gap-3">
@@ -102,13 +105,16 @@ function Layout() {
 
                 <div className="p-4 border-t border-emerald-900 space-y-4">
                     {isSidebarOpen && (
-                        <div className="flex items-center gap-3 px-4 py-2 bg-emerald-900 rounded-xl">
+                        <div
+                            onClick={() => navigate('/profile')}
+                            className="flex items-center gap-3 px-4 py-2 bg-emerald-900 rounded-xl cursor-pointer hover:bg-emerald-800 transition-colors"
+                        >
                             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center font-bold">
-                                {user?.name.charAt(0)}
+                                {user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
                             </div>
                             <div className="overflow-hidden">
-                                <p className="text-sm font-bold truncate">{user?.name}</p>
-                                <p className="text-xs text-emerald-300 truncate">{user?.role}</p>
+                                <p className="text-sm font-bold truncate">{user?.firstName ? `${user.firstName} ${user.lastName}` : user?.name}</p>
+                                <p className="text-xs text-emerald-300 truncate">{user?.role?.replace(/_/g, ' ')}</p>
                             </div>
                         </div>
                     )}

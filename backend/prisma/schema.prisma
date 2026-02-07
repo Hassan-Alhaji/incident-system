@@ -12,6 +12,9 @@ model User {
   email           String                @unique
   password        String?
   name            String
+  firstName       String?
+  lastName        String?
+  isProfileCompleted Boolean            @default(false)
   role            Role                  @default(SPORT_MARSHAL)
   isIntakeEnabled Boolean               @default(false)
   marshalId       String?               @unique

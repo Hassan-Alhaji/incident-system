@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, User as UserIcon } from 'lucide-react';
+import OnboardingModal from '../../components/OnboardingModal';
 
 const MarshalLayout = () => {
     const { user, logout, isLoading } = useAuth();
@@ -28,6 +29,8 @@ const MarshalLayout = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
+            <OnboardingModal />
+
             {/* Mobile Header */}
             <header className="bg-black text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
                 <div
@@ -35,11 +38,11 @@ const MarshalLayout = () => {
                     onClick={() => navigate('/marshal/profile')}
                 >
                     <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center font-bold">
-                        {user.marshalId ? user.marshalId.slice(-2) : 'M'}
+                        {user.firstName?.charAt(0) || user.name?.charAt(0) || 'M'}
                     </div>
                     <div>
-                        <h1 className="font-bold text-sm">{user.name || 'User'}</h1>
-                        <p className="text-xs text-gray-400">{user.role?.replace('_', ' ') || 'Marshal'}</p>
+                        <h1 className="font-bold text-sm">{user.firstName ? `${user.firstName} ${user.lastName}` : (user.name || 'User')}</h1>
+                        <p className="text-xs text-gray-400">{user.role?.replace(/_/g, ' ') || 'Marshal'}</p>
                     </div>
                 </div>
                 <button onClick={() => { logout(); navigate('/marshal/login'); }} className="text-gray-400 hover:text-white">

@@ -13,6 +13,7 @@ import MarshalLogin from './pages/marshal/MarshalLogin';
 import MarshalDashboard from './pages/marshal/MarshalDashboard';
 import MarshalTicketForm from './pages/marshal/MarshalTicketForm';
 import MarshalProfile from './pages/marshal/MarshalProfile';
+import UserProfile from './pages/UserProfile';
 
 // Protect routes based on auth status
 const ProtectedRoute = () => {
@@ -48,6 +49,7 @@ function App() {
               <Route path="/tickets/new" element={<IncidentWizard />} />
               <Route path="/tickets/:id" element={<TicketDetail />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/profile" element={<UserProfile />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
             </Route>
           </Route>

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
+import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import { ArrowLeft, Save, User, Mail, Phone, Hash, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const MarshalProfile = () => {
-    const { user, login } = useAuth();
+const UserProfile = () => {
+    const { user, login } = useAuth(); // login used to update context
     const navigate = useNavigate();
     const [isSaving, setIsSaving] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
@@ -63,19 +63,19 @@ const MarshalProfile = () => {
     if (!user) return null;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-4xl mx-auto">
             <button onClick={() => navigate(-1)} className="flex items-center text-gray-500 hover:text-gray-800">
                 <ArrowLeft size={18} className="mr-1" /> Back
             </button>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-blue-600 p-6 text-white flex items-center gap-4">
+                <div className="bg-emerald-700 p-6 text-white flex items-center gap-4">
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-2xl font-bold backdrop-blur-sm">
                         {user.firstName?.charAt(0) || user.name?.charAt(0) || 'U'}
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold">My Profile</h1>
-                        <p className="text-blue-100 opacity-90">{user.role?.replace(/_/g, ' ')}</p>
+                        <p className="text-emerald-100 opacity-90">{user.role?.replace(/_/g, ' ')}</p>
                     </div>
                 </div>
 
@@ -91,10 +91,10 @@ const MarshalProfile = () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-                                    <Hash size={12} /> Marshal ID
+                                    <Hash size={12} /> ID
                                 </label>
-                                <div className="font-mono text-gray-700 font-medium">
-                                    {user.marshalId || 'N/A'}
+                                <div className="font-mono text-gray-700 font-medium truncate" title={user.id}>
+                                    {user.marshalId || user.id.slice(0, 8)}
                                 </div>
                             </div>
                             <div>
@@ -124,7 +124,7 @@ const MarshalProfile = () => {
                                 <input
                                     type="text"
                                     required
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                                     value={formData.firstName}
                                     onChange={e => setFormData({ ...formData, firstName: e.target.value })}
                                 />
@@ -138,7 +138,7 @@ const MarshalProfile = () => {
                                 <input
                                     type="text"
                                     required
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                                     value={formData.lastName}
                                     onChange={e => setFormData({ ...formData, lastName: e.target.value })}
                                 />
@@ -151,7 +151,7 @@ const MarshalProfile = () => {
                                 </label>
                                 <input
                                     type="tel"
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                                     value={formData.mobile}
                                     onChange={e => setFormData({ ...formData, mobile: e.target.value })}
                                     placeholder="00966..."
@@ -163,7 +163,7 @@ const MarshalProfile = () => {
                             <button
                                 type="submit"
                                 disabled={isSaving}
-                                className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full bg-emerald-600 text-white rounded-xl py-3 font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 <Save size={18} />
                                 {isSaving ? 'Saving...' : 'Save Changes'}
@@ -176,4 +176,4 @@ const MarshalProfile = () => {
     );
 };
 
-export default MarshalProfile;
+export default UserProfile;
