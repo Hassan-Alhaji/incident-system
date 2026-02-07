@@ -4,7 +4,7 @@ const { hashPassword } = require('../utils/authUtils');
 const getUsers = async (req, res) => {
     try {
         const users = await prisma.user.findMany({
-            select: { id: true, name: true, email: true, role: true, isIntakeEnabled: true, createdAt: true }
+            select: { id: true, name: true, email: true, role: true, isIntakeEnabled: true, createdAt: true, status: true }
         });
         res.json(users);
     } catch (error) {

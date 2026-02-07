@@ -46,7 +46,7 @@ const requestEmailOtp = async (req, res) => {
         }
 
         if (user.status === 'SUSPENDED') {
-            return res.status(403).json({ message: 'Account suspended' });
+            return res.status(403).json({ message: 'Your account is deactivated please contact the administrator.' });
         }
 
         step = 3; // Generate OTP

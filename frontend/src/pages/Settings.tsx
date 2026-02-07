@@ -57,6 +57,16 @@ const Settings = () => {
         try { await api.delete(`/users/${id}`); fetchUsers(); } catch (err) { alert('Failed'); }
     };
 
+    const toggleUserStatus = async (id: string, currentStatus: string) => {
+        const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+        try {
+            await api.patch(`/users/${id}/status`, { status: newStatus });
+            fetchUsers();
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Failed to update status');
+        }
+    };
+
     const openUserModal = (u?: any) => {
         setUserError('');
         if (u) {
@@ -149,6 +159,7 @@ const Settings = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">User</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Role</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Permissions</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase text-right">Action</th>
                                 </tr>
@@ -163,6 +174,15 @@ const Settings = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4"><span className="bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-600 border border-gray-200">{u.role.replace(/_/g, ' ')}</span></td>
+                                        <td className="px-6 py-4">
+                                            <button
+                                                onClick={() => toggleUserStatus(u.id, u.status)}
+                                                className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded border min-w-[90px] justify-center transition-colors ${u.status === 'ACTIVE' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`}
+                                            >
+                                                {u.status === 'ACTIVE' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                                {u.status === 'ACTIVE' ? 'Active' : 'Deactivated'}
+                                            </button>
+                                        </td>
                                         <td className="px-6 py-4">{u.isIntakeEnabled ? <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">View All (Intake)</span> : <span className="text-gray-400 text-xs">Assigned Only</span>}</td>
                                         <td className="px-6 py-4 text-right flex justify-end gap-2">
                                             <button onClick={() => openUserModal(u)} className="text-emerald-600 p-2 hover:bg-emerald-50 rounded-lg"><Edit2 size={18} /></button>
