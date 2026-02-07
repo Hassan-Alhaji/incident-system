@@ -242,19 +242,28 @@ enum Role {
   OPERATION_CONTROL_TEAM
   DEPUTY_CHIEF_CONTROL_OFFICER
   CHIEF_OF_CONTROL
-  
+  CONTROL_OP_TEAM           // Legacy? Keeping to avoid delete
+  DEPUTY_CONTROL_OP_OFFICER // Legacy? Keeping to avoid delete
+
   // Safety
   SAFETY_MARSHAL
   OPERATION_SAFETY_TEAM
   DEPUTY_CHIEF_SAFETY_OFFICER
   CHIEF_SAFETY_OFFICER
-  
+  SAFETY_OP_TEAM        // Legacy? Keeping to avoid delete
+  DEPUTY_SAFETY_OFFICER // Legacy? Keeping to avoid delete
+  SAFETY_OFFICER_CHIEF  // Legacy? Keeping to avoid delete
+
   // Medical
   MEDICAL_MARSHAL
   MEDICAL_EVACUATION_CREW
   OPERATION_MEDICAL_TEAM
   DEPUTY_CHIEF_MEDICAL_OFFICER
   CHIEF_MEDICAL_OFFICER
+  MEDICAL_VENDOR          // Legacy? Keeping to avoid delete
+  MEDICAL_EVACUATION      // Legacy? Keeping to avoid delete
+  MEDICAL_OP_TEAM         // Legacy? Keeping to avoid delete
+  DEPUTY_MEDICAL_OFFICER  // Legacy? Keeping to avoid delete
 
   // Other
   SCRUTINEERS
