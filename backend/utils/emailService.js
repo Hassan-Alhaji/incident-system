@@ -3,15 +3,21 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'al3ren0@gmail.com',
-        pass: 'bnpt gzmb xifj tdfa'
+        user: process.env.EMAIL_USER, // Use environment variables
+        pass: process.env.EMAIL_PASS
     }
 });
 
 const sendOTP = async (email, otp) => {
     try {
+        console.log(`[Email Service] Attempting to send OTP to ${email}...`);
+
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+            throw new Error('Email credentials are missing in environment variables.');
+        }
+
         const mailOptions = {
-            from: '"Incident Portal" <al3ren0@gmail.com>',
+            from: '"Incident Portal" <' + process.env.EMAIL_USER + '>',
             to: email,
             subject: 'Your Login Code',
             html: `
@@ -29,10 +35,10 @@ const sendOTP = async (email, otp) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log(`Email sent: ${info.messageId}`);
+        console.log(`[Email Service] Email sent successfully: ${info.messageId}`);
         return true;
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('[Email Service] Error sending email:', error.message);
         return false;
     }
 };

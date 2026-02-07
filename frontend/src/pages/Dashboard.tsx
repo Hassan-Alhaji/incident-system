@@ -177,7 +177,7 @@ const Dashboard = () => {
                 <div className="flex gap-4">
                     {!isMarshal && (
                         <button
-                            onClick={() => navigate('/incident-wizard')}
+                            onClick={() => navigate('/tickets/new')}
                             className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:scale-105 transition-all flex items-center gap-2"
                         >
                             <Plus size={20} /> New Incident

@@ -30,6 +30,8 @@ app.get('/api/health', (req, res) => {
     res.status(200).send('OK');
 });
 
+// Debug endpoint removed due to Express 5 compatibility issues
+
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
@@ -69,12 +71,6 @@ app.use((req, res) => {
 // Start Server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log('--- Registering Routes ---');
-    app._router.stack.forEach(r => {
-        if (r.route && r.route.path) {
-            console.log(r.route.path);
-        }
-    });
 });
 
 // Keep-alive for some environments
