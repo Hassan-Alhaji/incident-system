@@ -13,6 +13,9 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Force Redeploy Trigger - V2
+    console.log('Login Page Loaded - Version: Supabase Direct Auth');
+
     const handleSendOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
