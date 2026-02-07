@@ -30,8 +30,19 @@ const requestEmailOtp = async (req, res) => {
             });
         }
 
+        // Auto-create New User as SPORT_MARSHAL
         if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+            const nameFromEmail = email.split('@')[0];
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    name: nameFromEmail, // Default name from email
+                    role: 'SPORT_MARSHAL', // Standard role
+                    password: '',
+                    status: 'ACTIVE'
+                }
+            });
+            // Proceed to generate OTP for this new user
         }
 
         if (user.status === 'SUSPENDED') {

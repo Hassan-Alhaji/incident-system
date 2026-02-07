@@ -25,7 +25,7 @@ const createUser = async (req, res) => {
                 name,
                 email,
                 password: '', // No password for OTP users
-                role,
+                role: role || 'SPORT_MARSHAL',
                 isIntakeEnabled: isIntakeEnabled || false
             }
         });
