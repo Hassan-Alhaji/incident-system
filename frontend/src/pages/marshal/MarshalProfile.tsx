@@ -19,7 +19,7 @@ const MarshalProfile = () => {
 
     const validate = () => {
         const englishRegex = /^[A-Za-z\s]+$/;
-        const mobileRegex = /^00966\d+$/;
+        const mobileRegex = /^(00|\+)\d+$/;
 
         if (!formData.firstName || !englishRegex.test(formData.firstName)) {
             return "First Name must be English characters only.";
@@ -28,7 +28,7 @@ const MarshalProfile = () => {
             return "Last Name must be English characters only.";
         }
         if (!formData.mobile || !mobileRegex.test(formData.mobile)) {
-            return "Mobile must start with 00966 and contain numbers only.";
+            return "Mobile must start with a country code (e.g. 00966...)";
         }
         return null;
     };

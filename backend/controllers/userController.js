@@ -73,8 +73,8 @@ const updateProfile = async (req, res) => {
 
         // Validation: English Only and Required for these fields
         const englishRegex = /^[A-Za-z\s]+$/;
-        // Mobile: Must start with 00966 and be numbers only
-        const mobileRegex = /^00966\d+$/;
+        // Mobile: Must start with 00 or + followed by digits
+        const mobileRegex = /^(00|\+)\d+$/;
 
         if (firstName && !englishRegex.test(firstName)) {
             return res.status(400).json({ message: 'First Name must be English letters only' });
@@ -83,7 +83,7 @@ const updateProfile = async (req, res) => {
             return res.status(400).json({ message: 'Last Name must be English letters only' });
         }
         if (mobile && !mobileRegex.test(mobile)) {
-            return res.status(400).json({ message: 'Mobile must start with 00966 and contain numbers only' });
+            return res.status(400).json({ message: 'Mobile must start with country code (e.g. 00966...)' });
         }
 
         const updateData = {};

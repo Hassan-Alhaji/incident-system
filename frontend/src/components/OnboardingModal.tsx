@@ -21,12 +21,8 @@ const OnboardingModal = () => {
 
     const validate = () => {
         const englishRegex = /^[A-Za-z\s]+$/;
-        // Mobile must start with 00966 and be followed by digits. 
-        // Example: 00966501234567 (14 digits total usually, or just check prefix)
-        // User said "shows 00966" - assuming they input full number or we prefix it?
-        // "Mobile must be validated (numbers only, shows 00966)"
-        // I will assume the user must type 00966...
-        const mobileRegex = /^00966\d+$/;
+        // Mobile must start with 00 or + and be followed by digits
+        const mobileRegex = /^(00|\+)\d+$/;
 
         if (!formData.firstName || !englishRegex.test(formData.firstName)) {
             return "First Name must be English characters only.";
@@ -35,7 +31,7 @@ const OnboardingModal = () => {
             return "Last Name must be English characters only.";
         }
         if (!formData.mobile || !mobileRegex.test(formData.mobile)) {
-            return "Mobile must start with 00966 and contain only numbers.";
+            return "Mobile must start with a country code (e.g. 00966...)";
         }
         return null;
     };
@@ -118,9 +114,9 @@ const OnboardingModal = () => {
                                 value={formData.mobile}
                                 onChange={handleChange}
                                 className="w-full border-gray-300 rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 p-2.5 border"
-                                placeholder="009665..."
+                                placeholder="00966..."
                             />
-                            <p className="text-xs text-gray-400 mt-1">Format: 009665XXXXXXXX</p>
+                            <p className="text-xs text-gray-400 mt-1">Start with country code (e.g. 00966 or +1...)</p>
                         </div>
 
                         <button
