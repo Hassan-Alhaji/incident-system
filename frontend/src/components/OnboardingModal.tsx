@@ -6,12 +6,23 @@ import { ShieldAlert, CheckCircle, Save } from 'lucide-react';
 const OnboardingModal = () => {
     const { user, login, logout, token } = useAuth();
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        mobile: ''
+        firstName: user?.firstName || user?.name?.split(' ')[0] || '',
+        lastName: user?.lastName || user?.name?.split(' ').slice(1).join(' ') || '',
+        mobile: user?.mobile || ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Update form data when user data becomes available/changes
+    React.useEffect(() => {
+        if (user) {
+            setFormData(prev => ({
+                firstName: user.firstName || user.name?.split(' ')[0] || prev.firstName,
+                lastName: user.lastName || user.name?.split(' ').slice(1).join(' ') || prev.lastName,
+                mobile: user.mobile || prev.mobile
+            }));
+        }
+    }, [user]);
 
     if (!user || user.isProfileCompleted) return null;
 
