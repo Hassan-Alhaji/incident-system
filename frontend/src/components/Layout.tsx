@@ -6,7 +6,6 @@ import {
     Menu, X, ShieldAlert, BadgeCheck, Settings
 } from 'lucide-react';
 import api from '../utils/api';
-import OnboardingModal from './OnboardingModal';
 
 function Layout() {
     const { user, logout } = useAuth();
@@ -75,7 +74,6 @@ function Layout() {
 
     return (
         <div className="flex h-screen bg-gray-50">
-            <OnboardingModal />
 
             {/* Sidebar */}
             <aside className={`bg-emerald-950 text-white transition-all duration-300 flex flex-col ${isSidebarOpen ? 'w-64' : 'w-20'}`}>

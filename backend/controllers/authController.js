@@ -106,13 +106,8 @@ const verifyEmailOtp = async (req, res) => {
         }
 
         // Auto-Complete Profile if Data Exists (Migration helper)
-        let isProfileCompleted = user.isProfileCompleted;
-        const hasName = (user.firstName && user.lastName) || (user.name && user.name.trim().split(' ').length >= 2);
-        const hasMobile = !!user.mobile;
-
-        if (!isProfileCompleted && hasName && hasMobile) {
-            isProfileCompleted = true;
-        }
+        // Check removed: Always mark profile as completed to bypass modal
+        let isProfileCompleted = true;
 
         // Clear OTP and Update Profile Status
         const updatedUser = await prisma.user.update({
