@@ -5,10 +5,10 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.route('/')
     .get(protect, getEvents) // Authenticated users can list
-    .post(protect, authorize('ADMIN'), createEvent); // Only Admins
+    .post(protect, authorize('ADMIN', 'CHIEF_OF_CONTROL'), createEvent);
 
 router.route('/:id')
-    .patch(protect, authorize('ADMIN'), updateEvent)
-    .delete(protect, authorize('ADMIN'), deleteEvent);
+    .patch(protect, authorize('ADMIN', 'CHIEF_OF_CONTROL'), updateEvent)
+    .delete(protect, authorize('ADMIN', 'CHIEF_OF_CONTROL'), deleteEvent);
 
 module.exports = router;
