@@ -28,8 +28,8 @@
     "pg": "^8.18.0",
     "qrcode": "^1.5.4",
     "xlsx": "^0.18.5",
-    "@prisma/client": "^6.19.2",
-    "prisma": "^6.19.2"
+    "@prisma/client": "^5.19.0",
+    "prisma": "^5.19.0"
   },
   "devDependencies": {}
 }
