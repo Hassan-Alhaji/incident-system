@@ -9,7 +9,7 @@ router.use(protect);
 router.put('/profile', userController.updateProfile);
 
 // Admin only routes
-router.use(authorize('ADMIN'));
+router.use(authorize('ADMIN', 'CHIEF_OF_CONTROL'));
 
 const upload = require('../middleware/uploadMiddleware');
 
