@@ -15,7 +15,9 @@ const Settings = () => {
     const [userError, setUserError] = useState<string>('');
     const [userSuccess, setUserSuccess] = useState<string>('');
     const [userFormData, setUserFormData] = useState({
-        name: '', email: '', password: '', role: 'SPORT_MARSHAL', isIntakeEnabled: false
+        name: '', email: '', password: '', role: 'SPORT_MARSHAL',
+        isIntakeEnabled: false,
+        canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false
     });
 
     // Events State
@@ -93,11 +95,19 @@ const Settings = () => {
             setEditingUser(u.id);
             setUserFormData({
                 name: u.name, email: u.email, password: '', role: u.role,
-                isIntakeEnabled: u.isIntakeEnabled || false
+                isIntakeEnabled: u.isIntakeEnabled || false,
+                canViewMedical: u.canViewMedical || false,
+                canViewSafety: u.canViewSafety || false,
+                canViewSport: u.canViewSport || false,
+                canViewAll: u.canViewAll || false
             });
         } else {
             setEditingUser(null);
-            setUserFormData({ name: '', email: '', password: '', role: 'SPORT_MARSHAL', isIntakeEnabled: false });
+            setUserFormData({
+                name: '', email: '', password: '', role: 'SPORT_MARSHAL',
+                isIntakeEnabled: false,
+                canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false
+            });
         }
         setShowUserModal(true);
     };
@@ -238,8 +248,8 @@ const Settings = () => {
                                                     <button
                                                         onClick={() => toggleUserStatus(u.id, u.status)}
                                                         className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border min-w-[100px] justify-center transition-all ${u.status === 'ACTIVE'
-                                                                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 shadow-sm'
-                                                                : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 shadow-sm'
+                                                            ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 shadow-sm'
+                                                            : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 shadow-sm'
                                                             }`}
                                                     >
                                                         {u.status === 'ACTIVE' ? <CheckCircle size={14} /> : <XCircle size={14} />}
@@ -322,8 +332,8 @@ const Settings = () => {
                                                     <button
                                                         onClick={() => toggleEventStatus(e.id, e.isActive)}
                                                         className={`flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${e.isActive
-                                                                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 shadow-sm'
-                                                                : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                                                            ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 shadow-sm'
+                                                            : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
                                                             }`}
                                                     >
                                                         {e.isActive ? <CheckCircle size={14} /> : <XCircle size={14} />}
@@ -421,13 +431,51 @@ const Settings = () => {
                                 </select>
                             </div>
 
-                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer" onClick={() => setUserFormData({ ...userFormData, isIntakeEnabled: !userFormData.isIntakeEnabled })}>
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.isIntakeEnabled ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
-                                    {userFormData.isIntakeEnabled && <CheckCircle size={14} />}
+                            <div className="space-y-3 pt-2">
+                                <h4 className="text-sm font-semibold text-gray-900">Additional Permissions</h4>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canViewMedical: !userFormData.canViewMedical })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canViewMedical ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canViewMedical && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 select-none">View Medical</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canViewSafety: !userFormData.canViewSafety })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canViewSafety ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canViewSafety && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 select-none">View Safety</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canViewSport: !userFormData.canViewSport })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canViewSport ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canViewSport && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 select-none">View Sport</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canViewAll: !userFormData.canViewAll })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canViewAll ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canViewAll && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 select-none">View All Tickets</span>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-sm font-medium text-gray-900 select-none">Enable Ticket Intake</p>
-                                    <p className="text-xs text-gray-500 select-none">Allow user to view ALL incoming tickets</p>
+
+                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setUserFormData({ ...userFormData, isIntakeEnabled: !userFormData.isIntakeEnabled })}>
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.isIntakeEnabled ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                        {userFormData.isIntakeEnabled && <CheckCircle size={14} />}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900 select-none">Enable Ticket Intake</p>
+                                        <p className="text-xs text-gray-500 select-none">Legacy: View all incoming tickets (Superceeded by above)</p>
+                                    </div>
                                 </div>
                             </div>
 

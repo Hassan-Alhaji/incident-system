@@ -5,7 +5,11 @@ const { hashPassword } = require('../utils/authUtils');
 const getUsers = async (req, res) => {
     try {
         const users = await prisma.user.findMany({
-            select: { id: true, name: true, email: true, role: true, isIntakeEnabled: true, createdAt: true, status: true }
+            select: {
+                id: true, name: true, email: true, role: true,
+                isIntakeEnabled: true, createdAt: true, status: true,
+                canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true
+            }
         });
         res.json(users);
     } catch (error) {
@@ -29,7 +33,11 @@ const createUser = async (req, res) => {
                 email,
                 password: '', // No password for OTP users
                 role: role || 'SPORT_MARSHAL',
-                isIntakeEnabled: isIntakeEnabled || false
+                isIntakeEnabled: isIntakeEnabled || false,
+                canViewMedical: req.body.canViewMedical || false,
+                canViewSafety: req.body.canViewSafety || false,
+                canViewSport: req.body.canViewSport || false,
+                canViewAll: req.body.canViewAll || false
             }
         });
 
@@ -59,6 +67,10 @@ const updateUser = async (req, res) => {
         if (email) updateData.email = email;
         if (role) updateData.role = role;
         if (typeof isIntakeEnabled === 'boolean') updateData.isIntakeEnabled = isIntakeEnabled;
+        if (typeof req.body.canViewMedical === 'boolean') updateData.canViewMedical = req.body.canViewMedical;
+        if (typeof req.body.canViewSafety === 'boolean') updateData.canViewSafety = req.body.canViewSafety;
+        if (typeof req.body.canViewSport === 'boolean') updateData.canViewSport = req.body.canViewSport;
+        if (typeof req.body.canViewAll === 'boolean') updateData.canViewAll = req.body.canViewAll;
 
         const user = await prisma.user.update({
             where: { id: req.params.id },

@@ -129,100 +129,42 @@ const createTicket = async (req, res) => {
 // @access  Private
 const getTickets = async (req, res) => {
     try {
-        const { role, id: userId, isIntakeEnabled } = req.user;
-        let whereClause = {};
+        const { role, id: userId, canViewMedical, canViewSafety, canViewSport, canViewAll } = req.user;
 
-        // 0. Admin & Chief of Control (High Level Oversight - See ALL)
-        if (role === 'ADMIN' || role === 'CHIEF_OF_CONTROL') {
-            // See all tickets
+        // 1. Super Admin / View All
+        if (role === 'ADMIN' || role === 'CHIEF_OF_CONTROL' || canViewAll) {
+            const tickets = await prisma.ticket.findMany({
+                include: {
+                    createdBy: { select: { name: true, role: true } },
+                    assignedTo: { select: { name: true } },
+                    controlReport: true,
+                    medicalReport: true,
+                    safetyReport: true
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+            return res.json(tickets);
         }
-        // 1. Marshals / Creators (View Own Only)
-        else if ([...ROLES.MEDICAL_CREATORS, ...ROLES.SAFETY_CREATORS, ...ROLES.SPORT_CREATORS].includes(role)) {
-            whereClause.createdById = userId;
-        }
-        // 2. Medical Processors
-        else if (ROLES.MEDICAL_PROCESSORS.includes(role)) {
-            // Apply intake filter for Deputy/CMO
-            if (['DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER'].includes(role) && !isIntakeEnabled) {
-                // If intake disabled, view only ASSIGNED or explicitly ESCALATED TO THEM specifically
-                whereClause = {
-                    OR: [
-                        { assignedToId: userId },
-                        { escalatedToRole: role }, // If escalated specifically to my role
-                        { createdById: userId }
-                    ]
-                };
-            } else {
-                // View All Submitted Medical Tickets OR Escalated to Medical Dept
-                whereClause = {
-                    OR: [
-                        { type: 'MEDICAL', status: { not: 'DRAFT' } },
-                        { escalatedToRole: { in: ROLES.MEDICAL_PROCESSORS } }, // Any medical role
-                        // Or specifically the group role:
-                        { escalatedToRole: 'MEDICAL_OP_TEAM' }
-                    ]
-                };
-            }
-        }
-        // 3. Safety Processors
-        else if (ROLES.SAFETY_PROCESSORS.includes(role)) {
-            if (['DEPUTY_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF'].includes(role) && !isIntakeEnabled) {
-                whereClause = {
-                    OR: [
-                        { assignedToId: userId },
-                        { escalatedToRole: role }
-                    ]
-                };
-            } else {
-                whereClause = {
-                    OR: [
-                        { type: 'SAFETY', status: { not: 'DRAFT' } },
-                        { escalatedToRole: { in: ROLES.SAFETY_PROCESSORS } },
-                        { escalatedToRole: 'SAFETY_OP_TEAM' }
-                    ]
-                };
-            }
-        }
-        // 4. Sport Processors
-        else if (ROLES.SPORT_PROCESSORS.includes(role)) {
-            if (['DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_OF_CONTROL'].includes(role) && !isIntakeEnabled) {
-                whereClause = {
-                    OR: [
-                        { assignedToId: userId },
-                        { escalatedToRole: role }
-                    ]
-                };
-            } else {
-                whereClause = {
-                    OR: [
-                        { type: 'SPORT', status: { not: 'DRAFT' } },
-                        { escalatedToRole: { in: ROLES.SPORT_PROCESSORS } },
-                        { escalatedToRole: 'CONTROL_OP_TEAM' }
-                    ]
-                };
-            }
-        }
-        // 5. Scrutineers (Stewards)
-        else if (ROLES.SCRUTINEERS.includes(role)) {
-            whereClause = {
-                OR: [
-                    { assignedToId: userId },
-                    { escalatedToRole: role }
-                ]
-            };
-        }
-        // 6. Judges
-        else if (ROLES.JUDGES.includes(role)) {
-            whereClause = {
-                OR: [
-                    { assignedToId: userId },
-                    { escalatedToRole: role }
-                ]
-            };
-        }
+
+        // 2. Base Visibility (Own, Assigned, Escalated to Me/MyRole)
+        const orConditions = [
+            { createdById: userId },
+            { assignedToId: userId },
+            { escalatedToRole: role }
+        ];
+
+        // 3. Department Views (Submitted only)
+        if (canViewMedical) orConditions.push({ type: 'MEDICAL', status: { not: 'DRAFT' } });
+        if (canViewSafety) orConditions.push({ type: 'SAFETY', status: { not: 'DRAFT' } });
+        if (canViewSport) orConditions.push({ type: 'SPORT', status: { not: 'DRAFT' } });
+
+        // 4. Legacy Support for "Intake" (Mapping old roles to view permissions dynamically if needed, 
+        // but for now relying on strict flags as requested. Admin must configure users.)
 
         const tickets = await prisma.ticket.findMany({
-            where: whereClause,
+            where: {
+                OR: orConditions
+            },
             include: {
                 createdBy: { select: { name: true, role: true } },
                 assignedTo: { select: { name: true } },
@@ -262,33 +204,26 @@ const getTicketById = async (req, res) => {
 
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-        // Basic authorization check (similar to getTickets logic or allowed if they have the link and role permits?)
-        // For simplicity, reusing loose logic: CreatedBy can allowed.
-        const { role, id: userId } = req.user;
+        const { role, id: userId, canViewMedical, canViewSafety, canViewSport, canViewAll } = req.user;
 
-        // Allowed if creator
+        // 1. Super User
+        if (role === 'ADMIN' || role === 'CHIEF_OF_CONTROL' || canViewAll) return res.json(ticket);
+
+        // 2. Base Visibility
         if (ticket.createdById === userId) return res.json(ticket);
-
-        // Allowed if assigned
         if (ticket.assignedToId === userId) return res.json(ticket);
+        if (ticket.escalatedToRole === role) return res.json(ticket);
 
-        // Allowed if in correct Department and not DRAFT (unless Creator)
-        if (ticket.status === 'DRAFT' && ticket.createdById !== userId) {
+        // 3. Draft Restriction (Only Creator/Admin can see drafts, usually)
+        if (ticket.status === 'DRAFT') {
+            // If not creator/admin (handled above), deny
             return res.status(403).json({ message: 'Draft tickets are private.' });
         }
 
-        // Department Check - Allow all Officials to VIEW tickets (Read-Only access is broad, Actions are restricted)
-        const ALL_OFFICIALS = [
-            ...ROLES.MEDICAL_PROCESSORS,
-            ...ROLES.SAFETY_PROCESSORS,
-            ...ROLES.SPORT_PROCESSORS,
-            ...ROLES.SCRUTINEERS,
-            ...ROLES.JUDGES
-        ];
-
-        if (ALL_OFFICIALS.includes(role)) return res.json(ticket);
-
-        if (role === 'ADMIN' || role === 'CHIEF_OF_CONTROL') return res.json(ticket);
+        // 4. Department Visibility (Submitted)
+        if (canViewMedical && ticket.type === 'MEDICAL') return res.json(ticket);
+        if (canViewSafety && ticket.type === 'SAFETY') return res.json(ticket);
+        if (canViewSport && ticket.type === 'SPORT') return res.json(ticket);
 
         // If none of the above
         return res.status(403).json({ message: 'Not authorized to view this ticket' });

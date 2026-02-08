@@ -21,6 +21,13 @@ model User {
   mobile          String?
   status          UserStatus            @default(ACTIVE)
   isMedical       Boolean               @default(false)
+  
+  // Visibility Permissions
+  canViewMedical  Boolean               @default(false)
+  canViewSafety   Boolean               @default(false)
+  canViewSport    Boolean               @default(false)
+  canViewAll      Boolean               @default(false)
+
   otpCode         String?
   otpExpires      DateTime?
   createdAt       DateTime              @default(now())

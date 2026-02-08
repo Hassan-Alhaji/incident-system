@@ -11,6 +11,7 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
-    url: env("DATABASE_URL"),
+    // Direct connection for migrations
+    url: "postgres://postgres.ezlecsjuqvcqvmfpigkl:Hana223023!@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
   },
 });
