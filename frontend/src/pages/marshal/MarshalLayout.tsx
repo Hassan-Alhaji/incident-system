@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, User as UserIcon } from 'lucide-react';
-import OnboardingModal from '../../components/OnboardingModal';
+
 
 const MarshalLayout = () => {
     const { user, logout, isLoading } = useAuth();
@@ -29,7 +29,6 @@ const MarshalLayout = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
-            <OnboardingModal />
 
             {/* Mobile Header */}
             <header className="bg-black text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center">
