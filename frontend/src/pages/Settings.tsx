@@ -34,7 +34,10 @@ const Settings = () => {
         try {
             const res = await api.get('/users');
             setUsers(res.data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            setUserError('Failed to load users. You might not have permission.');
+        }
     };
 
     const handleUserSubmit = async () => {
