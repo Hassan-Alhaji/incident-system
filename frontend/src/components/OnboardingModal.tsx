@@ -70,7 +70,15 @@ const OnboardingModal = () => {
             console.error(err);
             const msg = err.response?.data?.message || 'Failed to update profile. Please try again.';
             setError(msg);
-            alert(msg); // Force user to see the error
+
+            // If token is invalid (401), force logout to break the loop
+            if (err.response?.status === 401 || JSON.stringify(msg).toLowerCase().includes('token')) {
+                alert('Session expired. Please login again.');
+                logout();
+                window.location.reload();
+            } else {
+                alert(msg); // Force user to see other errors
+            }
         } finally {
             setLoading(false);
         }
