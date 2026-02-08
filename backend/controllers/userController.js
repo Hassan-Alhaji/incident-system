@@ -101,6 +101,19 @@ const updateProfile = async (req, res) => {
         const finalLastName = lastName || currentUser.lastName;
         const finalMobile = mobile || currentUser.mobile;
 
+        // Check if mobile is already used by ANOTHER user (to avoid P2002)
+        if (mobile && mobile !== currentUser.mobile) {
+            const existingMobile = await prisma.user.findFirst({
+                where: {
+                    mobile: mobile,
+                    id: { not: userId }
+                }
+            });
+            if (existingMobile) {
+                return res.status(400).json({ message: 'Mobile number is already linked to another account.' });
+            }
+        }
+
         // If we passed validation (English name, valid mobile), we can mark profile as completed
         updateData.isProfileCompleted = true;
 

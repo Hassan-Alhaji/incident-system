@@ -68,7 +68,9 @@ const OnboardingModal = () => {
             }
         } catch (err: any) {
             console.error(err);
-            setError(err.response?.data?.message || 'Failed to update profile. Please try again.');
+            const msg = err.response?.data?.message || 'Failed to update profile. Please try again.';
+            setError(msg);
+            alert(msg); // Force user to see the error
         } finally {
             setLoading(false);
         }
