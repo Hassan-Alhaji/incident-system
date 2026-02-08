@@ -63,7 +63,8 @@ const OnboardingModal = () => {
             if (res.data.user && token) {
                 // Update local context with new user data
                 login(token, res.data.user);
-                // Redirect logic is handled by the fact that the modal disappears when isProfileCompleted becomes true
+                // Force a reload to ensure fresh state, which will automatically hide the modal
+                window.location.reload();
             }
         } catch (err: any) {
             console.error(err);

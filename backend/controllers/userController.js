@@ -101,9 +101,8 @@ const updateProfile = async (req, res) => {
         const finalLastName = lastName || currentUser.lastName;
         const finalMobile = mobile || currentUser.mobile;
 
-        if (finalFirstName && finalLastName && finalMobile) {
-            updateData.isProfileCompleted = true;
-        }
+        // If we passed validation (English name, valid mobile), we can mark profile as completed
+        updateData.isProfileCompleted = true;
 
         const user = await prisma.user.update({
             where: { id: userId },
