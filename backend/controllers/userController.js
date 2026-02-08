@@ -1,3 +1,4 @@
+const fs = require('fs');
 const prisma = require('../prismaClient');
 const { hashPassword } = require('../utils/authUtils');
 
@@ -8,6 +9,7 @@ const getUsers = async (req, res) => {
         });
         res.json(users);
     } catch (error) {
+        console.error('[User] getUsers Error:', error);
         res.status(500).json({ message: 'Error fetching users' });
     }
 };
@@ -15,6 +17,7 @@ const getUsers = async (req, res) => {
 const createUser = async (req, res) => {
     try {
         const { name, email, password, role, isIntakeEnabled } = req.body;
+        console.log('[User] Creating user:', { name, email, role, isIntakeEnabled });
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) return res.status(400).json({ message: 'User already exists' });
@@ -30,9 +33,11 @@ const createUser = async (req, res) => {
             }
         });
 
+        console.log('[User] User created:', user.id);
         res.status(201).json({ message: 'User created successfully', user: { id: user.id, name: user.name, email: user.email } });
     } catch (error) {
-        res.status(500).json({ message: 'Error creating user' });
+        console.error('[User] createUser Error:', error);
+        res.status(500).json({ message: 'Error creating user', error: error.message });
     }
 };
 
