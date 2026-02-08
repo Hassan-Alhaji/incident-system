@@ -9,9 +9,7 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
-  engine: "classic",
   datasource: {
-    // Direct connection for migrations
-    url: "postgres://postgres.ezlecsjuqvcqvmfpigkl:Hana223023!@aws-1-ap-south-1.pooler.supabase.com:5432/postgres",
+    url: env("DATABASE_URL"),
   },
 });
