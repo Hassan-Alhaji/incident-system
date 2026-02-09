@@ -163,8 +163,8 @@ const TicketDetail = () => {
         <div className="space-y-6 max-w-6xl mx-auto">
             {/* Medical Modal */}
             {showMedicalModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <Activity size={20} className="text-red-600" /> Medical Assessment
                         </h2>
@@ -211,8 +211,8 @@ const TicketDetail = () => {
 
             {/* Escalation Modal */}
             {showEscalationModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold mb-4">Escalate Ticket</h2>
                         <div className="space-y-4 text-sm">
                             <div>
@@ -332,12 +332,12 @@ const TicketDetail = () => {
             )}
 
             {/* Header Actions */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors w-full md:w-auto justify-center md:justify-start">
                     <ArrowLeft size={20} />
                     Back to Dashboard
                 </button>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
                     <button
                         onClick={handleExport}
                         className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm font-medium"
@@ -534,12 +534,12 @@ const TicketDetail = () => {
                 {/* Left Column: Info Card */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-start">
+                        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start gap-4">
                             <div>
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{ticket.type} Incident</span>
-                                <h1 className="text-2xl font-bold text-gray-900 mt-1">{ticket.ticketNo}</h1>
+                                <h1 className="text-2xl font-bold text-gray-900 mt-1 break-all">{ticket.ticketNo}</h1>
                             </div>
-                            <div className="flex flex-col items-end gap-1">
+                            <div className="flex flex-col items-start md:items-end gap-1 w-full md:w-auto">
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(ticket.status)}`}>
                                     {ticket.status.replace('_', ' ')}
                                 </span>

@@ -264,7 +264,7 @@ const MarshalTicketForm = () => {
                 </h1>
 
                 {/* Stepper */}
-                <div className="flex justify-between relative px-4">
+                <div className="flex justify-between relative px-2 md:px-4">
                     <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 -z-10 -translate-y-1/2 rounded" />
                     <div
                         className="absolute top-1/2 left-0 h-1 bg-emerald-600 -z-10 -translate-y-1/2 rounded transition-all duration-300"
@@ -286,7 +286,7 @@ const MarshalTicketForm = () => {
             </div>
 
             {/* Content Card */}
-            <div className="bg-white rounded-xl shadow-lg p-8 min-h-[500px]">
+            <div className="bg-white rounded-xl shadow-lg p-4 md:p-8 min-h-[500px]">
 
                 {/* --- COMMON: TYPE SELECTION (General Step 1, Medical Step 0) --- */}
                 {/* Actually we need to handle the divergence. If subtype is medical, Step 0 logic is same: Type Selection */}
