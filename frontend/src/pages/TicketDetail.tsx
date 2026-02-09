@@ -76,9 +76,23 @@ const TicketDetail = () => {
             document.body.appendChild(link);
             link.click();
             link.parentNode?.removeChild(link);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Export error:', err);
-            alert('Export failed. Please try again.');
+            let message = 'Export failed. Please try again.';
+
+            if (err.response && err.response.data instanceof Blob) {
+                try {
+                    const errorText = await err.response.data.text();
+                    const errorJson = JSON.parse(errorText);
+                    if (errorJson.message) message = `Export Failed: ${errorJson.message}`;
+                } catch (e) {
+                    // Blob was not JSON text
+                }
+            } else if (err.message) {
+                message = `Export Failed: ${err.message}`;
+            }
+
+            alert(message);
         }
     };
     // ... (existing code) ...
