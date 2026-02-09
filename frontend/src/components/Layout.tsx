@@ -115,7 +115,7 @@ function Layout() {
                     bg-emerald-950 text-white transition-transform duration-300 ease-in-out flex flex-col h-full
                     ${isSidebarOpen
                         ? 'translate-x-0 w-64'
-                        : (isMobile ? '-translate-x-full w-64' : 'translate-x-0 w-20')
+                        : (isMobile ? '-translate-x-full w-64 invisible' : 'translate-x-0 w-20')
                     }
                 `}
             >
