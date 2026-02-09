@@ -58,15 +58,27 @@ const TicketDetail = () => {
 
     const handleExport = async () => {
         try {
-            const response = await api.post(`/tickets/${id}/export-pdf`);
-            if (response.data.downloadUrl) {
-                window.open(response.data.downloadUrl, '_blank');
-            } else {
-                alert(`PDF Generated. Verification URL: ${response.data.verifyUrl}`);
+            const response = await api.post(`/tickets/${id}/export-pdf`, {}, {
+                responseType: 'blob' // Important: Expect binary data
+            });
+
+            // Create blob link to download
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let fileName = `report-${ticket?.ticketNo || 'incident'}.pdf`;
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename=(.+)/);
+                if (fileNameMatch.length === 2) fileName = fileNameMatch[1];
             }
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode?.removeChild(link);
         } catch (err) {
-            console.error(err);
-            alert('Export failed');
+            console.error('Export error:', err);
+            alert('Export failed. Please try again.');
         }
     };
     // ... (existing code) ...

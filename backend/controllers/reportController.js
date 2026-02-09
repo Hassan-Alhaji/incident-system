@@ -36,16 +36,16 @@ const exportPdf = async (req, res) => {
             return res.status(404).json({ message: 'Ticket not found' });
         }
 
-        // 2. Setup Document
+        // 2. Setup Document & Stream
         const verifyToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
         const fileName = `report-${ticket.ticketNo}.pdf`;
-        const uploadsDir = path.join(__dirname, '..', 'uploads');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
-        const filePath = path.join(uploadsDir, fileName);
+        // Set Headers for Download
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
         const doc = new PDFDocument({ margin: 40, size: 'A4' });
-        const stream = fs.createWriteStream(filePath);
-        doc.pipe(stream);
+        doc.pipe(res); // Stream directly to client
 
         // --- Helper Functions ---
         const colors = {
@@ -402,17 +402,18 @@ const exportPdf = async (req, res) => {
         doc.fontSize(10).font('Helvetica').text('Scan this QR code to verify the authenticity of this report.', { align: 'center' });
         doc.font('Helvetica-Bold').text(`Verification Token: ${verifyToken}`, { align: 'center', color: colors.primary });
 
-        // End
+        // End PDF generation
         doc.end();
 
-        stream.on('finish', async () => {
+        // Async Background Logging (Fire & Forget to not block download)
+        (async () => {
             try {
-                // Record Export
+                // Record Export (Metadata only)
                 await prisma.ticketExport.create({
                     data: {
                         ticketId,
                         verifyToken,
-                        pdfUrl: `/uploads/${fileName}`,
+                        pdfUrl: 'STREAMED_DOWNLOAD', // Placeholder since we stream
                         snapshotJson: JSON.stringify(ticket)
                     }
                 });
@@ -426,25 +427,16 @@ const exportPdf = async (req, res) => {
                         details: `PDF Report exported by ${req.user ? req.user.name : 'System'}`
                     }
                 });
-
-                res.json({
-                    message: 'PDF Generated successfully',
-                    verifyUrl,
-                    downloadUrl: `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${fileName}`
-                });
             } catch (postError) {
                 console.error("Error saving export record:", postError);
-                // Non-blocking error
-                res.status(200).json({
-                    message: 'Report generated (Tracking failed)',
-                    downloadUrl: `${process.env.BACKEND_URL || 'http://localhost:3000'}/uploads/${fileName}`
-                });
             }
-        });
+        })();
 
     } catch (error) {
         console.error("PDF Gen Error:", error);
-        res.status(500).json({ message: error.message });
+        if (!res.headersSent) {
+            res.status(500).json({ message: error.message });
+        }
     }
 };
 
