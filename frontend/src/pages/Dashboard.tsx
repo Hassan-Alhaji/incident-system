@@ -280,7 +280,7 @@ const Dashboard = () => {
 
             {/* Filters & Search */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
-                <div className="relative flex-1 min-w-[300px]">
+                <div className="relative flex-1 w-full md:w-auto md:min-w-[300px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
                         type="text"
