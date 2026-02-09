@@ -11,7 +11,8 @@ const PublicVerify = () => {
     useEffect(() => {
         const verify = async () => {
             try {
-                const response = await axios.get(`http://localhost:3000/api/verify/${token}`);
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+                const response = await axios.get(`${apiUrl}/verify/${token}`);
                 setResult(response.data);
             } catch (error) {
                 setResult({ valid: false });

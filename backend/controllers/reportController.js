@@ -15,369 +15,212 @@ const exportPdf = async (req, res) => {
     const ticketId = req.params.id;
 
     try {
-        // 1. Fetch Comprehensive Data
+        // Fetch comprehensive data
         const ticket = await prisma.ticket.findUnique({
             where: { id: ticketId },
             include: {
-                createdBy: true,
-                medicalReport: { include: { author: true } },
+                createdBy: { select: { name: true, email: true, mobile: true } },
+                medicalReport: true,
                 controlReport: true,
                 safetyReport: true,
                 pitGridReport: true,
                 attachments: true,
                 activityLogs: {
-                    include: { actor: true },
-                    orderBy: { createdAt: 'asc' } // Chronological order
+                    include: { actor: { select: { name: true } } },
+                    orderBy: { createdAt: 'desc' },
+                    take: 20
                 }
             }
         });
 
-        if (!ticket) {
-            return res.status(404).json({ message: 'Ticket not found' });
-        }
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-        // 2. Setup Document & Stream
-        const verifyToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        const fileName = `report-${ticket.ticketNo}.pdf`;
+        const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-        // Set Headers for Download
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        const chunks = [];
+        const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
 
-        const doc = new PDFDocument({ margin: 40, size: 'A4' });
-        doc.pipe(res); // Stream directly to client
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', async () => {
+            const pdfBuffer = Buffer.concat(chunks);
+            const fileName = `report-${ticket.ticketNo}.pdf`;
 
-        // --- Helper Functions ---
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            res.setHeader('Content-Length', pdfBuffer.length);
+            res.send(pdfBuffer);
+
+            try {
+                await prisma.ticketExport.create({
+                    data: {
+                        ticketId,
+                        verifyToken,
+                        pdfUrl: 'BUFFERED',
+                        snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
+                    }
+                });
+            } catch (e) { console.error('Export log error:', e); }
+        });
+
+        // === STYLES ===
         const colors = {
-            primary: '#15803d', // SAMF Green (700)
-            secondary: '#16a34a', // Green (600)
-            accent: '#e53e3e', // Red
-            text: '#2d3748',
-            gray: '#718096',
-            lightGray: '#f0fdf4', // Green-50
-            border: '#e2e8f0'
+            textMain: '#1f2937', // Dark charcoal
+            textLight: '#6b7280', // Medium gray
+            accent: '#047857',    // Emerald green (muted)
+            bgLight: '#f9fafb',   // Very light gray
+            border: '#e5e7eb',    // Light border
+            alertBg: '#fef2f2',   // Light red bg
+            alertText: '#991b1b'  // Dark red text
         };
 
-        const drawSection = (title, y) => {
-            doc.rect(40, y, 515, 25).fill(colors.primary);
-            doc.fillColor('white').fontSize(12).font('Helvetica-Bold').text(title, 50, y + 7);
-            doc.fillColor(colors.text); // Reset
-            return y + 35;
+        const FONTS = {
+            regular: 'Helvetica',
+            bold: 'Helvetica-Bold'
         };
 
-        const safeStr = (val) => (val === null || val === undefined) ? '-' : String(val);
-        const safeDate = (date) => {
-            try {
-                if (!date) return '-';
-                return new Date(date).toLocaleDateString();
-            } catch (e) { return '-'; }
-        };
-        const safeTime = (date) => {
-            try {
-                if (!date) return '-';
-                return new Date(date).toLocaleTimeString();
-            } catch (e) { return '-'; }
-        };
+        const MARGIN = 40;
+        const PAGE_WIDTH = 595.28;
+        const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
 
-        const drawField = (label, value, x, y, width = 250) => {
-            doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), x, y);
-            doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(safeStr(value), x, y + 12, { width: width - 10 });
-        };
+        // === HELPERS ===
 
-        const checkPageBreak = (neededSpace) => {
-            if (doc.y + neededSpace > 700) { // Reduced threshold to make room for footer
+        const checkPageBreak = (heightNeeded) => {
+            if (doc.y + heightNeeded > doc.page.height - MARGIN) {
                 doc.addPage();
                 return true;
             }
             return false;
         };
 
-        // Footer Logic
-        // Footer Logic
-        const addFooter = () => {
-            const bottom = doc.page.height - 50;
-            // Removed save/restore to prevent stack buildup
-            doc.fontSize(8).font('Helvetica-Bold').fillColor(colors.primary)
-                .text('All Rights Reserved to Saudi Automobile & Motorcycle Federation (SAMF)', 50, bottom, { align: 'center', width: 500 });
-            doc.fontSize(8).font('Helvetica').fillColor(colors.gray)
-                .text('Generated by Incident Management System', 50, bottom + 12, { align: 'center', width: 500 });
+        const drawSectionTitle = (title) => {
+            checkPageBreak(40);
+            doc.moveDown(1);
+            doc.font(FONTS.bold).fontSize(11).fillColor(colors.textMain).text(title.toUpperCase(), MARGIN);
+            doc.rect(MARGIN, doc.y + 2, CONTENT_WIDTH, 1).fill(colors.border);
+            doc.y += 10;
         };
 
-        // Attach footer to all *future* pages
-        doc.on('pageAdded', addFooter);
+        const drawLabelValue = (label, value, x, y, width, isBoldValue = false) => {
+            doc.font(FONTS.bold).fontSize(7).fillColor(colors.textLight).text(label.toUpperCase(), x, y);
+            doc.font(isBoldValue ? FONTS.bold : FONTS.regular).fontSize(9).fillColor(colors.textMain)
+                .text(value || '-', x, y + 10, { width: width, ellipsis: true });
+        };
 
-        // ================= HEADER =================
-        // Add footer to the *first* page manually
-        addFooter();
+        // === HEADER (Compact) ===
+        // Logo Placeholder
+        doc.rect(MARGIN, 40, 40, 40).fill(colors.bgLight).stroke(colors.border);
+        doc.font(FONTS.bold).fontSize(6).fillColor(colors.textLight).text('SAMF', MARGIN + 8, 55);
 
-        const logoPath = path.join(__dirname, '..', 'assets', 'logo_placeholder.png');
-        try {
-            if (fs.existsSync(logoPath)) {
-                doc.image(logoPath, 40, 40, { height: 40 });
-            }
-        } catch (e) { console.error('Logo load failed', e); }
+        // Title Block
+        doc.font(FONTS.bold).fontSize(16).fillColor(colors.textMain).text('OFFICIAL INCIDENT REPORT', MARGIN + 55, 45);
+        doc.font(FONTS.regular).fontSize(9).fillColor(colors.textLight).text('Saudi Automobile & Motorcycle Federation', MARGIN + 55, 65);
 
-        doc.fontSize(24).font('Helvetica-Bold').fillColor(colors.primary).text('MEDICAL & INCIDENT REPORT', { align: 'center' });
-        doc.fontSize(10).font('Helvetica').fillColor(colors.gray).text('CONFIDENTIAL DOCUMENT', { align: 'center', characterSpacing: 2 });
-        doc.moveDown();
+        // Reference Box (Top Right)
+        doc.font(FONTS.bold).fontSize(9).fillColor(colors.textMain).text(`REF: ${ticket.ticketNo}`, PAGE_WIDTH - MARGIN - 120, 45, { width: 120, align: 'right' });
 
-        // Top Info Bar
-        const topY = 100;
-        doc.rect(40, topY, 515, 60).fillColor(colors.lightGray).fill();
+        // Status Badge
+        const statusColor = ticket.status === 'CLOSED' ? colors.textLight : colors.accent;
+        doc.rect(PAGE_WIDTH - MARGIN - 80, 60, 80, 16).fill(colors.bgLight);
+        doc.font(FONTS.bold).fontSize(8).fillColor(statusColor).text(ticket.status, PAGE_WIDTH - MARGIN - 80, 64, { width: 80, align: 'center' });
 
-        doc.fillColor(colors.text);
-        drawField('Ticket Number', ticket.ticketNo, 50, topY + 10, 150);
-        drawField('Status', ticket.status.replace(/_/g, ' '), 200, topY + 10, 150);
-        drawField('Priority', ticket.priority, 350, topY + 10, 100);
+        doc.y = 100;
 
-        drawField('Date', safeDate(new Date()), 50, topY + 35, 150);
-        drawField('Time', safeTime(new Date()), 200, topY + 35, 150);
-        drawField('Type', ticket.type, 350, topY + 35, 100);
+        // === METADATA GRID ===
+        // Background for grid
+        doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 70).fill(colors.bgLight);
 
-        let currentY = topY + 70;
+        const row1Y = doc.y + 10;
+        const row2Y = doc.y + 40;
+        const col1X = MARGIN + 10;
+        const col2X = MARGIN + 160;
+        const col3X = MARGIN + 310;
+        const col4X = MARGIN + 430;
 
-        // ================= SECTION 1: INCIDENT INFORMATION =================
-        currentY = drawSection('1. INCIDENT DETAILS', currentY);
+        drawLabelValue('Event Name', ticket.eventName, col1X, row1Y, 140, true);
+        drawLabelValue('Location/Venue', ticket.location, col2X, row1Y, 140);
+        drawLabelValue('Type', ticket.type, col3X, row1Y, 110);
+        drawLabelValue('Priority', ticket.priority, col4X, row1Y, 80, true);
 
-        drawField('Event Name', ticket.eventName, 50, currentY);
-        drawField('Venue', ticket.venue, 300, currentY);
+        drawLabelValue('Date Reported', new Date(ticket.createdAt).toLocaleString(), col1X, row2Y, 140);
+        drawLabelValue('Reporter', ticket.createdBy?.name, col2X, row2Y, 140);
+        drawLabelValue('Contact', ticket.createdBy?.mobile || ticket.createdBy?.email, col3X, row2Y, 150);
 
-        drawField('Location', ticket.location, 50, currentY + 35);
+        doc.y += 85;
 
-        const reporterText = `${ticket.createdBy?.name}\nPh: ${ticket.createdBy?.mobile || '-'} | ${ticket.createdBy?.email || '-'}`;
-        drawField('Reporter', reporterText, 300, currentY + 35);
+        // === DESCRIPTION ===
+        drawSectionTitle('Indicator Description');
+        doc.font(FONTS.regular).fontSize(9).fillColor(colors.textMain)
+            .text(ticket.description || 'No description provided.', MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'justify' });
+        doc.y += 10;
 
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text('DESCRIPTION', 50, currentY + 95);
-        doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(ticket.description, 50, currentY + 107, { width: 500 });
-
-        currentY = doc.y + 20;
-
-        // ================= SECTION 2: MEDICAL INFORMATION =================
+        // === MEDICAL REPORT (If present) ===
         if (ticket.medicalReport) {
+            checkPageBreak(150);
             const m = ticket.medicalReport;
+            drawSectionTitle('Medical Assessment');
 
-            // Reduce threshold to Avoid premature breaks (Header + 1st row needs ~80pts)
-            checkPageBreak(120);
-            currentY = drawSection('2. PATIENT INFORMATION', currentY);
+            // Patient Info Box
+            const boxHeight = 50;
+            doc.rect(MARGIN, doc.y, CONTENT_WIDTH, boxHeight).stroke(colors.border);
 
-            drawField('Full Name', `${m.patientGivenName || ''} ${m.patientSurname || ''}`.trim() || m.patientName, 50, currentY);
-            drawField('Date of Birth', safeDate(m.patientDob), 300, currentY);
+            const medY = doc.y + 10;
+            drawLabelValue('Patient Name', `${m.patientGivenName || ''} ${m.patientSurname || ''}`, col1X, medY, 140, true);
+            drawLabelValue('Role', m.patientRole?.replace(/_/g, ' '), col2X, medY, 140);
+            drawLabelValue('Car/Comp #', m.carNumber || '-', col3X, medY, 80);
+            drawLabelValue('Gender/DOB', `${m.patientGender || '-'} / ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : '-'}`, col4X, medY, 100);
 
-            drawField('Gender', m.patientGender, 50, currentY + 35);
-            drawField('Occupation', m.patientOccupation, 300, currentY + 35);
+            doc.y += boxHeight + 15;
 
-            drawField('Role at Event', m.patientRole?.replace(/_/g, ' '), 50, currentY + 70);
-            drawField('Car / Comp No', m.carNumber || m.patientCarNo, 300, currentY + 70);
-
-            // Dynamically update currentY based on content drawn
-            currentY += 105; // 3 rows * 35
-
-            // Clinical
-            checkPageBreak(120);
-            currentY = drawSection('3. CLINICAL DETAILS', currentY);
-
-            drawField('Injury Type', m.injuryType?.replace(/_/g, ' '), 50, currentY);
-            drawField('Arrival Method', m.arrivalMethod?.replace(/_/g, ' '), 300, currentY);
-
-            drawField('Treatment Loc', m.treatmentLocation?.replace(/_/g, ' '), 50, currentY + 35);
-            drawField('License Action', m.licenseAction?.replace(/_/g, ' '), 300, currentY + 35);
-
-            currentY += 70; // 2 rows * 35
-
-            // Text Areas - Use doc.y to track actual height used
-            const drawTextArea = (label, text) => {
-                // Ensure we have space for Label + at least one line of text (~30pts)
-                if (checkPageBreak(50)) {
-                    currentY = doc.y; // Update currentY if page broke
-                }
-
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), 50, currentY);
-                currentY += 15;
-
-                doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(text || 'N/A', 50, currentY, { width: 500 });
-                currentY = doc.y + 20; // Add padding after text block
+            // Clinical Details
+            const drawTextBlock = (label, text) => {
+                checkPageBreak(40);
+                doc.font(FONTS.bold).fontSize(8).fillColor(colors.textLight).text(label + ':', MARGIN);
+                doc.font(FONTS.regular).fontSize(9).fillColor(colors.textMain).text(text || 'N/A', MARGIN + 100, doc.y - 8, { width: CONTENT_WIDTH - 100 });
+                doc.y += 5;
             };
 
-            drawTextArea('Condition on Arrival', m.initialCondition);
-            drawTextArea('Treatment Performed', m.treatmentGiven);
-            drawTextArea('Clinical Summary', m.summary);
-            drawTextArea('Recommendation', m.recommendation);
-        }
+            drawTextBlock('Injury Type', m.injuryType?.replace(/_/g, ' '));
+            drawTextBlock('Condition', m.initialCondition);
+            drawTextBlock('Treatment', m.treatmentGiven);
+            drawTextBlock('Summary', m.summary);
+            doc.y += 10;
 
-        // ================= SECTION 3: CONTROL / SPORT INFORMATION =================
-        if (ticket.controlReport) {
-            const c = ticket.controlReport;
-            checkPageBreak(120);
-            currentY = drawSection('3. CONTROL / SPORT REPORT', currentY);
+            // LICENSE ACTION ALERT
+            if (m.licenseAction && m.licenseAction !== 'NONE' && m.licenseAction !== 'CLEAR') {
+                checkPageBreak(40);
+                doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 30).fill(colors.alertBg);
+                doc.rect(MARGIN, doc.y, 4, 30).fill(colors.alertText); // Red Side marker
 
-            drawField('Competitor No', c.competitorNumber, 50, currentY);
-            drawField('Lap Number', c.lapNumber ? c.lapNumber.toString() : '-', 200, currentY);
-            drawField('Sector', c.sector ? c.sector.toString() : '-', 350, currentY);
-
-            drawField('Violation', c.violationType?.replace(/_/g, ' '), 50, currentY + 35);
-            drawField('Action Taken', c.actionTaken, 300, currentY + 35);
-
-            drawField('Penalty Value', c.penaltyValue, 50, currentY + 70);
-
-            currentY += 105;
-
-            // Text Areas
-            const drawTextArea = (label, text) => {
-                if (checkPageBreak(50)) currentY = doc.y;
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), 50, currentY);
-                currentY += 15;
-                doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(text || 'N/A', 50, currentY, { width: 500 });
-                currentY = doc.y + 20;
-            };
-
-            drawTextArea('Reasoning / Details', c.reasoning);
-        }
-
-        // ================= SECTION 4: SAFETY INFORMATION =================
-        if (ticket.safetyReport) {
-            const s = ticket.safetyReport;
-            checkPageBreak(120);
-            currentY = drawSection('4. SAFETY REPORT', currentY);
-
-            drawField('Hazard Type', s.hazardType?.replace(/_/g, ' '), 50, currentY);
-            drawField('Track Status', s.trackStatus, 300, currentY);
-
-            drawField('Intervention', s.interventionRequired ? 'REQUIRED' : 'NO', 50, currentY + 35);
-            drawField('Resources', s.resourcesDeployed, 300, currentY + 35);
-
-            currentY += 70;
-
-            const drawTextArea = (label, text) => {
-                if (checkPageBreak(50)) currentY = doc.y;
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), 50, currentY);
-                currentY += 15;
-                doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(text || 'N/A', 50, currentY, { width: 500 });
-                currentY = doc.y + 20;
-            };
-
-            drawTextArea('Location Detail', s.locationDetail);
-            drawTextArea('Damage Description', s.damageDescription);
-        }
-
-        // ================= SECTION 5: INVESTIGATION INFORMATION =================
-        if (ticket.investigationReport) {
-            const inv = ticket.investigationReport;
-            checkPageBreak(120);
-            currentY = drawSection('5. INVESTIGATION REPORT', currentY);
-
-            drawField('Responsible Party', inv.responsibleParty, 50, currentY);
-            drawField('Decision', inv.decision, 300, currentY);
-            currentY += 35;
-
-            const drawTextArea = (label, text) => {
-                if (checkPageBreak(50)) currentY = doc.y;
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), 50, currentY);
-                currentY += 15;
-                doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(text || 'N/A', 50, currentY, { width: 500 });
-                currentY = doc.y + 20;
-            };
-
-            drawTextArea('Summary', inv.summary);
-        }
-
-        // ================= SECTION 6: PIT & GRID REPORT =================
-        if (ticket.pitGridReport) {
-            const p = ticket.pitGridReport;
-            checkPageBreak(120);
-            currentY = drawSection('6. PIT & GRID REPORT', currentY);
-
-            drawField('Pit Number', p.pitNumber, 50, currentY);
-            drawField('Session', p.sessionCategory, 200, currentY);
-            drawField('Car No', p.carNumber, 350, currentY);
-
-            drawField('Lap No', p.lapNumber ? p.lapNumber.toString() : '-', 50, currentY + 35);
-            drawField('Team', p.teamName, 200, currentY + 35);
-            drawField('Operator', p.radarOperatorName, 350, currentY + 35);
-
-            currentY += 70;
-
-            // Speed
-            checkPageBreak(60);
-            doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text('PIT SPEED', 50, currentY);
-            currentY += 15;
-            doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(`Limit: ${p.speedLimit || 'N/A'} | Recorded: ${p.speedRecorded || 'N/A'}`, 50, currentY);
-            currentY += 25;
-
-            // Violations
-            const violations = [];
-            if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
-            if (p.refueling) violations.push('Refueling Violation');
-            if (p.driverChange) violations.push('Driver Change Violation');
-            if (p.excessMechanics) violations.push('Excess Mechanics');
-
-            if (violations.length > 0) {
-                checkPageBreak(60);
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text('VIOLATIONS DETECTED', 50, currentY);
-                currentY += 15;
-                doc.fontSize(10).font('Helvetica').fillColor(colors.accent).text(violations.join(', '), 50, currentY);
-                currentY += 25;
+                doc.font(FONTS.bold).fontSize(10).fillColor(colors.alertText)
+                    .text(`LICENSE ACTION REQUIRED: ${m.licenseAction.replace(/_/g, ' ')}`, MARGIN + 15, doc.y + 10);
+                doc.y += 40;
             }
-
-            // Remarks
-            const drawTextArea = (label, text) => {
-                if (checkPageBreak(50)) currentY = doc.y;
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), 50, currentY);
-                currentY += 15;
-                doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(text || 'N/A', 50, currentY, { width: 500 });
-                currentY = doc.y + 20;
-            };
-
-            drawTextArea('Remarks', p.remarks);
         }
 
-        // ================= SECTION: ACTIVITY LOG & NOTES =================
-        doc.addPage();
-        currentY = 40;
-        currentY = drawSection('ACTIVITY LOG & NOTES', currentY);
-
-        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            ticket.activityLogs.forEach((log, index) => {
-                checkPageBreak(60);
-
-                // Row Background (Zebra)
-                if (index % 2 === 0) {
-                    doc.rect(40, doc.y, 515, doc.heightOfString(log.details, { width: 350 }) + 20).fillColor(colors.lightGray).fill();
-                }
-
-                const startY = doc.y + 5;
-
-                // Timestamp
-                doc.fontSize(8).font('Helvetica').fillColor(colors.gray).text(new Date(log.createdAt).toLocaleString(), 50, startY);
-
-                // Author
-                doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.primary).text(log.actor?.name || 'System', 180, startY);
-                doc.fontSize(7).font('Helvetica').fillColor(colors.gray).text(
-                    `Ph: ${log.actor?.mobile || '-'} | ${log.actor?.email || '-'}`,
-                    180, startY + 12, { width: 160 }
-                );
-
-                // Action Type Badge
-                const isComment = log.action === 'COMMENT_ADDED';
-                const actionColor = isComment ? colors.secondary : colors.gray;
-                doc.fontSize(8).font('Helvetica-Bold').fillColor(actionColor).text(log.action.replace(/_/g, ' '), 350, startY);
-
-                // Details
-                doc.fontSize(9).font('Helvetica').fillColor(colors.text).text(log.details || '-', 50, startY + 25, { width: 490 });
-
-                doc.moveDown(1);
-            });
-        } else {
-            doc.text('No activity recorded.', 50, currentY);
-        }
-
-        // ================= SECTION: ATTACHMENTS =================
+        // === ATTACHMENTS (Grid Layout) ===
         if (ticket.attachments && ticket.attachments.length > 0) {
-            doc.addPage();
-            currentY = 40;
-            currentY = drawSection('APPENDIX: EVIDENCE & ATTACHMENTS', currentY);
+            checkPageBreak(120);
+            drawSectionTitle('Photographic Evidence');
+
+            let currentX = MARGIN;
+            const imgWidth = (CONTENT_WIDTH - 20) / 2; // 2 per row
+            const imgHeight = 140;
 
             for (const att of ticket.attachments) {
-                // Determine file path
+                // Determine layout
+                if (currentX > MARGIN + 100) {
+                    // Start new row
+                    currentX = MARGIN;
+                    doc.y += imgHeight + 30;
+                }
+
+                // Check Page Break for Image
+                if (doc.y + imgHeight > doc.page.height - MARGIN) {
+                    doc.addPage();
+                    doc.y = MARGIN + 20; // Reset Y
+                }
+
+                // Resolve Path
                 let imagePath = null;
                 if (att.url && att.url.startsWith('/uploads/')) {
                     imagePath = path.join(__dirname, '..', att.url);
@@ -385,88 +228,115 @@ const exportPdf = async (req, res) => {
                     imagePath = path.join(__dirname, '..', 'uploads', path.basename(att.url));
                 }
 
+                // Draw Container
+                doc.rect(currentX, doc.y, imgWidth, imgHeight).stroke(colors.border);
+
+                // Draw Image
                 if (imagePath && fs.existsSync(imagePath)) {
-                    const ext = path.extname(imagePath).toLowerCase();
-                    if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-
-                        if (doc.y + 450 > 800) doc.addPage();
-
-                        try {
-                            doc.image(imagePath, 50, doc.y, { fit: [500, 400], align: 'center' });
-                            // Manually advance cursor since doc.image doesn't
-                            doc.y += 420;
-                        } catch (e) {
-                            doc.fillColor('red').text(`[Error loading image: ${e.message}]`);
-                            doc.fillColor(colors.text);
-                            doc.moveDown();
-                        }
+                    try {
+                        doc.image(imagePath, currentX + 5, doc.y + 5, { fit: [imgWidth - 10, imgHeight - 30], align: 'center', valign: 'center' });
+                    } catch (e) {
+                        doc.text('[Img Error]', currentX + 5, doc.y + 5);
                     }
+                } else {
+                    doc.fontSize(8).text('Image not found', currentX + 5, doc.y + 50, { align: 'center', width: imgWidth });
                 }
+
+                // Caption
+                doc.fontSize(7).fillColor(colors.textLight)
+                    .text(att.filename || 'Attachment', currentX + 5, doc.y + imgHeight - 20, { width: imgWidth - 10, align: 'center', height: 15, ellipsis: true });
+
+                currentX += imgWidth + 20;
+            }
+            // Reset Y after grid
+            if (currentX > MARGIN) doc.y += imgHeight + 30; // Close last row
+        }
+
+        // === ACTIVITY LOG (Vertical Timeline) ===
+        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
+            checkPageBreak(100);
+            drawSectionTitle('Audit Timeline');
+
+            // Timeline line
+            const lineX = MARGIN + 60;
+            const startY = doc.y;
+
+            ticket.activityLogs.forEach((log) => {
+                checkPageBreak(30);
+                const itemY = doc.y;
+
+                // Timestamp (Left)
+                doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
+                    .text(new Date(log.createdAt).toLocaleDateString(), MARGIN, itemY, { width: 50, align: 'right' });
+                doc.text(new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), MARGIN, itemY + 8, { width: 50, align: 'right' });
+
+                // Dot on line
+                doc.circle(lineX, itemY + 6, 2).fill(colors.border);
+
+                // Content (Right of line)
+                doc.font(FONTS.bold).fontSize(8).fillColor(colors.textMain)
+                    .text(log.action.replace(/_/g, ' '), lineX + 15, itemY);
+
+                doc.font(FONTS.regular).fontSize(8).fillColor(colors.textLight)
+                    .text(`${log.actor?.name || 'System'} - ${log.details || ''}`, lineX + 15, itemY + 10, { width: 350 });
+
+                doc.y += 25; // Space between items
+            });
+
+            // Draw connecting line
+            if (doc.y > startY) {
+                doc.save();
+                doc.strokeColor(colors.border).lineWidth(1)
+                    .moveTo(lineX, startY)
+                    .lineTo(lineX, doc.y - 15)
+                    .stroke();
+                doc.restore();
             }
         }
 
-        // ================= SECTION 5: VERIFICATION =================
-        doc.addPage();
-        doc.y = 100; // Center vertically somewhat
-
-        doc.fontSize(16).font('Helvetica-Bold').text('DOCUMENT VERIFICATION', { align: 'center' });
-        doc.moveDown();
-
-        const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${verifyToken}`;
-        const qrCodeData = await QRCode.toDataURL(verifyUrl);
-
-        doc.image(qrCodeData, (doc.page.width - 200) / 2, doc.y, { fit: [200, 200] });
-        doc.moveDown(12); // Move past image
-
-        doc.fontSize(10).font('Helvetica').text('Scan this QR code to verify the authenticity of this report.', { align: 'center' });
-        doc.font('Helvetica-Bold').text(`Verification Token: ${verifyToken}`, { align: 'center', color: colors.primary });
-
-        // --- FINALIZATION: Add Footers to All Pages ---
-        // This avoids recursion by doing it all at once at the end
-        const range = doc.bufferedPageRange();
-        for (let i = range.start; i < range.start + range.count; i++) {
-            doc.switchToPage(i);
-            const bottom = doc.page.height - 50;
-            doc.fontSize(8).font('Helvetica-Bold').fillColor(colors.primary)
-                .text('All Rights Reserved to Saudi Automobile & Motorcycle Federation (SAMF)', 50, bottom, { align: 'center', width: 500 });
-            doc.fontSize(8).font('Helvetica').fillColor(colors.gray)
-                .text('Generated by Incident Management System', 50, bottom + 12, { align: 'center', width: 500 });
+        // === VERIFICATION (Footer / Compact) ===
+        const verifyHeight = 120;
+        if (doc.y + verifyHeight > doc.page.height - MARGIN) {
+            doc.addPage();
+            doc.y = doc.page.height - verifyHeight - MARGIN;
+        } else {
+            doc.moveDown(2);
         }
 
-        // End PDF generation
+        // Separator
+        doc.moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke(colors.border);
+        doc.y += 20;
+
+        // Container
+        const footerY = doc.y;
+
+        // QR Code (Left)
+        const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
+        try {
+            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 0 });
+            doc.image(qrDataUrl, MARGIN, footerY, { width: 60 });
+        } catch (e) { }
+
+        // Text (Right of QR)
+        doc.font(FONTS.bold).fontSize(9).fillColor(colors.textMain)
+            .text('AUTHENTICITY VERIFICATION', MARGIN + 80, footerY);
+
+        doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
+            .text('Scan the QR code to verify the validity of this digital report on the SAMF Incident Portal. Unauthorized modification is invalid.', MARGIN + 80, footerY + 15, { width: 350 });
+
+        doc.font(FONTS.bold).fontSize(7).fillColor(colors.accent)
+            .text(`TOKEN: ${verifyToken}`, MARGIN + 80, footerY + 40);
+
+        doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
+            .text(`Generated: ${new Date().toISOString()}`, MARGIN + 80, footerY + 50);
+
+        // Finalize
         doc.end();
 
-        // Async Background Logging (Fire & Forget to not block download)
-        (async () => {
-            try {
-                // Record Export (Metadata only)
-                await prisma.ticketExport.create({
-                    data: {
-                        ticketId,
-                        verifyToken,
-                        pdfUrl: 'STREAMED_DOWNLOAD', // Placeholder since we stream
-                        snapshotJson: JSON.stringify(ticket)
-                    }
-                });
-
-                await prisma.activityLog.create({
-                    data: {
-                        ticketId,
-                        // Assumes req.user is set via auth middleware
-                        actorId: req.user ? req.user.id : null,
-                        action: 'PDF_EXPORTED',
-                        details: `PDF Report exported by ${req.user ? req.user.name : 'System'}`
-                    }
-                });
-            } catch (postError) {
-                console.error("Error saving export record:", postError);
-            }
-        })();
-
     } catch (error) {
-        console.error("PDF Gen Error:", error);
+        console.error("PDF Export Error:", error);
         if (!res.headersSent) {
-            res.status(500).json({ message: error.message });
+            res.status(500).json({ message: `Export failed: ${error.message}` });
         }
     }
 };
