@@ -65,9 +65,23 @@ const exportPdf = async (req, res) => {
             return y + 35;
         };
 
+        const safeStr = (val) => (val === null || val === undefined) ? '-' : String(val);
+        const safeDate = (date) => {
+            try {
+                if (!date) return '-';
+                return new Date(date).toLocaleDateString();
+            } catch (e) { return '-'; }
+        };
+        const safeTime = (date) => {
+            try {
+                if (!date) return '-';
+                return new Date(date).toLocaleTimeString();
+            } catch (e) { return '-'; }
+        };
+
         const drawField = (label, value, x, y, width = 250) => {
             doc.fontSize(9).font('Helvetica-Bold').fillColor(colors.gray).text(label.toUpperCase(), x, y);
-            doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(value || '-', x, y + 12, { width: width - 10 });
+            doc.fontSize(10).font('Helvetica').fillColor(colors.text).text(safeStr(value), x, y + 12, { width: width - 10 });
         };
 
         const checkPageBreak = (neededSpace) => {
@@ -94,9 +108,11 @@ const exportPdf = async (req, res) => {
         // ================= HEADER =================
         addFooter(); // Add footer to first page manually
         const logoPath = path.join(__dirname, '..', 'assets', 'logo_placeholder.png');
-        if (fs.existsSync(logoPath)) {
-            doc.image(logoPath, 40, 40, { height: 40 });
-        }
+        try {
+            if (fs.existsSync(logoPath)) {
+                doc.image(logoPath, 40, 40, { height: 40 });
+            }
+        } catch (e) { console.error('Logo load failed', e); }
 
         doc.fontSize(24).font('Helvetica-Bold').fillColor(colors.primary).text('MEDICAL & INCIDENT REPORT', { align: 'center' });
         doc.fontSize(10).font('Helvetica').fillColor(colors.gray).text('CONFIDENTIAL DOCUMENT', { align: 'center', characterSpacing: 2 });
@@ -111,8 +127,8 @@ const exportPdf = async (req, res) => {
         drawField('Status', ticket.status.replace(/_/g, ' '), 200, topY + 10, 150);
         drawField('Priority', ticket.priority, 350, topY + 10, 100);
 
-        drawField('Date', new Date().toLocaleDateString(), 50, topY + 35, 150);
-        drawField('Time', new Date().toLocaleTimeString(), 200, topY + 35, 150);
+        drawField('Date', safeDate(new Date()), 50, topY + 35, 150);
+        drawField('Time', safeTime(new Date()), 200, topY + 35, 150);
         drawField('Type', ticket.type, 350, topY + 35, 100);
 
         let currentY = topY + 70;
@@ -142,7 +158,7 @@ const exportPdf = async (req, res) => {
             currentY = drawSection('2. PATIENT INFORMATION', currentY);
 
             drawField('Full Name', `${m.patientGivenName || ''} ${m.patientSurname || ''}`.trim() || m.patientName, 50, currentY);
-            drawField('Date of Birth', m.patientDob ? new Date(m.patientDob).toLocaleDateString() : '-', 300, currentY);
+            drawField('Date of Birth', safeDate(m.patientDob), 300, currentY);
 
             drawField('Gender', m.patientGender, 50, currentY + 35);
             drawField('Occupation', m.patientOccupation, 300, currentY + 35);
