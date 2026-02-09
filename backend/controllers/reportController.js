@@ -95,6 +95,9 @@ const exportPdf = async (req, res) => {
         // Footer Logic
         const addFooter = () => {
             const bottom = doc.page.height - 50;
+            // Use a separate closure to avoid altering global state if possible, 
+            // but pdfkit switches pages automatically. 
+            // We must NOT call anything that triggers a new page here.
             doc.save();
             doc.fontSize(8).font('Helvetica-Bold').fillColor(colors.primary)
                 .text('All Rights Reserved to Saudi Automobile & Motorcycle Federation (SAMF)', 50, bottom, { align: 'center', width: 500 });
@@ -103,10 +106,14 @@ const exportPdf = async (req, res) => {
             doc.restore();
         };
 
+        // Attach footer to all *future* pages
         doc.on('pageAdded', addFooter);
 
         // ================= HEADER =================
-        addFooter(); // Add footer to first page manually
+        // Add footer to the *first* page manually
+        // checkPageBreak shouldn't be called before this
+        addFooter();
+
         const logoPath = path.join(__dirname, '..', 'assets', 'logo_placeholder.png');
         try {
             if (fs.existsSync(logoPath)) {
