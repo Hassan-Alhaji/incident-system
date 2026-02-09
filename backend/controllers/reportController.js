@@ -532,17 +532,16 @@ const exportExcel = async (req, res) => {
         const ws = xlsx.utils.json_to_sheet(data);
         xlsx.utils.book_append_sheet(wb, ws, 'Tickets');
 
-        // 5. Write File
+        // 5. Generate Buffer (In-Memory)
+        const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+        // 6. Send Response
         const fileName = `tickets_export_${Date.now()}.xlsx`;
-        const uploadsDir = path.join(__dirname, '..', 'uploads');
-        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 
-        const filePath = path.join(uploadsDir, fileName);
-        xlsx.writeFile(wb, filePath);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
 
-        // 6. Return URL
-        const downloadUrl = `http://localhost:3000/uploads/${fileName}`;
-        res.json({ downloadUrl, count: tickets.length });
+        res.send(buffer);
 
     } catch (error) {
         console.error('Excel Export Error:', error);

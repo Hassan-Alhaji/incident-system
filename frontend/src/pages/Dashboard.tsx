@@ -29,21 +29,25 @@ const ExportSection = () => {
 
         setDownloading(true);
         try {
-            const res = await api.get(`/tickets/export-excel?startDate=${startDate}&endDate=${endDate}`);
-            const { downloadUrl, count } = res.data;
+            const response = await api.get(`/tickets/export-excel`, {
+                params: { startDate, endDate },
+                responseType: 'blob' // Important: Expect binary data
+            });
 
-            if (count === 0) {
-                alert('No tickets found in this range.');
-                return;
-            }
-
-            // Trigger download
+            // Create blob link to download
+            const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.setAttribute('download', 'tickets.xlsx');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let fileName = `tickets_export.xlsx`;
+            if (contentDisposition) {
+                const fileNameMatch = contentDisposition.match(/filename=(.+)/);
+                if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
+            }
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
-            link.remove();
+            link.parentNode?.removeChild(link);
         } catch (err) {
             console.error(err);
             alert('Export failed.');
