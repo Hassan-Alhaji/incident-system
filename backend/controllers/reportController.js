@@ -38,10 +38,10 @@ const exportPdf = async (req, res) => {
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
 
         const chunks = [];
-        const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
+        const doc = new PDFDocument({ size: 'A4', margin: 40 }); // Removed bufferPages
 
         doc.on('data', chunk => chunks.push(chunk));
-        doc.on('end', async () => {
+        doc.on('end', () => {
             const pdfBuffer = Buffer.concat(chunks);
             const fileName = `report-${ticket.ticketNo}.pdf`;
 
@@ -49,18 +49,17 @@ const exportPdf = async (req, res) => {
             res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
             res.setHeader('Content-Length', pdfBuffer.length);
             res.send(pdfBuffer);
-
-            try {
-                await prisma.ticketExport.create({
-                    data: {
-                        ticketId,
-                        verifyToken,
-                        pdfUrl: 'BUFFERED',
-                        snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
-                    }
-                });
-            } catch (e) { console.error('Export log error:', e); }
         });
+
+        // Log export (fire & forget - don't await)
+        prisma.ticketExport.create({
+            data: {
+                ticketId,
+                verifyToken,
+                pdfUrl: 'BUFFERED',
+                snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
+            }
+        }).catch(e => console.error('Export log error:', e));
 
         // === STYLES ===
         const colors = {
@@ -206,7 +205,13 @@ const exportPdf = async (req, res) => {
             const imgWidth = (CONTENT_WIDTH - 20) / 2; // 2 per row
             const imgHeight = 140;
 
+            // LIMIT TO 2 IMAGES MAX for serverless compatibility
+            const maxImages = 2;
+            let processedImages = 0;
+
             for (const att of ticket.attachments) {
+                if (processedImages >= maxImages) break;
+
                 // Determine layout
                 if (currentX > MARGIN + 100) {
                     // Start new row
@@ -231,12 +236,21 @@ const exportPdf = async (req, res) => {
                 // Draw Container
                 doc.rect(currentX, doc.y, imgWidth, imgHeight).stroke(colors.border);
 
-                // Draw Image
+                // Draw Image (simplified)
                 if (imagePath && fs.existsSync(imagePath)) {
                     try {
-                        doc.image(imagePath, currentX + 5, doc.y + 5, { fit: [imgWidth - 10, imgHeight - 30], align: 'center', valign: 'center' });
+                        const ext = path.extname(imagePath).toLowerCase();
+                        if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+                            doc.image(imagePath, currentX + 5, doc.y + 5, {
+                                fit: [imgWidth - 10, imgHeight - 30],
+                                align: 'center',
+                                valign: 'center'
+                            });
+                            processedImages++;
+                        }
                     } catch (e) {
-                        doc.text('[Img Error]', currentX + 5, doc.y + 5);
+                        console.error('Image error:', e);
+                        doc.fontSize(8).text('[Img Error]', currentX + 5, doc.y + 5);
                     }
                 } else {
                     doc.fontSize(8).text('Image not found', currentX + 5, doc.y + 50, { align: 'center', width: imgWidth });
@@ -248,6 +262,13 @@ const exportPdf = async (req, res) => {
 
                 currentX += imgWidth + 20;
             }
+
+            // Note if more images exist
+            if (ticket.attachments.length > maxImages) {
+                doc.fontSize(8).fillColor(colors.textLight)
+                    .text(`+ ${ticket.attachments.length - maxImages} more attachment(s) not shown`, MARGIN, doc.y + imgHeight + 10);
+            }
+
             // Reset Y after grid
             if (currentX > MARGIN) doc.y += imgHeight + 30; // Close last row
         }
@@ -335,8 +356,9 @@ const exportPdf = async (req, res) => {
 
     } catch (error) {
         console.error("PDF Export Error:", error);
+        console.error("Stack:", error.stack);
         if (!res.headersSent) {
-            res.status(500).json({ message: `Export failed: ${error.message}` });
+            res.status(500).json({ message: `Export failed: ${error.message}`, stack: error.stack });
         }
     }
 };
