@@ -219,25 +219,18 @@ const exportPdf = async (req, res) => {
             doc.text('');
         }
 
-        // === VERIFICATION QR CODE ===
+        // === VERIFICATION CODE (TEXT ONLY) ===
+        // Removed QR Image temporarily to fix NaN error
         const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
-        try {
-            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
 
-            doc.fontSize(12);
-            doc.text('VERIFICATION');
-            doc.text('');
+        doc.fontSize(12);
+        doc.text('VERIFICATION');
+        doc.text('');
 
-            doc.image(qrDataUrl, { width: 100 });
-
-            doc.fontSize(8);
-            doc.text('Token: ' + verifyToken);
-            doc.text('Generated: ' + new Date().toISOString());
-        } catch (qrError) {
-            console.error('[PDF Export] QR generation error:', qrError);
-            doc.fontSize(10);
-            doc.text('Verification Token: ' + verifyToken);
-        }
+        doc.fontSize(8);
+        doc.text('Token: ' + verifyToken);
+        doc.text('URL: ' + verifyUrl);
+        doc.text('Generated: ' + new Date().toISOString());
 
         console.log('[PDF Export] Finalizing document');
         doc.end();
