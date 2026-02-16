@@ -8,8 +8,12 @@ const xlsx = require('xlsx');
 // Helper to safely convert to string
 const safeString = (val) => {
     if (val === null || val === undefined) return '';
+    if (typeof val === 'number') {
+        if (isNaN(val) || !isFinite(val)) return '';
+        return String(val);
+    }
     if (typeof val === 'string') return val;
-    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (typeof val === 'boolean') return String(val);
     return '';
 };
 
@@ -136,27 +140,39 @@ const exportPdf = async (req, res) => {
         let yPos = 140;
 
         // === HELPER FUNCTIONS ===
+        const safeNumber = (val, defaultVal = 0) => {
+            if (typeof val === 'number' && !isNaN(val) && isFinite(val)) return val;
+            return defaultVal;
+        };
+
         const drawSection = (title, yPosition) => {
+            const safeY = safeNumber(yPosition, 140);
             doc.fontSize(14).fillColor(colors.primary).font('Helvetica-Bold')
-                .text(title.toUpperCase(), 50, yPosition);
-            doc.moveTo(50, yPosition + 18).lineTo(545, yPosition + 18)
+                .text(title.toUpperCase(), 50, safeY);
+            doc.moveTo(50, safeY + 18).lineTo(545, safeY + 18)
                 .strokeColor(colors.border).lineWidth(1).stroke();
-            return yPosition + 30;
+            return safeY + 30;
         };
 
         const drawInfoBox = (label, value, x, y, width = 120) => {
+            const safeX = safeNumber(x, 50);
+            const safeY = safeNumber(y, 140);
+            const safeWidth = safeNumber(width, 120);
+
             doc.fontSize(8).fillColor(colors.medium).font('Helvetica')
-                .text(safeString(label).toUpperCase(), x, y);
+                .text(safeString(label).toUpperCase(), safeX, safeY);
             doc.fontSize(11).fillColor(colors.dark).font('Helvetica-Bold')
-                .text(safeString(value), x, y + 12, { width: width, ellipsis: true });
+                .text(safeString(value), safeX, safeY + 12, { width: safeWidth, ellipsis: true });
         };
 
         const checkPageSpace = (needed) => {
-            if (doc.y + needed > 750) {
+            const safeNeeded = safeNumber(needed, 100);
+            const currentY = safeNumber(doc.y, 140);
+            if (currentY + safeNeeded > 750) {
                 doc.addPage();
                 return 50;
             }
-            return doc.y;
+            return currentY;
         };
 
         // === BASIC INFORMATION SECTION ===
