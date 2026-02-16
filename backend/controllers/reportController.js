@@ -8,9 +8,19 @@ const xlsx = require('xlsx');
 // Helper to safely convert to string
 const safeString = (val) => {
     if (val === null || val === undefined) return '';
+    if (typeof val === 'number') {
+        if (isNaN(val) || !isFinite(val)) return '';
+        return String(val);
+    }
     if (typeof val === 'string') return val;
-    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (typeof val === 'boolean') return String(val);
     return '';
+};
+
+// Helper to ensure valid number
+const safeNumber = (val, defaultVal = 0) => {
+    if (typeof val === 'number' && !isNaN(val) && isFinite(val)) return val;
+    return defaultVal;
 };
 
 // @desc    Export ticket report to PDF
@@ -51,7 +61,7 @@ const exportPdf = async (req, res) => {
         const chunks = [];
         const doc = new PDFDocument({
             size: 'A4',
-            margin: 40,
+            margin: 50,
             bufferPages: true,
             autoFirstPage: true
         });
@@ -86,14 +96,14 @@ const exportPdf = async (req, res) => {
         });
 
         // === SIMPLE HEADER ===
-        doc.fontSize(20).text('INCIDENT REPORT', { align: 'center' });
-        doc.fontSize(12).text(`Ticket: ${safeString(ticket.ticketNo)}`, { align: 'center' });
-        doc.moveDown();
+        doc.fontSize(safeNumber(20, 20)).text('INCIDENT REPORT', { align: 'center' });
+        doc.fontSize(safeNumber(12, 12)).text(`Ticket: ${safeString(ticket.ticketNo)}`, { align: 'center' });
+        doc.moveDown(safeNumber(1, 1));
 
         // === BASIC INFO ===
-        doc.fontSize(14).text('Basic Information', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10);
+        doc.fontSize(safeNumber(14, 14)).text('Basic Information', { underline: true });
+        doc.moveDown(safeNumber(0.5, 0.5));
+        doc.fontSize(safeNumber(10, 10));
 
         doc.text(`Event: ${safeString(ticket.eventName)}`);
         doc.text(`Type: ${safeString(ticket.type)}`);
@@ -102,30 +112,26 @@ const exportPdf = async (req, res) => {
         doc.text(`Location: ${safeString(ticket.location)}`);
         doc.text(`Date: ${ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'}`);
         doc.text(`Reporter: ${safeString(ticket.createdBy?.name)}`);
-        doc.moveDown();
+        doc.moveDown(safeNumber(1, 1));
 
         // === DESCRIPTION ===
-        doc.fontSize(14).text('Description', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10);
+        doc.fontSize(safeNumber(14, 14)).text('Description', { underline: true });
+        doc.moveDown(safeNumber(0.5, 0.5));
+        doc.fontSize(safeNumber(10, 10));
         const description = safeString(ticket.description);
         if (description.length > 0) {
-            // Split into chunks to avoid text wrapping issues
-            const maxLength = 500;
-            for (let i = 0; i < description.length; i += maxLength) {
-                doc.text(description.substring(i, i + maxLength));
-            }
+            doc.text(description);
         } else {
             doc.text('No description provided.');
         }
-        doc.moveDown();
+        doc.moveDown(safeNumber(1, 1));
 
         // === MEDICAL REPORT ===
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
-            doc.fontSize(14).text('Medical Report', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(10);
+            doc.fontSize(safeNumber(14, 14)).text('Medical Report', { underline: true });
+            doc.moveDown(safeNumber(0.5, 0.5));
+            doc.fontSize(safeNumber(10, 10));
 
             doc.text(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
             doc.text(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
@@ -140,38 +146,56 @@ const exportPdf = async (req, res) => {
             if (m.treatmentGiven) {
                 doc.text(`Treatment: ${safeString(m.treatmentGiven)}`);
             }
-            doc.moveDown();
+
+            // Add motorsport ID and car number if available
+            if (m.motorsportId) {
+                doc.text(`Motorsport ID: ${safeString(m.motorsportId)}`);
+            }
+            if (m.carNumber) {
+                doc.text(`Car Number: ${safeString(m.carNumber)}`);
+            }
+
+            doc.moveDown(safeNumber(1, 1));
         }
 
         // === PIT GRID REPORT ===
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
-            doc.fontSize(14).text('Pit & Grid Report', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(10);
+            doc.fontSize(safeNumber(14, 14)).text('Pit & Grid Report', { underline: true });
+            doc.moveDown(safeNumber(0.5, 0.5));
+            doc.fontSize(safeNumber(10, 10));
 
             doc.text(`Car Number: ${safeString(p.carNumber)}`);
             doc.text(`Pit Number: ${safeString(p.pitNumber)}`);
             doc.text(`Session: ${safeString(p.sessionCategory)}`);
-            doc.text(`Speed Limit: ${safeString(p.speedLimit)}`);
-            doc.text(`Speed Recorded: ${safeString(p.speedRecorded)}`);
+
+            // Safely handle speed values that might be NaN
+            const speedLimit = safeString(p.speedLimit);
+            const speedRecorded = safeString(p.speedRecorded);
+            if (speedLimit) doc.text(`Speed Limit: ${speedLimit}`);
+            if (speedRecorded) doc.text(`Speed Recorded: ${speedRecorded}`);
+
+            // Safely handle lap number
+            const lapNumber = safeString(p.lapNumber);
+            if (lapNumber) doc.text(`Lap Number: ${lapNumber}`);
 
             const violations = [];
             if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
             if (p.refueling) violations.push('Refueling Violation');
             if (p.excessMechanics) violations.push('Excess Mechanics');
+            if (p.driverChange) violations.push('Driver Change Violation');
 
             if (violations.length > 0) {
                 doc.text(`Violations: ${violations.join(', ')}`);
             }
-            doc.moveDown();
+            doc.moveDown(safeNumber(1, 1));
         }
 
         // === ACTIVITY LOG (Simplified) ===
         if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            doc.fontSize(14).text('Activity Log', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(9);
+            doc.fontSize(safeNumber(14, 14)).text('Activity Log', { underline: true });
+            doc.moveDown(safeNumber(0.5, 0.5));
+            doc.fontSize(safeNumber(9, 9));
 
             // Limit to prevent overflow
             const logsToShow = ticket.activityLogs.slice(0, 10);
@@ -182,26 +206,30 @@ const exportPdf = async (req, res) => {
 
                 doc.text(`${date} - ${action} by ${actor}`);
 
-                // Add page break if needed
-                if (index < logsToShow.length - 1 && doc.y > 700) {
+                // Add page break if needed - with safe Y check
+                const currentY = safeNumber(doc.y, 0);
+                if (index < logsToShow.length - 1 && currentY > 700) {
                     doc.addPage();
                 }
             });
-            doc.moveDown();
+            doc.moveDown(safeNumber(1, 1));
         }
 
         // === VERIFICATION QR CODE ===
         const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
         try {
-            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
-            doc.fontSize(12).text('Verification', { underline: true });
-            doc.moveDown(0.5);
-            doc.image(qrDataUrl, { width: 100 });
-            doc.fontSize(8).text(`Token: ${verifyToken}`);
+            const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
+                width: safeNumber(150, 150),
+                margin: safeNumber(1, 1)
+            });
+            doc.fontSize(safeNumber(12, 12)).text('Verification', { underline: true });
+            doc.moveDown(safeNumber(0.5, 0.5));
+            doc.image(qrDataUrl, { width: safeNumber(100, 100) });
+            doc.fontSize(safeNumber(8, 8)).text(`Token: ${verifyToken}`);
             doc.text(`Generated: ${new Date().toISOString()}`);
         } catch (qrError) {
             console.error('[PDF Export] QR generation error:', qrError);
-            doc.fontSize(10).text(`Verification Token: ${verifyToken}`);
+            doc.fontSize(safeNumber(10, 10)).text(`Verification Token: ${verifyToken}`);
         }
 
         console.log('[PDF Export] Finalizing document');
