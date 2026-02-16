@@ -50,7 +50,17 @@ const ExportSection = () => {
             link.parentNode?.removeChild(link);
         } catch (err) {
             console.error(err);
-            alert('Export failed.');
+            let message = 'Export failed.';
+            if (err.response && err.response.data instanceof Blob) {
+                try {
+                    const errorText = await err.response.data.text();
+                    const errorJson = JSON.parse(errorText);
+                    if (errorJson.message) message = `Export Failed: ${errorJson.message}`;
+                } catch (e) { /* Blob was not JSON text */ }
+            } else if (err.message) {
+                message = `Export Failed: ${err.message}`;
+            }
+            alert(message);
         } finally {
             setDownloading(false);
         }

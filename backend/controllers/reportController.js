@@ -1,12 +1,17 @@
 const prisma = require('../prismaClient');
-
-// @desc    Export ticket report to PDF (Basic implementation / Placeholder)
-// @route   POST /api/tickets/:id/export-pdf
-// @access  Private
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
+const xlsx = require('xlsx');
+
+// Helper to safely convert to string
+const safeString = (val) => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    return '';
+};
 
 // @desc    Export ticket report to PDF
 // @route   POST /api/tickets/:id/export-pdf
@@ -15,6 +20,8 @@ const exportPdf = async (req, res) => {
     const ticketId = req.params.id;
 
     try {
+        console.log('[PDF Export] Starting for ticket:', ticketId);
+
         // Fetch comprehensive data
         const ticket = await prisma.ticket.findUnique({
             where: { id: ticketId },
@@ -33,17 +40,27 @@ const exportPdf = async (req, res) => {
             }
         });
 
-        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+        if (!ticket) {
+            console.log('[PDF Export] Ticket not found');
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+
+        console.log('[PDF Export] Ticket loaded, creating document');
 
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
-
         const chunks = [];
-        const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
+        const doc = new PDFDocument({
+            size: 'A4',
+            margin: 40,
+            bufferPages: true,
+            autoFirstPage: true
+        });
 
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', async () => {
+            console.log('[PDF Export] Document finalized, sending response');
             const pdfBuffer = Buffer.concat(chunks);
-            const fileName = `report-${ticket.ticketNo}.pdf`;
+            const fileName = `report-${safeString(ticket.ticketNo)}.pdf`;
 
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -59,303 +76,163 @@ const exportPdf = async (req, res) => {
                         snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
                     }
                 });
-            } catch (e) { console.error('Export log error:', e); }
+            } catch (e) {
+                console.error('Export log error:', e);
+            }
         });
 
-        // === STYLES ===
-        const colors = {
-            textMain: '#1f2937', // Dark charcoal
-            textLight: '#6b7280', // Medium gray
-            accent: '#047857',    // Emerald green (muted)
-            bgLight: '#f9fafb',   // Very light gray
-            border: '#e5e7eb',    // Light border
-            alertBg: '#fef2f2',   // Light red bg
-            alertText: '#991b1b'  // Dark red text
-        };
+        doc.on('error', (err) => {
+            console.error('[PDF Export] PDFKit error:', err);
+        });
 
-        const FONTS = {
-            regular: 'Helvetica',
-            bold: 'Helvetica-Bold'
-        };
+        // === SIMPLE HEADER ===
+        doc.fontSize(20).text('INCIDENT REPORT', { align: 'center' });
+        doc.fontSize(12).text(`Ticket: ${safeString(ticket.ticketNo)}`, { align: 'center' });
+        doc.moveDown();
 
-        const MARGIN = 40;
-        const PAGE_WIDTH = 595.28;
-        const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
+        // === BASIC INFO ===
+        doc.fontSize(14).text('Basic Information', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
 
-        // === HELPERS ===
-
-        const checkPageBreak = (heightNeeded) => {
-            if (doc.y + heightNeeded > doc.page.height - MARGIN) {
-                doc.addPage();
-                return true;
-            }
-            return false;
-        };
-
-        const drawSectionTitle = (title) => {
-            checkPageBreak(40);
-            doc.moveDown(1);
-            doc.font(FONTS.bold).fontSize(11).fillColor(colors.textMain).text(title.toUpperCase(), MARGIN);
-            doc.rect(MARGIN, doc.y + 2, CONTENT_WIDTH, 1).fill(colors.border);
-            doc.y += 10;
-        };
-
-        const drawLabelValue = (label, value, x, y, width, isBoldValue = false) => {
-            doc.font(FONTS.bold).fontSize(7).fillColor(colors.textLight).text(label.toUpperCase(), x, y);
-            doc.font(isBoldValue ? FONTS.bold : FONTS.regular).fontSize(9).fillColor(colors.textMain)
-                .text(value || '-', x, y + 10, { width: width, ellipsis: true });
-        };
-
-        // === HEADER (Compact) ===
-        // Logo Placeholder
-        doc.rect(MARGIN, 40, 40, 40).fill(colors.bgLight).stroke(colors.border);
-        doc.font(FONTS.bold).fontSize(6).fillColor(colors.textLight).text('SAMF', MARGIN + 8, 55);
-
-        // Title Block
-        doc.font(FONTS.bold).fontSize(16).fillColor(colors.textMain).text('OFFICIAL INCIDENT REPORT', MARGIN + 55, 45);
-        doc.font(FONTS.regular).fontSize(9).fillColor(colors.textLight).text('Saudi Automobile & Motorcycle Federation', MARGIN + 55, 65);
-
-        // Reference Box (Top Right)
-        doc.font(FONTS.bold).fontSize(9).fillColor(colors.textMain).text(`REF: ${ticket.ticketNo}`, PAGE_WIDTH - MARGIN - 120, 45, { width: 120, align: 'right' });
-
-        // Status Badge
-        const statusColor = ticket.status === 'CLOSED' ? colors.textLight : colors.accent;
-        doc.rect(PAGE_WIDTH - MARGIN - 80, 60, 80, 16).fill(colors.bgLight);
-        doc.font(FONTS.bold).fontSize(8).fillColor(statusColor).text(ticket.status, PAGE_WIDTH - MARGIN - 80, 64, { width: 80, align: 'center' });
-
-        doc.y = 100;
-
-        // === METADATA GRID ===
-        // Background for grid
-        doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 70).fill(colors.bgLight);
-
-        const row1Y = doc.y + 10;
-        const row2Y = doc.y + 40;
-        const col1X = MARGIN + 10;
-        const col2X = MARGIN + 160;
-        const col3X = MARGIN + 310;
-        const col4X = MARGIN + 430;
-
-        drawLabelValue('Event Name', ticket.eventName, col1X, row1Y, 140, true);
-        drawLabelValue('Location/Venue', ticket.location, col2X, row1Y, 140);
-        drawLabelValue('Type', ticket.type, col3X, row1Y, 110);
-        drawLabelValue('Priority', ticket.priority, col4X, row1Y, 80, true);
-
-        drawLabelValue('Date Reported', new Date(ticket.createdAt).toLocaleString(), col1X, row2Y, 140);
-        drawLabelValue('Reporter', ticket.createdBy?.name, col2X, row2Y, 140);
-        drawLabelValue('Contact', ticket.createdBy?.mobile || ticket.createdBy?.email, col3X, row2Y, 150);
-
-        doc.y += 85;
+        doc.text(`Event: ${safeString(ticket.eventName)}`);
+        doc.text(`Type: ${safeString(ticket.type)}`);
+        doc.text(`Status: ${safeString(ticket.status)}`);
+        doc.text(`Priority: ${safeString(ticket.priority)}`);
+        doc.text(`Location: ${safeString(ticket.location)}`);
+        doc.text(`Date: ${ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'}`);
+        doc.text(`Reporter: ${safeString(ticket.createdBy?.name)}`);
+        doc.moveDown();
 
         // === DESCRIPTION ===
-        drawSectionTitle('Indicator Description');
-        doc.font(FONTS.regular).fontSize(9).fillColor(colors.textMain)
-            .text(ticket.description || 'No description provided.', MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'justify' });
-        doc.y += 10;
-
-        // === MEDICAL REPORT (If present) ===
-        if (ticket.medicalReport) {
-            checkPageBreak(150);
-            const m = ticket.medicalReport;
-            drawSectionTitle('Medical Assessment');
-
-            // Patient Info Box
-            const boxHeight = 50;
-            doc.rect(MARGIN, doc.y, CONTENT_WIDTH, boxHeight).stroke(colors.border);
-
-            const medY = doc.y + 10;
-            drawLabelValue('Patient Name', `${m.patientGivenName || ''} ${m.patientSurname || ''}`, col1X, medY, 140, true);
-            drawLabelValue('Role', m.patientRole?.replace(/_/g, ' '), col2X, medY, 140);
-            drawLabelValue('Car/Comp #', m.carNumber || '-', col3X, medY, 80);
-            drawLabelValue('Gender/DOB', `${m.patientGender || '-'} / ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : '-'}`, col4X, medY, 100);
-
-            doc.y += boxHeight + 15;
-
-            // Clinical Details
-            const drawTextBlock = (label, text) => {
-                checkPageBreak(40);
-                doc.font(FONTS.bold).fontSize(8).fillColor(colors.textLight).text(label + ':', MARGIN);
-                doc.font(FONTS.regular).fontSize(9).fillColor(colors.textMain).text(text || 'N/A', MARGIN + 100, doc.y - 8, { width: CONTENT_WIDTH - 100 });
-                doc.y += 5;
-            };
-
-            drawTextBlock('Injury Type', m.injuryType?.replace(/_/g, ' '));
-            drawTextBlock('Condition', m.initialCondition);
-            drawTextBlock('Treatment', m.treatmentGiven);
-            drawTextBlock('Summary', m.summary);
-            doc.y += 10;
-
-            // LICENSE ACTION ALERT
-            if (m.licenseAction && m.licenseAction !== 'NONE' && m.licenseAction !== 'CLEAR') {
-                checkPageBreak(40);
-                doc.rect(MARGIN, doc.y, CONTENT_WIDTH, 30).fill(colors.alertBg);
-                doc.rect(MARGIN, doc.y, 4, 30).fill(colors.alertText); // Red Side marker
-
-                doc.font(FONTS.bold).fontSize(10).fillColor(colors.alertText)
-                    .text(`LICENSE ACTION REQUIRED: ${m.licenseAction.replace(/_/g, ' ')}`, MARGIN + 15, doc.y + 10);
-                doc.y += 40;
+        doc.fontSize(14).text('Description', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10);
+        const description = safeString(ticket.description);
+        if (description.length > 0) {
+            // Split into chunks to avoid text wrapping issues
+            const maxLength = 500;
+            for (let i = 0; i < description.length; i += maxLength) {
+                doc.text(description.substring(i, i + maxLength));
             }
-        }
-
-        // === ATTACHMENTS (Grid Layout) ===
-        if (ticket.attachments && ticket.attachments.length > 0) {
-            checkPageBreak(120);
-            drawSectionTitle('Photographic Evidence');
-
-            let currentX = MARGIN;
-            const imgWidth = (CONTENT_WIDTH - 20) / 2; // 2 per row
-            const imgHeight = 140;
-
-            for (const att of ticket.attachments) {
-                // Determine layout
-                if (currentX > MARGIN + 100) {
-                    // Start new row
-                    currentX = MARGIN;
-                    doc.y += imgHeight + 30;
-                }
-
-                // Check Page Break for Image
-                if (doc.y + imgHeight > doc.page.height - MARGIN) {
-                    doc.addPage();
-                    doc.y = MARGIN + 20; // Reset Y
-                }
-
-                // Resolve Path
-                let imagePath = null;
-                if (att.url && att.url.startsWith('/uploads/')) {
-                    imagePath = path.join(__dirname, '..', att.url);
-                } else if (att.url) {
-                    imagePath = path.join(__dirname, '..', 'uploads', path.basename(att.url));
-                }
-
-                // Draw Container
-                doc.rect(currentX, doc.y, imgWidth, imgHeight).stroke(colors.border);
-
-                // Draw Image
-                if (imagePath && fs.existsSync(imagePath)) {
-                    try {
-                        doc.image(imagePath, currentX + 5, doc.y + 5, { fit: [imgWidth - 10, imgHeight - 30], align: 'center', valign: 'center' });
-                    } catch (e) {
-                        doc.text('[Img Error]', currentX + 5, doc.y + 5);
-                    }
-                } else {
-                    doc.fontSize(8).text('Image not found', currentX + 5, doc.y + 50, { align: 'center', width: imgWidth });
-                }
-
-                // Caption
-                doc.fontSize(7).fillColor(colors.textLight)
-                    .text(att.filename || 'Attachment', currentX + 5, doc.y + imgHeight - 20, { width: imgWidth - 10, align: 'center', height: 15, ellipsis: true });
-
-                currentX += imgWidth + 20;
-            }
-            // Reset Y after grid
-            if (currentX > MARGIN) doc.y += imgHeight + 30; // Close last row
-        }
-
-        // === ACTIVITY LOG (Vertical Timeline) ===
-        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            checkPageBreak(100);
-            drawSectionTitle('Audit Timeline');
-
-            // Timeline line
-            const lineX = MARGIN + 60;
-            const startY = doc.y;
-
-            ticket.activityLogs.forEach((log) => {
-                checkPageBreak(30);
-                const itemY = doc.y;
-
-                // Timestamp (Left)
-                doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
-                    .text(new Date(log.createdAt).toLocaleDateString(), MARGIN, itemY, { width: 50, align: 'right' });
-                doc.text(new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), MARGIN, itemY + 8, { width: 50, align: 'right' });
-
-                // Dot on line
-                doc.circle(lineX, itemY + 6, 2).fill(colors.border);
-
-                // Content (Right of line)
-                doc.font(FONTS.bold).fontSize(8).fillColor(colors.textMain)
-                    .text(log.action.replace(/_/g, ' '), lineX + 15, itemY);
-
-                doc.font(FONTS.regular).fontSize(8).fillColor(colors.textLight)
-                    .text(`${log.actor?.name || 'System'} - ${log.details || ''}`, lineX + 15, itemY + 10, { width: 350 });
-
-                doc.y += 25; // Space between items
-            });
-
-            // Draw connecting line
-            if (doc.y > startY) {
-                doc.save();
-                doc.strokeColor(colors.border).lineWidth(1)
-                    .moveTo(lineX, startY)
-                    .lineTo(lineX, doc.y - 15)
-                    .stroke();
-                doc.restore();
-            }
-        }
-
-        // === VERIFICATION (Footer / Compact) ===
-        const verifyHeight = 120;
-        if (doc.y + verifyHeight > doc.page.height - MARGIN) {
-            doc.addPage();
-            doc.y = doc.page.height - verifyHeight - MARGIN;
         } else {
-            doc.moveDown(2);
+            doc.text('No description provided.');
+        }
+        doc.moveDown();
+
+        // === MEDICAL REPORT ===
+        if (ticket.medicalReport) {
+            const m = ticket.medicalReport;
+            doc.fontSize(14).text('Medical Report', { underline: true });
+            doc.moveDown(0.5);
+            doc.fontSize(10);
+
+            doc.text(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
+            doc.text(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
+            doc.text(`Gender: ${safeString(m.patientGender)}`);
+            doc.text(`Role: ${safeString(m.patientRole)}`);
+            doc.text(`Injury Type: ${safeString(m.injuryType)}`);
+            doc.text(`License Action: ${safeString(m.licenseAction)}`);
+
+            if (m.initialCondition) {
+                doc.text(`Condition: ${safeString(m.initialCondition)}`);
+            }
+            if (m.treatmentGiven) {
+                doc.text(`Treatment: ${safeString(m.treatmentGiven)}`);
+            }
+            doc.moveDown();
         }
 
-        // Separator
-        doc.moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke(colors.border);
-        doc.y += 20;
+        // === PIT GRID REPORT ===
+        if (ticket.pitGridReport) {
+            const p = ticket.pitGridReport;
+            doc.fontSize(14).text('Pit & Grid Report', { underline: true });
+            doc.moveDown(0.5);
+            doc.fontSize(10);
 
-        // Container
-        const footerY = doc.y;
+            doc.text(`Car Number: ${safeString(p.carNumber)}`);
+            doc.text(`Pit Number: ${safeString(p.pitNumber)}`);
+            doc.text(`Session: ${safeString(p.sessionCategory)}`);
+            doc.text(`Speed Limit: ${safeString(p.speedLimit)}`);
+            doc.text(`Speed Recorded: ${safeString(p.speedRecorded)}`);
 
-        // QR Code (Left)
+            const violations = [];
+            if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
+            if (p.refueling) violations.push('Refueling Violation');
+            if (p.excessMechanics) violations.push('Excess Mechanics');
+
+            if (violations.length > 0) {
+                doc.text(`Violations: ${violations.join(', ')}`);
+            }
+            doc.moveDown();
+        }
+
+        // === ACTIVITY LOG (Simplified) ===
+        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
+            doc.fontSize(14).text('Activity Log', { underline: true });
+            doc.moveDown(0.5);
+            doc.fontSize(9);
+
+            // Limit to prevent overflow
+            const logsToShow = ticket.activityLogs.slice(0, 10);
+            logsToShow.forEach((log, index) => {
+                const date = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'N/A';
+                const action = safeString(log.action).replace(/_/g, ' ');
+                const actor = safeString(log.actor?.name) || 'System';
+
+                doc.text(`${date} - ${action} by ${actor}`);
+
+                // Add page break if needed
+                if (index < logsToShow.length - 1 && doc.y > 700) {
+                    doc.addPage();
+                }
+            });
+            doc.moveDown();
+        }
+
+        // === VERIFICATION QR CODE ===
         const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
         try {
-            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 80, margin: 0 });
-            doc.image(qrDataUrl, MARGIN, footerY, { width: 60 });
-        } catch (e) { }
+            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
+            doc.fontSize(12).text('Verification', { underline: true });
+            doc.moveDown(0.5);
+            doc.image(qrDataUrl, { width: 100 });
+            doc.fontSize(8).text(`Token: ${verifyToken}`);
+            doc.text(`Generated: ${new Date().toISOString()}`);
+        } catch (qrError) {
+            console.error('[PDF Export] QR generation error:', qrError);
+            doc.fontSize(10).text(`Verification Token: ${verifyToken}`);
+        }
 
-        // Text (Right of QR)
-        doc.font(FONTS.bold).fontSize(9).fillColor(colors.textMain)
-            .text('AUTHENTICITY VERIFICATION', MARGIN + 80, footerY);
-
-        doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
-            .text('Scan the QR code to verify the validity of this digital report on the SAMF Incident Portal. Unauthorized modification is invalid.', MARGIN + 80, footerY + 15, { width: 350 });
-
-        doc.font(FONTS.bold).fontSize(7).fillColor(colors.accent)
-            .text(`TOKEN: ${verifyToken}`, MARGIN + 80, footerY + 40);
-
-        doc.font(FONTS.regular).fontSize(7).fillColor(colors.textLight)
-            .text(`Generated: ${new Date().toISOString()}`, MARGIN + 80, footerY + 50);
-
-        // Finalize
+        console.log('[PDF Export] Finalizing document');
         doc.end();
 
     } catch (error) {
-        console.error("PDF Export Error:", error);
+        console.error("[PDF Export Error]:", error);
+        console.error(error.stack);
         if (!res.headersSent) {
             res.status(500).json({ message: `Export failed: ${error.message}` });
         }
     }
 };
 
-const xlsx = require('xlsx');
-
 // @desc    Export tickets to Excel
 // @route   GET /api/tickets/export-excel
 // @access  Private (Admin/COC)
 const exportExcel = async (req, res) => {
     try {
+        console.log('[Excel Export] Starting export');
         const { startDate, endDate } = req.query;
 
         // 1. Validation & Filter
         const where = {};
         if (startDate && endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+
             where.createdAt = {
                 gte: new Date(startDate),
-                lte: new Date(endDate)
+                lte: end
             };
         }
 
@@ -370,26 +247,34 @@ const exportExcel = async (req, res) => {
             orderBy: { createdAt: 'desc' }
         });
 
+        console.log(`[Excel Export] Found ${tickets.length} tickets`);
+
+        if (!tickets || tickets.length === 0) {
+            return res.status(404).json({ message: 'No tickets found for the selected range.' });
+        }
+
         // 3. Transform Data for Excel
         const data = tickets.map(t => ({
-            'Ticket No': t.ticketNo,
-            'Event': t.eventName,
-            'Open Date': new Date(t.createdAt).toLocaleDateString(),
+            'Ticket No': safeString(t.ticketNo),
+            'Event': safeString(t.eventName),
+            'Open Date': t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
             'Closed Date': t.closedAt ? new Date(t.closedAt).toLocaleDateString() : '-',
-            'Type': t.type,
-            'Status': t.status,
-            'Priority': t.priority,
-            'Reporter': t.createdBy?.name || 'Unknown',
-            'Description': t.description,
-            'Assigned To': t.assignedToId || 'Unassigned',
+            'Type': safeString(t.type),
+            'Status': safeString(t.status),
+            'Priority': safeString(t.priority),
+            'Reporter': safeString(t.createdBy?.name) || 'Unknown',
+            'Description': safeString(t.description),
+            'Assigned To': safeString(t.assignedToId) || 'Unassigned',
 
-            // Medical Specifics (Flattened if present)
-            'Patient Name': t.medicalReport ? `${t.medicalReport.patientGivenName} ${t.medicalReport.patientSurname}` : '',
-            'Injury Type': t.medicalReport?.injuryType || '',
-            'License Action': t.medicalReport?.licenseAction || '',
+            // Medical Specifics
+            'Patient Name': t.medicalReport
+                ? `${safeString(t.medicalReport.patientGivenName)} ${safeString(t.medicalReport.patientSurname)}`.trim()
+                : '',
+            'Injury Type': safeString(t.medicalReport?.injuryType),
+            'License Action': safeString(t.medicalReport?.licenseAction),
 
             // Pit Specifics
-            'Car No': t.pitGridReport?.carNumber || t.medicalReport?.carNumber || '',
+            'Car No': safeString(t.pitGridReport?.carNumber) || safeString(t.medicalReport?.carNumber),
             'Pit Violation': t.pitGridReport ? [
                 t.pitGridReport.drivingOnWhiteLine ? 'White Line' : '',
                 t.pitGridReport.refueling ? 'Refueling' : '',
@@ -405,17 +290,21 @@ const exportExcel = async (req, res) => {
         // 5. Generate Buffer (In-Memory)
         const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
+        console.log('[Excel Export] Buffer created, sending response');
+
         // 6. Send Response
         const fileName = `tickets_export_${Date.now()}.xlsx`;
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', buffer.length);
 
         res.send(buffer);
 
     } catch (error) {
-        console.error('Excel Export Error:', error);
-        res.status(500).json({ message: 'Excel export failed' });
+        console.error('[Excel Export Error]:', error);
+        console.error(error.stack);
+        res.status(500).json({ message: `Excel export failed: ${error.message}` });
     }
 };
 
