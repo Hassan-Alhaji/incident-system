@@ -21,7 +21,7 @@ const {
 
 const { submitMedicalReport, getMedicalReport } = require('../controllers/medicalController');
 
-const { exportExcel } = require('../controllers/reportController');
+const { exportPdf, exportExcel } = require('../controllers/reportController');
 
 router.route('/export-excel').get(protect, exportExcel);
 
@@ -44,7 +44,8 @@ router.route('/:id/return').post(protect, returnTicket);
 router.route('/:id/attachments')
     .post(protect, upload.array('files'), uploadAttachments);
 
-
+router.route('/:id/export-pdf')
+    .post(protect, exportPdf);
 
 router.route('/:id/comments')
     .post(protect, addComment);

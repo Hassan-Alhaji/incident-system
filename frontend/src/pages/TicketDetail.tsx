@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
     ArrowLeft, User, Shield, AlertCircle, FileText,
-    History, Paperclip, ExternalLink, Send, Activity, X
+    History, Paperclip, ExternalLink, Send, Activity, X, Download, Loader2
 } from 'lucide-react';
 
 interface Ticket {
@@ -56,8 +56,40 @@ const TicketDetail = () => {
         }
     };
 
+    const [isExporting, setIsExporting] = useState(false);
 
-    // ... (existing code) ...
+    const handleDownloadReport = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            const response = await api.post(`/tickets/${id}/export-pdf`, {}, {
+                responseType: 'blob',
+            });
+            const blob = new Blob([response.data], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `report-${ticket?.ticketNo || 'incident'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err: any) {
+            let msg = 'Export failed. Please try again.';
+            if (err.response?.data instanceof Blob) {
+                try {
+                    const text = await err.response.data.text();
+                    const json = JSON.parse(text);
+                    if (json.message) msg = json.message;
+                } catch { }
+            } else if (err.message) {
+                msg = err.message;
+            }
+            alert(msg);
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
 
     const [showMedicalModal, setShowMedicalModal] = useState(false);
@@ -326,8 +358,18 @@ const TicketDetail = () => {
                     Back to Dashboard
                 </button>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
-
-
+                    <button
+                        onClick={handleDownloadReport}
+                        disabled={isExporting}
+                        className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all shadow-sm
+                            ${isExporting
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md active:scale-95'
+                            }`}
+                    >
+                        {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        {isExporting ? 'Generating...' : 'Download Report'}
+                    </button>
 
                     {/* Escalation (Admin/Ops/Medical/Safety/Control) */}
                     {(() => {
