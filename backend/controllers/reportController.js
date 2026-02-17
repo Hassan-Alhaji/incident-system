@@ -1,7 +1,5 @@
 const prisma = require('../prismaClient');
-const fs = require('fs');
-const path = require('path');
-const PDFDocument = require('pdfkit');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const xlsx = require('xlsx');
 
 // === SAFE HELPERS ===
@@ -48,175 +46,122 @@ const exportPdf = async (req, res) => {
             return res.status(404).json({ message: 'Ticket not found' });
         }
 
-        console.log('[PDF Export] Ticket loaded, creating document');
+        console.log('[PDF Export] Ticket loaded, creating PDF with pdf-lib');
 
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
-        const chunks = [];
-        const doc = new PDFDocument({
-            size: 'A4',
-            margin: 40,
-            bufferPages: true,
-            autoFirstPage: true
-        });
 
-        doc.on('data', chunk => chunks.push(chunk));
-        doc.on('end', async () => {
-            console.log('[PDF Export] Document finalized, sending response');
-            const pdfBuffer = Buffer.concat(chunks);
-            const fileName = `report-${safeString(ticket.ticketNo)}.pdf`;
+        // Create PDF using pdf-lib (different library than pdfkit)
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([595, 842]); // A4 size
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-            res.setHeader('Content-Length', pdfBuffer.length);
-            res.send(pdfBuffer);
+        const { width, height } = page.getSize();
+        let yPosition = height - 50;
 
-            try {
-                await prisma.ticketExport.create({
-                    data: {
-                        ticketId,
-                        verifyToken,
-                        pdfUrl: 'BUFFERED',
-                        snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
-                    }
-                });
-            } catch (e) {
-                console.error('Export log error:', e);
-            }
-        });
-
-        doc.on('error', (err) => {
-            console.error('[PDF Export] PDFKit error:', err);
-        });
+        // Helper to add text
+        const addText = (text, size = 10, isBold = false) => {
+            page.drawText(text, {
+                x: 50,
+                y: yPosition,
+                size: size,
+                font: isBold ? fontBold : font,
+                color: rgb(0, 0, 0),
+            });
+            yPosition -= size + 5;
+        };
 
         // === HEADER ===
-        // Using explicit number for font size
-        doc.fontSize(20);
-        doc.text('INCIDENT REPORT', { align: 'center' });
-
-        doc.fontSize(12);
-        doc.text(`Ticket: ${safeString(ticket.ticketNo)}`, { align: 'center' });
-        doc.moveDown(1);
+        addText('INCIDENT REPORT', 20, true);
+        addText(`Ticket: ${safeString(ticket.ticketNo)}`, 12);
+        yPosition -= 10;
 
         // === BASIC INFO ===
-        doc.fontSize(14);
-        doc.text('Basic Information', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10);
-
-        doc.text(`Event: ${safeString(ticket.eventName)}`);
-        doc.text(`Type: ${safeString(ticket.type)}`);
-        doc.text(`Status: ${safeString(ticket.status)}`);
-        doc.text(`Priority: ${safeString(ticket.priority)}`);
-        doc.text(`Location: ${safeString(ticket.location)}`);
-
-        const dateStr = ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A';
-        doc.text(`Date: ${dateStr}`);
-
-        doc.text(`Reporter: ${safeString(ticket.createdBy?.name)}`);
-        doc.moveDown(1);
+        addText('BASIC INFORMATION', 14, true);
+        addText(`Event: ${safeString(ticket.eventName)}`);
+        addText(`Type: ${safeString(ticket.type)}`);
+        addText(`Status: ${safeString(ticket.status)}`);
+        addText(`Priority: ${safeString(ticket.priority)}`);
+        addText(`Location: ${safeString(ticket.location)}`);
+        addText(`Date: ${ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'}`);
+        addText(`Reporter: ${safeString(ticket.createdBy?.name)}`);
+        yPosition -= 10;
 
         // === DESCRIPTION ===
-        doc.fontSize(14);
-        doc.text('Description', { underline: true });
-        doc.moveDown(0.5);
-
-        doc.fontSize(10);
+        addText('DESCRIPTION', 14, true);
         const description = safeString(ticket.description);
         if (description.length > 0) {
-            doc.text(description);
+            // Split long text into lines
+            const words = description.split(' ');
+            let line = '';
+            words.forEach(word => {
+                if (line.length + word.length < 80) {
+                    line += word + ' ';
+                } else {
+                    addText(line);
+                    line = word + ' ';
+                }
+            });
+            if (line) addText(line);
         } else {
-            doc.text('No description provided.');
+            addText('No description provided.');
         }
-        doc.moveDown(1);
+        yPosition -= 10;
 
         // === MEDICAL REPORT ===
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
-            doc.fontSize(14);
-            doc.text('Medical Report', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(10);
-
-            doc.text(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
-            doc.text(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
-            doc.text(`Gender: ${safeString(m.patientGender)}`);
-            doc.text(`Role: ${safeString(m.patientRole)}`);
-            doc.text(`Injury Type: ${safeString(m.injuryType)}`);
-            doc.text(`License Action: ${safeString(m.licenseAction)}`);
-
-            if (m.initialCondition) doc.text(`Condition: ${safeString(m.initialCondition)}`);
-            if (m.treatmentGiven) doc.text(`Treatment: ${safeString(m.treatmentGiven)}`);
-            if (m.motorsportId) doc.text(`Motorsport ID: ${safeString(m.motorsportId)}`);
-            if (m.carNumber) doc.text(`Car Number: ${safeString(m.carNumber)}`);
-
-            doc.moveDown(1);
+            addText('MEDICAL REPORT', 14, true);
+            addText(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
+            addText(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
+            addText(`Gender: ${safeString(m.patientGender)}`);
+            addText(`Role: ${safeString(m.patientRole)}`);
+            addText(`Injury Type: ${safeString(m.injuryType)}`);
+            addText(`License Action: ${safeString(m.licenseAction)}`);
+            if (m.motorsportId) addText(`Motorsport ID: ${safeString(m.motorsportId)}`);
+            if (m.carNumber) addText(`Car Number: ${safeString(m.carNumber)}`);
+            yPosition -= 10;
         }
 
         // === PIT GRID REPORT ===
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
-            doc.fontSize(14);
-            doc.text('Pit & Grid Report', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(10);
-
-            doc.text(`Car Number: ${safeString(p.carNumber)}`);
-            doc.text(`Pit Number: ${safeString(p.pitNumber)}`);
-            doc.text(`Session: ${safeString(p.sessionCategory)}`);
-            doc.text(`Speed Limit: ${safeString(p.speedLimit)}`);
-            doc.text(`Speed Recorded: ${safeString(p.speedRecorded)}`);
-
-            const violations = [];
-            if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
-            if (p.refueling) violations.push('Refueling Violation');
-            if (p.excessMechanics) violations.push('Excess Mechanics');
-            if (p.driverChange) violations.push('Driver Change Violation');
-
-            if (violations.length > 0) {
-                doc.text(`Violations: ${violations.join(', ')}`);
-            }
-            doc.moveDown(1);
+            addText('PIT & GRID REPORT', 14, true);
+            addText(`Car Number: ${safeString(p.carNumber)}`);
+            addText(`Pit Number: ${safeString(p.pitNumber)}`);
+            addText(`Session: ${safeString(p.sessionCategory)}`);
+            yPosition -= 10;
         }
 
-        // === ACTIVITY LOG ===
-        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            doc.fontSize(14);
-            doc.text('Activity Log', { underline: true });
-            doc.moveDown(0.5);
-            doc.fontSize(9);
+        // === VERIFICATION ===
+        addText('VERIFICATION', 12, true);
+        addText(`Token: ${verifyToken}`, 8);
+        addText(`Generated: ${new Date().toISOString()}`, 8);
 
-            // Limit to prevent overflow
-            const logsToShow = ticket.activityLogs.slice(0, 10);
-            logsToShow.forEach((log, index) => {
-                const date = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'N/A';
-                const action = safeString(log.action).replace(/_/g, ' ');
-                const actor = safeString(log.actor?.name) || 'System';
+        // Save PDF
+        const pdfBytes = await pdfDoc.save();
 
-                doc.text(`${date} - ${action} by ${actor}`);
+        console.log('[PDF Export] PDF created successfully');
 
-                // Safe page break check
-                if (index < logsToShow.length - 1 && doc.y > 650) {
-                    doc.addPage();
+        const fileName = `report-${safeString(ticket.ticketNo)}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', pdfBytes.length);
+        res.send(Buffer.from(pdfBytes));
+
+        // Save export record
+        try {
+            await prisma.ticketExport.create({
+                data: {
+                    ticketId,
+                    verifyToken,
+                    pdfUrl: 'BUFFERED',
+                    snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
                 }
             });
-            doc.moveDown(1);
+        } catch (e) {
+            console.error('Export log error:', e);
         }
-
-        // === VERIFICATION (TEXT ONLY) ===
-        // Removed image logic completely
-        const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
-
-        doc.fontSize(12);
-        doc.text('Verification', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(10);
-        doc.text('(QR Code verification unavailable)');
-        doc.fontSize(8);
-        doc.text(`Token: ${verifyToken}`);
-        doc.text(`Generated: ${new Date().toISOString()}`);
-
-        console.log('[PDF Export] Finalizing document');
-        doc.end();
 
     } catch (error) {
         console.error("[PDF Export Error]:", error);

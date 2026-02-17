@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@prisma/client": "^5.19.0",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
@@ -24,12 +25,11 @@
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.0",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.2",
     "pg": "^8.18.0",
+    "prisma": "^5.19.0",
     "qrcode": "^1.5.4",
-    "xlsx": "^0.18.5",
-    "@prisma/client": "^5.19.0",
-    "prisma": "^5.19.0"
-  },
-  "devDependencies": {}
+    "xlsx": "^0.18.5"
+  }
 }
