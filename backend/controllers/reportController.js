@@ -1,8 +1,11 @@
 const prisma = require('../prismaClient');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
+const QRCode = require('qrcode');
 const xlsx = require('xlsx');
 
-// === SAFE HELPERS ===
+// Helper to safely convert to string
 const safeString = (val) => {
     if (val === null || val === undefined) return '';
     if (typeof val === 'number') {
@@ -12,49 +15,6 @@ const safeString = (val) => {
     if (typeof val === 'string') return val;
     if (typeof val === 'boolean') return String(val);
     return '';
-};
-
-// Safe number helper - ensures no NaN reaches pdf-lib
-const safeNumber = (val, fallback = 0) => {
-    if (val === null || val === undefined) return fallback;
-    const num = Number(val);
-    if (isNaN(num) || !isFinite(num)) return fallback;
-    return num;
-};
-
-// ASCII-safe date formatter (avoids locale-specific Unicode characters on Linux)
-const safeDateString = (dateVal, includeTime = false) => {
-    try {
-        const d = new Date(dateVal);
-        if (isNaN(d.getTime())) return 'N/A';
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        if (!includeTime) return `${year}-${month}-${day}`;
-        const hours = String(d.getHours()).padStart(2, '0');
-        const mins = String(d.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${mins}`;
-    } catch (e) {
-        return 'N/A';
-    }
-};
-
-// Sanitize text for pdf-lib: strip any characters outside WinAnsi/Latin-1 encoding
-// pdf-lib standard fonts only support WinAnsi (code points 32-255)
-// Non-supported chars cause internal NaN when calculating character widths
-const sanitizeForPdf = (text) => {
-    if (!text) return '';
-    // Replace common Unicode variants with ASCII equivalents
-    let cleaned = String(text)
-        .replace(/[\u00A0]/g, ' ')        // non-breaking space -> space
-        .replace(/[\u2018\u2019]/g, "'")  // smart quotes -> apostrophe
-        .replace(/[\u201C\u201D]/g, '"')  // smart double quotes -> quote
-        .replace(/[\u2013\u2014]/g, '-')  // en-dash, em-dash -> hyphen
-        .replace(/[\u2026]/g, '...')      // ellipsis -> three dots
-        .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, ''); // zero-width & bidi chars
-    // Strip any remaining chars outside printable ASCII + Latin-1 supplement (32-255)
-    cleaned = cleaned.replace(/[^\x20-\xFF]/g, '?');
-    return cleaned;
 };
 
 // @desc    Export ticket report to PDF
@@ -89,222 +49,202 @@ const exportPdf = async (req, res) => {
             return res.status(404).json({ message: 'Ticket not found' });
         }
 
-        console.log('[PDF Export] Ticket loaded, creating PDF with pdf-lib');
-        console.log('[PDF Export] Ticket fields debug:', {
-            ticketNo: typeof ticket.ticketNo,
-            type: typeof ticket.type,
-            status: typeof ticket.status,
-            priority: typeof ticket.priority,
-            eventName: typeof ticket.eventName,
-            location: typeof ticket.location,
-            description: typeof ticket.description,
-            hasMedical: !!ticket.medicalReport,
-            hasPitGrid: !!ticket.pitGridReport,
-            hasSafety: !!ticket.safetyReport,
-            hasControl: !!ticket.controlReport
-        });
+        console.log('[PDF Export] Ticket loaded, creating document');
 
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const chunks = [];
+        const doc = new PDFDocument({
+            size: 'A4',
+            margin: 50,
+            bufferPages: true,
+            autoFirstPage: true
+        });
 
-        // Create PDF using pdf-lib
-        const pdfDoc = await PDFDocument.create();
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', async () => {
+            console.log('[PDF Export] Document finalized, sending response');
+            const pdfBuffer = Buffer.concat(chunks);
+            const fileName = `report-${safeString(ticket.ticketNo)}.pdf`;
 
-        const PAGE_WIDTH = 595;
-        const PAGE_HEIGHT = 842;
-        const MARGIN_TOP = 50;
-        const MARGIN_BOTTOM = 50;
-        const MARGIN_LEFT = 50;
-
-        let currentPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        let yPosition = PAGE_HEIGHT - MARGIN_TOP;
-
-        // Helper to add a new page when needed
-        const ensureSpace = (neededHeight) => {
-            const needed = safeNumber(neededHeight, 20);
-            if (yPosition < MARGIN_BOTTOM + needed) {
-                currentPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-                yPosition = PAGE_HEIGHT - MARGIN_TOP;
-            }
-        };
-
-        // Safe text drawing helper - ALL numeric values go through safeNumber
-        const addText = (text, size, isBold) => {
-            const safeSize = safeNumber(size, 10);
-            const safeX = safeNumber(MARGIN_LEFT, 50);
-
-            // Ensure we have space for this line
-            ensureSpace(safeSize + 5);
-
-            const safeY = safeNumber(yPosition, PAGE_HEIGHT - MARGIN_TOP);
-            const safeText = sanitizeForPdf(safeString(String(text || '')));
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            res.setHeader('Content-Length', pdfBuffer.length);
+            res.send(pdfBuffer);
 
             try {
-                currentPage.drawText(safeText, {
-                    x: safeX,
-                    y: safeY,
-                    size: safeSize,
-                    font: isBold ? fontBold : font,
-                    color: rgb(0, 0, 0),
+                await prisma.ticketExport.create({
+                    data: {
+                        ticketId,
+                        verifyToken,
+                        pdfUrl: 'BUFFERED',
+                        snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
+                    }
                 });
-            } catch (drawError) {
-                console.error(`[PDF Export] drawText error for text="${safeText}", x=${safeX}, y=${safeY}, size=${safeSize}:`, drawError.message);
-                // Try drawing a fallback placeholder instead of crashing entirely
-                try {
-                    currentPage.drawText('[Error rendering text]', {
-                        x: safeX,
-                        y: safeY,
-                        size: safeSize,
-                        font: font,
-                        color: rgb(0.5, 0, 0),
-                    });
-                } catch (e2) {
-                    // Skip this line entirely
-                    console.error('[PDF Export] Even fallback text failed:', e2.message);
-                }
+            } catch (e) {
+                console.error('Export log error:', e);
             }
+        });
 
-            yPosition = safeNumber(safeY - safeSize - 5, 0);
-        };
+        doc.on('error', (err) => {
+            console.error('[PDF Export] PDFKit error:', err);
+        });
 
-        // Helper for spacing
-        const addSpacing = (amount) => {
-            yPosition -= safeNumber(amount, 10);
-        };
+        // === ULTRA SIMPLE VERSION - NO OPTIONS ===
+        doc.fontSize(20);
+        doc.text('INCIDENT REPORT');
+        doc.text('');
 
-        // === HEADER ===
-        addText('INCIDENT REPORT', 20, true);
-        addText(`Ticket: ${safeString(ticket.ticketNo)}`, 12);
-        addSpacing(10);
+        doc.fontSize(12);
+        doc.text('Ticket: ' + safeString(ticket.ticketNo));
+        doc.text('');
+        doc.text('');
 
         // === BASIC INFO ===
-        addText('BASIC INFORMATION', 14, true);
-        addText(`Event: ${safeString(ticket.eventName)}`);
-        addText(`Type: ${safeString(ticket.type)}`);
-        addText(`Status: ${safeString(ticket.status)}`);
-        addText(`Priority: ${safeString(ticket.priority)}`);
-        addText(`Location: ${safeString(ticket.location)}`);
-        addText(`Date: ${ticket.createdAt ? safeDateString(ticket.createdAt, true) : 'N/A'}`);
-        addText(`Reporter: ${safeString(ticket.createdBy?.name)}`);
-        addSpacing(10);
+        doc.fontSize(14);
+        doc.text('BASIC INFORMATION');
+        doc.text('');
+
+        doc.fontSize(10);
+        doc.text('Event: ' + safeString(ticket.eventName));
+        doc.text('Type: ' + safeString(ticket.type));
+        doc.text('Status: ' + safeString(ticket.status));
+        doc.text('Priority: ' + safeString(ticket.priority));
+        doc.text('Location: ' + safeString(ticket.location));
+        doc.text('Date: ' + (ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'));
+        doc.text('Reporter: ' + safeString(ticket.createdBy?.name));
+        doc.text('');
+        doc.text('');
 
         // === DESCRIPTION ===
-        addText('DESCRIPTION', 14, true);
+        doc.fontSize(14);
+        doc.text('DESCRIPTION');
+        doc.text('');
+
+        doc.fontSize(10);
         const description = safeString(ticket.description);
         if (description.length > 0) {
-            // Split long text into lines
-            const words = description.split(' ');
-            let line = '';
-            words.forEach(word => {
-                const cleanWord = safeString(word);
-                if (line.length + cleanWord.length < 80) {
-                    line += cleanWord + ' ';
-                } else {
-                    if (line.trim()) addText(line.trim());
-                    line = cleanWord + ' ';
-                }
-            });
-            if (line.trim()) addText(line.trim());
+            doc.text(description);
         } else {
-            addText('No description provided.');
+            doc.text('No description provided.');
         }
-        addSpacing(10);
+        doc.text('');
+        doc.text('');
 
         // === MEDICAL REPORT ===
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
-            console.log('[PDF Export] Medical report fields:', Object.keys(m).map(k => `${k}:${typeof m[k]}`).join(', '));
-            addText('MEDICAL REPORT', 14, true);
-            addText(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
-            addText(`DOB: ${m.patientDob ? safeDateString(m.patientDob) : 'N/A'}`);
-            addText(`Gender: ${safeString(m.patientGender)}`);
-            addText(`Role: ${safeString(m.patientRole)}`);
-            addText(`Injury Type: ${safeString(m.injuryType)}`);
-            addText(`License Action: ${safeString(m.licenseAction)}`);
-            if (m.motorsportId) addText(`Motorsport ID: ${safeString(m.motorsportId)}`);
-            if (m.carNumber) addText(`Car Number: ${safeString(m.carNumber)}`);
-            addSpacing(10);
+
+            doc.fontSize(14);
+            doc.text('MEDICAL REPORT');
+            doc.text('');
+
+            doc.fontSize(10);
+            doc.text('Patient: ' + safeString(m.patientGivenName) + ' ' + safeString(m.patientSurname));
+            doc.text('DOB: ' + (m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'));
+            doc.text('Gender: ' + safeString(m.patientGender));
+            doc.text('Role: ' + safeString(m.patientRole));
+            doc.text('Injury Type: ' + safeString(m.injuryType));
+            doc.text('License Action: ' + safeString(m.licenseAction));
+
+            if (m.initialCondition) {
+                doc.text('Condition: ' + safeString(m.initialCondition));
+            }
+            if (m.treatmentGiven) {
+                doc.text('Treatment: ' + safeString(m.treatmentGiven));
+            }
+            if (m.motorsportId) {
+                doc.text('Motorsport ID: ' + safeString(m.motorsportId));
+            }
+            if (m.carNumber) {
+                doc.text('Car Number: ' + safeString(m.carNumber));
+            }
+
+            doc.text('');
+            doc.text('');
         }
 
         // === PIT GRID REPORT ===
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
-            console.log('[PDF Export] PitGrid report fields:', Object.keys(p).map(k => `${k}:${typeof p[k]}=${p[k]}`).join(', '));
-            addText('PIT & GRID REPORT', 14, true);
-            addText(`Car Number: ${safeString(p.carNumber)}`);
-            addText(`Pit Number: ${safeString(p.pitNumber)}`);
-            addText(`Session: ${safeString(p.sessionCategory)}`);
-            if (p.lapNumber !== null && p.lapNumber !== undefined) {
-                addText(`Lap Number: ${safeString(p.lapNumber)}`);
+
+            doc.fontSize(14);
+            doc.text('PIT AND GRID REPORT');
+            doc.text('');
+
+            doc.fontSize(10);
+            doc.text('Car Number: ' + safeString(p.carNumber));
+            doc.text('Pit Number: ' + safeString(p.pitNumber));
+            doc.text('Session: ' + safeString(p.sessionCategory));
+
+            const speedLimit = safeString(p.speedLimit);
+            const speedRecorded = safeString(p.speedRecorded);
+            const lapNumber = safeString(p.lapNumber);
+
+            if (speedLimit) doc.text('Speed Limit: ' + speedLimit);
+            if (speedRecorded) doc.text('Speed Recorded: ' + speedRecorded);
+            if (lapNumber) doc.text('Lap Number: ' + lapNumber);
+
+            const violations = [];
+            if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
+            if (p.refueling) violations.push('Refueling Violation');
+            if (p.excessMechanics) violations.push('Excess Mechanics');
+            if (p.driverChange) violations.push('Driver Change Violation');
+
+            if (violations.length > 0) {
+                doc.text('Violations: ' + violations.join(', '));
             }
-            if (p.speedLimit) addText(`Speed Limit: ${safeString(p.speedLimit)}`);
-            if (p.speedRecorded) addText(`Speed Recorded: ${safeString(p.speedRecorded)}`);
-            addSpacing(10);
+
+            doc.text('');
+            doc.text('');
         }
 
-        // === SAFETY REPORT ===
-        if (ticket.safetyReport) {
-            const s = ticket.safetyReport;
-            addText('SAFETY REPORT', 14, true);
-            if (s.hazardType) addText(`Hazard Type: ${safeString(s.hazardType)}`);
-            if (s.locationDetail) addText(`Location Detail: ${safeString(s.locationDetail)}`);
-            if (s.trackStatus) addText(`Track Status: ${safeString(s.trackStatus)}`);
-            if (s.damageDescription) addText(`Damage: ${safeString(s.damageDescription)}`);
-            addSpacing(10);
-        }
+        // === ACTIVITY LOG ===
+        if (ticket.activityLogs && ticket.activityLogs.length > 0) {
+            doc.fontSize(14);
+            doc.text('ACTIVITY LOG');
+            doc.text('');
 
-        // === CONTROL REPORT ===
-        if (ticket.controlReport) {
-            const c = ticket.controlReport;
-            addText('CONTROL REPORT', 14, true);
-            if (c.competitorNumber) addText(`Competitor Number: ${safeString(c.competitorNumber)}`);
-            if (c.lapNumber !== null && c.lapNumber !== undefined) addText(`Lap Number: ${safeString(c.lapNumber)}`);
-            if (c.violationType) addText(`Violation Type: ${safeString(c.violationType)}`);
-            if (c.actionTaken) addText(`Action Taken: ${safeString(c.actionTaken)}`);
-            if (c.penaltyValue) addText(`Penalty: ${safeString(c.penaltyValue)}`);
-            if (c.reasoning) addText(`Reasoning: ${safeString(c.reasoning)}`);
-            addSpacing(10);
-        }
+            doc.fontSize(9);
 
-        // === VERIFICATION ===
-        addText('VERIFICATION', 12, true);
-        addText(`Token: ${verifyToken}`, 8);
-        addText(`Generated: ${new Date().toISOString()}`, 8);
+            const logsToShow = ticket.activityLogs.slice(0, 10);
+            logsToShow.forEach((log) => {
+                const date = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'N/A';
+                const action = safeString(log.action).replace(/_/g, ' ');
+                const actor = safeString(log.actor?.name) || 'System';
 
-        // Save PDF
-        console.log('[PDF Export] All text drawn, saving PDF...');
-        const pdfBytes = await pdfDoc.save();
-
-        console.log('[PDF Export] PDF created successfully, size:', pdfBytes.length);
-
-        const fileName = `report-${safeString(ticket.ticketNo)}.pdf`;
-        const contentLength = safeNumber(pdfBytes.length, 0);
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        if (contentLength > 0) {
-            res.setHeader('Content-Length', contentLength);
-        }
-        res.send(Buffer.from(pdfBytes));
-
-        // Save export record
-        try {
-            await prisma.ticketExport.create({
-                data: {
-                    ticketId,
-                    verifyToken,
-                    pdfUrl: 'BUFFERED',
-                    snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
-                }
+                doc.text(date + ' - ' + action + ' by ' + actor);
             });
-        } catch (e) {
-            console.error('Export log error:', e);
+
+            doc.text('');
+            doc.text('');
         }
+
+        // === VERIFICATION QR CODE ===
+        const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
+        try {
+            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
+
+            doc.fontSize(12);
+            doc.text('VERIFICATION');
+            doc.text('');
+
+            doc.image(qrDataUrl, { width: 100 });
+
+            doc.fontSize(8);
+            doc.text('Token: ' + verifyToken);
+            doc.text('Generated: ' + new Date().toISOString());
+        } catch (qrError) {
+            console.error('[PDF Export] QR generation error:', qrError);
+            doc.fontSize(10);
+            doc.text('Verification Token: ' + verifyToken);
+        }
+
+        console.log('[PDF Export] Finalizing document');
+        doc.end();
 
     } catch (error) {
         console.error("[PDF Export Error]:", error);
-        console.error("[PDF Export Error Stack]:", error.stack);
+        console.error(error.stack);
         if (!res.headersSent) {
             res.status(500).json({ message: `Export failed: ${error.message}` });
         }
