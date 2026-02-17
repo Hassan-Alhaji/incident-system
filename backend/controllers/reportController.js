@@ -8,8 +8,12 @@ const xlsx = require('xlsx');
 // Helper to safely convert to string
 const safeString = (val) => {
     if (val === null || val === undefined) return '';
+    if (typeof val === 'number') {
+        if (isNaN(val) || !isFinite(val)) return '';
+        return String(val);
+    }
     if (typeof val === 'string') return val;
-    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (typeof val === 'boolean') return String(val);
     return '';
 };
 
@@ -196,7 +200,16 @@ const exportPdf = async (req, res) => {
             const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
             doc.fontSize(12).text('Verification', { underline: true });
             doc.moveDown(0.5);
-            doc.image(qrDataUrl, { width: 100 });
+            try {
+                if (qrDataUrl) {
+                    doc.image(qrDataUrl, { width: 100 });
+                } else {
+                    doc.text('(QR Code Generation Failed)');
+                }
+            } catch (imgError) {
+                console.error('[PDF Export] QR Image Error:', imgError);
+                doc.text('(QR Code Image Failed)');
+            }
             doc.fontSize(8).text(`Token: ${verifyToken}`);
             doc.text(`Generated: ${new Date().toISOString()}`);
         } catch (qrError) {
