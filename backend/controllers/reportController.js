@@ -35,7 +35,11 @@ const clean = (text) => {
 // ── PDF Export ───────────────────────────────────────────────────────────────
 
 const exportPdf = async (req, res) => {
+    const logs = [];
+    const log = (msg) => logs.push(`[${new Date().toISOString().split('T')[1]}] ${msg}`);
+
     try {
+        log(`Starting export for ${req.params.id}`);
         const ticket = await prisma.ticket.findUnique({
             where: { id: req.params.id },
             include: {
@@ -52,11 +56,13 @@ const exportPdf = async (req, res) => {
             },
         });
 
-        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+        if (!ticket) throw new Error('Ticket not found');
+        log('Ticket loaded');
 
         const pdf = await PDFDocument.create();
         const font = await pdf.embedFont(StandardFonts.Helvetica);
         const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+        log('Fonts embedded');
 
         const W = 595;
         const H = 842;
@@ -64,85 +70,128 @@ const exportPdf = async (req, res) => {
 
         let page = pdf.addPage([W, H]);
         let y = H - M;
+        log(`Initial page created. W=${W}, H=${H}, y=${y}`);
 
-        const newPage = (need) => {
-            if (y < M + (need || 30)) {
-                page = pdf.addPage([W, H]);
-                y = H - M;
+        const checkY = (context) => {
+            if (isNaN(y)) {
+                log(`CRITICAL: y is NaN at ${context}`);
+                y = H - M; // reset to safe value to prevent crash
             }
         };
 
-        // Draw a single line of text — NO measurement, NO width calculation
+        const newPage = (need) => {
+            checkY('before newPage');
+            if (y < M + (need || 30)) {
+                log(`Adding new page. y=${y}, need=${need}`);
+                page = pdf.addPage([W, H]);
+                y = H - M;
+                log(`New page added. Reset y=${y}`);
+            }
+        };
+
+        const safeDraw = (operation, fn) => {
+            try {
+                fn();
+            } catch (e) {
+                log(`ERROR in ${operation}: ${e.message}`);
+            }
+        };
+
+        // Draw a single line of text
         const drawLine = (text, size, useFont, color, indent) => {
             const sz = size || 10;
             const x = M + (indent || 0);
+
+            checkY(`before drawLine("${text?.substring(0, 10)}...")`);
             newPage(sz + 6);
-            try {
-                page.drawText(clean(safe(text)), {
+
+            const safeTxt = clean(safe(text));
+            // log(`Drawing text: "${safeTxt}" at x=${x}, y=${y}`);
+
+            safeDraw('drawText', () => {
+                if (isNaN(x) || isNaN(y)) throw new Error(`NaN coords: x=${x}, y=${y}`);
+                page.drawText(safeTxt, {
                     x: x,
                     y: y,
                     size: sz,
                     font: useFont || font,
                     color: color || rgb(0.15, 0.15, 0.15),
                 });
-            } catch (e) {
-                console.error('[PDF] drawText error:', e.message);
-            }
+            });
+
             y -= sz + 5;
+            checkY('after drawLine decrement');
         };
 
         const sectionTitle = (text) => {
+            log(`Section: ${text}`);
             newPage(30);
+
+            // Draw title
             drawLine(text, 14, bold, rgb(0.1, 0.4, 0.25), 0);
-            // underline
-            page.drawLine({
-                start: { x: M, y: y + 3 },
-                end: { x: W - M, y: y + 3 },
-                thickness: 1,
-                color: rgb(0.85, 0.85, 0.85),
+
+            // Draw underline (manually because drawLine changed y)
+            // Note: drawLine moved y down by 19 (14+5). So we want line at y + 3?
+            // Actually, drawLine draws at `y` then decrements.
+            // So if we want to underline the text we just drew, we should use the OLD y.
+            // But here we use current y? Wait.
+            // If drawLine drew at 700, y becomes 681.
+            // We want underline at ~685?
+
+            // Let's just key off current y to be safe from NaN
+            const lineY = y + 3;
+
+            safeDraw('sectionUnderline', () => {
+                if (isNaN(lineY)) throw new Error(`NaN lineY=${lineY}`);
+                page.drawLine({
+                    start: { x: M, y: lineY },
+                    end: { x: W - M, y: lineY },
+                    thickness: 1,
+                    color: rgb(0.85, 0.85, 0.85),
+                });
             });
+
             y -= 5;
+            checkY('after sectionTitle decrement');
         };
 
         const field = (label, value) => {
-            // Combine label and value as ONE string — avoids widthOfTextAtSize entirely
+            if (!value && value !== 0) return; // skip empty
             drawLine(clean(safe(label)) + ':  ' + clean(safe(value)), 10, font, rgb(0.2, 0.2, 0.2), 10);
         };
 
-        const spacer = () => { y -= 10; };
+        const spacer = () => { y -= 10; checkY('spacer'); };
 
-        // Write long text by splitting into ~80 char lines
         const writeText = (text) => {
             const str = clean(safe(text));
             if (!str) return;
             const maxChars = 85;
             let i = 0;
+            // log(`Writing block text length ${str.length}`);
             while (i < str.length) {
                 let end = Math.min(i + maxChars, str.length);
-                // Try to break at a space
                 if (end < str.length) {
                     const lastSpace = str.lastIndexOf(' ', end);
                     if (lastSpace > i) end = lastSpace;
                 }
                 drawLine(str.substring(i, end).trim(), 10, font, rgb(0.2, 0.2, 0.2), 10);
                 i = end;
-                // Skip the space we broke at
                 if (str[i] === ' ') i++;
             }
         };
 
         // ── Header ───────────────────────────────────────────────────────────
-        page.drawRectangle({ x: 0, y: H - 70, width: W, height: 70, color: rgb(0.1, 0.4, 0.25) });
-        page.drawText('INCIDENT REPORT', { x: M, y: H - 45, size: 22, font: bold, color: rgb(1, 1, 1) });
-        page.drawText(clean('Ticket #' + safe(ticket.ticketNo)), { x: M, y: H - 62, size: 11, font: font, color: rgb(0.85, 0.95, 0.88) });
+        log('Drawing Header');
+        safeDraw('headerRect', () => page.drawRectangle({ x: 0, y: H - 70, width: W, height: 70, color: rgb(0.1, 0.4, 0.25) }));
+        safeDraw('headerTitle', () => page.drawText('INCIDENT REPORT', { x: M, y: H - 45, size: 22, font: bold, color: rgb(1, 1, 1) }));
+        safeDraw('headerSub', () => page.drawText(clean('Ticket #' + safe(ticket.ticketNo)), { x: M, y: H - 62, size: 11, font: font, color: rgb(0.85, 0.95, 0.88) }));
 
-        // Status badge (right side, simple text)
         const statusText = clean(safe(ticket.status).replace(/_/g, ' '));
-        page.drawText(statusText, { x: W - M - 120, y: H - 50, size: 11, font: bold, color: rgb(1, 1, 1) });
+        safeDraw('statusBadge', () => page.drawText(statusText, { x: W - M - 120, y: H - 50, size: 11, font: bold, color: rgb(1, 1, 1) }));
 
         y = H - 95;
 
-        // ── Basic Information ────────────────────────────────────────────────
+        // ── Body ─────────────────────────────────────────────────────────────
         sectionTitle('BASIC INFORMATION');
         field('Event', ticket.eventName);
         field('Type', ticket.type);
@@ -155,16 +204,11 @@ const exportPdf = async (req, res) => {
         if (ticket.marshalId) field('Marshal ID', ticket.marshalId);
         spacer();
 
-        // ── Description ─────────────────────────────────────────────────────
         sectionTitle('DESCRIPTION');
-        if (ticket.description) {
-            writeText(ticket.description);
-        } else {
-            drawLine('No description provided.', 10, font, rgb(0.5, 0.5, 0.5), 10);
-        }
+        if (ticket.description) writeText(ticket.description);
+        else drawLine('No description provided.', 10, font, rgb(0.5, 0.5, 0.5), 10);
         spacer();
 
-        // ── Medical Report ───────────────────────────────────────────────────
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
             sectionTitle('MEDICAL REPORT');
@@ -186,7 +230,6 @@ const exportPdf = async (req, res) => {
             spacer();
         }
 
-        // ── Control Report ───────────────────────────────────────────────────
         if (ticket.controlReport) {
             const c = ticket.controlReport;
             sectionTitle('CONTROL REPORT');
@@ -201,7 +244,6 @@ const exportPdf = async (req, res) => {
             spacer();
         }
 
-        // ── Pit & Grid Report ────────────────────────────────────────────────
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
             sectionTitle('PIT & GRID REPORT');
@@ -225,7 +267,6 @@ const exportPdf = async (req, res) => {
             spacer();
         }
 
-        // ── Safety Report ────────────────────────────────────────────────────
         if (ticket.safetyReport) {
             const s = ticket.safetyReport;
             sectionTitle('SAFETY REPORT');
@@ -238,7 +279,6 @@ const exportPdf = async (req, res) => {
             spacer();
         }
 
-        // ── Activity Timeline ────────────────────────────────────────────────
         if (ticket.activityLogs && ticket.activityLogs.length > 0) {
             sectionTitle('ACTIVITY TIMELINE');
             for (const log of ticket.activityLogs) {
@@ -251,23 +291,18 @@ const exportPdf = async (req, res) => {
         }
 
         // ── Footer ───────────────────────────────────────────────────────────
+        log('Drawing Footer');
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
         newPage(40);
-        page.drawLine({
-            start: { x: M, y: 60 },
-            end: { x: W - M, y: 60 },
-            thickness: 0.5,
-            color: rgb(0.8, 0.8, 0.8),
-        });
-        page.drawText(clean('Token: ' + verifyToken + '  |  Generated: ' + new Date().toISOString()), {
-            x: M, y: 45, size: 7, font: font, color: rgb(0.5, 0.5, 0.5),
-        });
-        page.drawText('SAMF Incident Management System', {
-            x: M, y: 35, size: 7, font: font, color: rgb(0.5, 0.5, 0.5),
-        });
 
-        // ── Send ─────────────────────────────────────────────────────────────
+        safeDraw('footerLine', () => page.drawLine({ start: { x: M, y: 60 }, end: { x: W - M, y: 60 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) }));
+        safeDraw('footerToken', () => page.drawText(clean('Token: ' + verifyToken + '  |  Generated: ' + new Date().toISOString()), { x: M, y: 45, size: 7, font: font, color: rgb(0.5, 0.5, 0.5) }));
+        safeDraw('footerCopy', () => page.drawText('SAMF Incident Management System', { x: M, y: 35, size: 7, font: font, color: rgb(0.5, 0.5, 0.5) }));
+
+        // ── Save ─────────────────────────────────────────────────────────────
+        log('Saving PDF...');
         const pdfBytes = await pdf.save();
+        log(`PDF Saved. Bytes: ${pdfBytes ? pdfBytes.length : 'NULL'}`);
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="report-' + clean(safe(ticket.ticketNo)) + '.pdf"');
@@ -278,11 +313,15 @@ const exportPdf = async (req, res) => {
             await prisma.ticketExport.create({
                 data: { ticketId: req.params.id, verifyToken: verifyToken, pdfUrl: 'BUFFERED', snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo }) },
             });
-        } catch (e) { console.error('Export log error:', e); }
+        } catch (e) {
+            log(`Export log error: ${e.message}`);
+        }
 
     } catch (error) {
-        console.error('[PDF Export Error]:', error.message, error.stack);
-        if (!res.headersSent) res.status(500).json({ message: 'Export failed: ' + error.message });
+        console.error('[PDF Export Error]:', error);
+        log(`FATAL ERROR: ${error.message}`);
+        // Return logs to user for debugging
+        if (!res.headersSent) res.status(500).json({ message: 'Export failed: ' + error.message, debugLogs: logs });
     }
 };
 
