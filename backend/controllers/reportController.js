@@ -22,6 +22,41 @@ const safeNumber = (val, fallback = 0) => {
     return num;
 };
 
+// ASCII-safe date formatter (avoids locale-specific Unicode characters on Linux)
+const safeDateString = (dateVal, includeTime = false) => {
+    try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return 'N/A';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        if (!includeTime) return `${year}-${month}-${day}`;
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${mins}`;
+    } catch (e) {
+        return 'N/A';
+    }
+};
+
+// Sanitize text for pdf-lib: strip any characters outside WinAnsi/Latin-1 encoding
+// pdf-lib standard fonts only support WinAnsi (code points 32-255)
+// Non-supported chars cause internal NaN when calculating character widths
+const sanitizeForPdf = (text) => {
+    if (!text) return '';
+    // Replace common Unicode variants with ASCII equivalents
+    let cleaned = String(text)
+        .replace(/[\u00A0]/g, ' ')        // non-breaking space -> space
+        .replace(/[\u2018\u2019]/g, "'")  // smart quotes -> apostrophe
+        .replace(/[\u201C\u201D]/g, '"')  // smart double quotes -> quote
+        .replace(/[\u2013\u2014]/g, '-')  // en-dash, em-dash -> hyphen
+        .replace(/[\u2026]/g, '...')      // ellipsis -> three dots
+        .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, ''); // zero-width & bidi chars
+    // Strip any remaining chars outside printable ASCII + Latin-1 supplement (32-255)
+    cleaned = cleaned.replace(/[^\x20-\xFF]/g, '?');
+    return cleaned;
+};
+
 // @desc    Export ticket report to PDF
 // @route   POST /api/tickets/:id/export-pdf
 // @access  Private
@@ -103,7 +138,7 @@ const exportPdf = async (req, res) => {
             ensureSpace(safeSize + 5);
 
             const safeY = safeNumber(yPosition, PAGE_HEIGHT - MARGIN_TOP);
-            const safeText = safeString(String(text || ''));
+            const safeText = sanitizeForPdf(safeString(String(text || '')));
 
             try {
                 currentPage.drawText(safeText, {
@@ -150,7 +185,7 @@ const exportPdf = async (req, res) => {
         addText(`Status: ${safeString(ticket.status)}`);
         addText(`Priority: ${safeString(ticket.priority)}`);
         addText(`Location: ${safeString(ticket.location)}`);
-        addText(`Date: ${ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'}`);
+        addText(`Date: ${ticket.createdAt ? safeDateString(ticket.createdAt, true) : 'N/A'}`);
         addText(`Reporter: ${safeString(ticket.createdBy?.name)}`);
         addSpacing(10);
 
@@ -182,7 +217,7 @@ const exportPdf = async (req, res) => {
             console.log('[PDF Export] Medical report fields:', Object.keys(m).map(k => `${k}:${typeof m[k]}`).join(', '));
             addText('MEDICAL REPORT', 14, true);
             addText(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
-            addText(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
+            addText(`DOB: ${m.patientDob ? safeDateString(m.patientDob) : 'N/A'}`);
             addText(`Gender: ${safeString(m.patientGender)}`);
             addText(`Role: ${safeString(m.patientRole)}`);
             addText(`Injury Type: ${safeString(m.injuryType)}`);
