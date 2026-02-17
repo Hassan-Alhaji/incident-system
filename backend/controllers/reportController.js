@@ -1,5 +1,10 @@
 const prisma = require('../prismaClient');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const pdfLib = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb } = pdfLib;
+
+if (!StandardFonts || !StandardFonts.Helvetica) {
+    console.error('CRITICAL: pdf-lib StandardFonts NOT loaded correctly:', Object.keys(pdfLib));
+}
 const xlsx = require('xlsx');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -363,7 +368,7 @@ const exportPdf = async (req, res) => {
             console.error('Fallback PDF failed:', fallbackError);
             if (!res.headersSent) {
                 res.status(500).json({
-                    message: 'Export failed completely. ' + mainError.message,
+                    message: `Export failed completely. Main: ${mainError.message}. Fallback: ${fallbackError.message}`,
                     debugLogs: logs
                 });
             }
