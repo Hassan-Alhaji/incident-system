@@ -317,11 +317,57 @@ const exportPdf = async (req, res) => {
             log(`Export log error: ${e.message}`);
         }
 
-    } catch (error) {
-        console.error('[PDF Export Error]:', error);
-        log(`FATAL ERROR: ${error.message}`);
-        // Return logs to user for debugging
-        if (!res.headersSent) res.status(500).json({ message: 'Export failed: ' + error.message, debugLogs: logs });
+    } catch (mainError) {
+        console.error('[PDF Export Error]:', mainError);
+        log(`FATAL ERROR: ${mainError.message}`);
+        log(`Stack: ${mainError.stack}`);
+
+        // ── Fallback PDF Generation ──────────────────────────────────────────
+        try {
+            const errPdf = await PDFDocument.create();
+            const page = errPdf.addPage([595, 842]);
+            const font = await errPdf.embedFont(StandardFonts.Helvetica);
+            const { height } = page.getSize();
+
+            page.drawText('EXPORT FAILED - DEBUG REPORT', { x: 50, y: height - 50, size: 18, font, color: rgb(1, 0, 0) });
+            page.drawText('Please share this document with support.', { x: 50, y: height - 70, size: 10, font });
+
+            let y = height - 100;
+            const drawErrLine = (text) => {
+                if (y < 50) return;
+                const safeLine = String(text).replace(/[^ -~]/g, ''); // aggressive clean
+                page.drawText(safeLine, { x: 50, y, size: 8, font, color: rgb(0, 0, 0) });
+                y -= 10;
+            };
+
+            drawErrLine(`Error: ${mainError.message}`);
+
+            drawErrLine('--- STACK TRACE ---');
+            const stack = mainError.stack ? mainError.stack.split('\n') : [];
+            stack.forEach(line => drawErrLine(line));
+
+            y -= 10;
+            drawErrLine('--- DEBUG LOGS (Last 30) ---');
+            logs.slice(-30).forEach(l => drawErrLine(l));
+
+            const errBytes = await errPdf.save();
+
+            if (!res.headersSent) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'attachment; filename="report-error.pdf"');
+                res.setHeader('Content-Length', errBytes.length);
+                res.send(Buffer.from(errBytes));
+            }
+
+        } catch (fallbackError) {
+            console.error('Fallback PDF failed:', fallbackError);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    message: 'Export failed completely. ' + mainError.message,
+                    debugLogs: logs
+                });
+            }
+        }
     }
 };
 
