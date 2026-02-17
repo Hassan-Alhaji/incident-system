@@ -8,12 +8,8 @@ const xlsx = require('xlsx');
 // Helper to safely convert to string
 const safeString = (val) => {
     if (val === null || val === undefined) return '';
-    if (typeof val === 'number') {
-        if (isNaN(val) || !isFinite(val)) return '';
-        return String(val);
-    }
     if (typeof val === 'string') return val;
-    if (typeof val === 'boolean') return String(val);
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
     return '';
 };
 
@@ -55,7 +51,7 @@ const exportPdf = async (req, res) => {
         const chunks = [];
         const doc = new PDFDocument({
             size: 'A4',
-            margin: 50,
+            margin: 40,
             bufferPages: true,
             autoFirstPage: true
         });
@@ -89,148 +85,124 @@ const exportPdf = async (req, res) => {
             console.error('[PDF Export] PDFKit error:', err);
         });
 
-        // === ULTRA SIMPLE VERSION - NO OPTIONS ===
-        doc.fontSize(20);
-        doc.text('INCIDENT REPORT');
-        doc.text('');
-
-        doc.fontSize(12);
-        doc.text('Ticket: ' + safeString(ticket.ticketNo));
-        doc.text('');
-        doc.text('');
+        // === SIMPLE HEADER ===
+        doc.fontSize(20).text('INCIDENT REPORT', { align: 'center' });
+        doc.fontSize(12).text(`Ticket: ${safeString(ticket.ticketNo)}`, { align: 'center' });
+        doc.moveDown();
 
         // === BASIC INFO ===
-        doc.fontSize(14);
-        doc.text('BASIC INFORMATION');
-        doc.text('');
-
+        doc.fontSize(14).text('Basic Information', { underline: true });
+        doc.moveDown(0.5);
         doc.fontSize(10);
-        doc.text('Event: ' + safeString(ticket.eventName));
-        doc.text('Type: ' + safeString(ticket.type));
-        doc.text('Status: ' + safeString(ticket.status));
-        doc.text('Priority: ' + safeString(ticket.priority));
-        doc.text('Location: ' + safeString(ticket.location));
-        doc.text('Date: ' + (ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'));
-        doc.text('Reporter: ' + safeString(ticket.createdBy?.name));
-        doc.text('');
-        doc.text('');
+
+        doc.text(`Event: ${safeString(ticket.eventName)}`);
+        doc.text(`Type: ${safeString(ticket.type)}`);
+        doc.text(`Status: ${safeString(ticket.status)}`);
+        doc.text(`Priority: ${safeString(ticket.priority)}`);
+        doc.text(`Location: ${safeString(ticket.location)}`);
+        doc.text(`Date: ${ticket.createdAt ? new Date(ticket.createdAt).toLocaleString() : 'N/A'}`);
+        doc.text(`Reporter: ${safeString(ticket.createdBy?.name)}`);
+        doc.moveDown();
 
         // === DESCRIPTION ===
-        doc.fontSize(14);
-        doc.text('DESCRIPTION');
-        doc.text('');
-
+        doc.fontSize(14).text('Description', { underline: true });
+        doc.moveDown(0.5);
         doc.fontSize(10);
         const description = safeString(ticket.description);
         if (description.length > 0) {
-            doc.text(description);
+            // Split into chunks to avoid text wrapping issues
+            const maxLength = 500;
+            for (let i = 0; i < description.length; i += maxLength) {
+                doc.text(description.substring(i, i + maxLength));
+            }
         } else {
             doc.text('No description provided.');
         }
-        doc.text('');
-        doc.text('');
+        doc.moveDown();
 
         // === MEDICAL REPORT ===
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
-
-            doc.fontSize(14);
-            doc.text('MEDICAL REPORT');
-            doc.text('');
-
+            doc.fontSize(14).text('Medical Report', { underline: true });
+            doc.moveDown(0.5);
             doc.fontSize(10);
-            doc.text('Patient: ' + safeString(m.patientGivenName) + ' ' + safeString(m.patientSurname));
-            doc.text('DOB: ' + (m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'));
-            doc.text('Gender: ' + safeString(m.patientGender));
-            doc.text('Role: ' + safeString(m.patientRole));
-            doc.text('Injury Type: ' + safeString(m.injuryType));
-            doc.text('License Action: ' + safeString(m.licenseAction));
+
+            doc.text(`Patient: ${safeString(m.patientGivenName)} ${safeString(m.patientSurname)}`);
+            doc.text(`DOB: ${m.patientDob ? new Date(m.patientDob).toLocaleDateString() : 'N/A'}`);
+            doc.text(`Gender: ${safeString(m.patientGender)}`);
+            doc.text(`Role: ${safeString(m.patientRole)}`);
+            doc.text(`Injury Type: ${safeString(m.injuryType)}`);
+            doc.text(`License Action: ${safeString(m.licenseAction)}`);
 
             if (m.initialCondition) {
-                doc.text('Condition: ' + safeString(m.initialCondition));
+                doc.text(`Condition: ${safeString(m.initialCondition)}`);
             }
             if (m.treatmentGiven) {
-                doc.text('Treatment: ' + safeString(m.treatmentGiven));
+                doc.text(`Treatment: ${safeString(m.treatmentGiven)}`);
             }
-            if (m.motorsportId) {
-                doc.text('Motorsport ID: ' + safeString(m.motorsportId));
-            }
-            if (m.carNumber) {
-                doc.text('Car Number: ' + safeString(m.carNumber));
-            }
-
-            doc.text('');
-            doc.text('');
+            doc.moveDown();
         }
 
         // === PIT GRID REPORT ===
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
-
-            doc.fontSize(14);
-            doc.text('PIT AND GRID REPORT');
-            doc.text('');
-
+            doc.fontSize(14).text('Pit & Grid Report', { underline: true });
+            doc.moveDown(0.5);
             doc.fontSize(10);
-            doc.text('Car Number: ' + safeString(p.carNumber));
-            doc.text('Pit Number: ' + safeString(p.pitNumber));
-            doc.text('Session: ' + safeString(p.sessionCategory));
 
-            const speedLimit = safeString(p.speedLimit);
-            const speedRecorded = safeString(p.speedRecorded);
-            const lapNumber = safeString(p.lapNumber);
-
-            if (speedLimit) doc.text('Speed Limit: ' + speedLimit);
-            if (speedRecorded) doc.text('Speed Recorded: ' + speedRecorded);
-            if (lapNumber) doc.text('Lap Number: ' + lapNumber);
+            doc.text(`Car Number: ${safeString(p.carNumber)}`);
+            doc.text(`Pit Number: ${safeString(p.pitNumber)}`);
+            doc.text(`Session: ${safeString(p.sessionCategory)}`);
+            doc.text(`Speed Limit: ${safeString(p.speedLimit)}`);
+            doc.text(`Speed Recorded: ${safeString(p.speedRecorded)}`);
 
             const violations = [];
             if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
             if (p.refueling) violations.push('Refueling Violation');
             if (p.excessMechanics) violations.push('Excess Mechanics');
-            if (p.driverChange) violations.push('Driver Change Violation');
 
             if (violations.length > 0) {
-                doc.text('Violations: ' + violations.join(', '));
+                doc.text(`Violations: ${violations.join(', ')}`);
             }
-
-            doc.text('');
-            doc.text('');
+            doc.moveDown();
         }
 
-        // === ACTIVITY LOG ===
+        // === ACTIVITY LOG (Simplified) ===
         if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            doc.fontSize(14);
-            doc.text('ACTIVITY LOG');
-            doc.text('');
-
+            doc.fontSize(14).text('Activity Log', { underline: true });
+            doc.moveDown(0.5);
             doc.fontSize(9);
 
+            // Limit to prevent overflow
             const logsToShow = ticket.activityLogs.slice(0, 10);
-            logsToShow.forEach((log) => {
+            logsToShow.forEach((log, index) => {
                 const date = log.createdAt ? new Date(log.createdAt).toLocaleString() : 'N/A';
                 const action = safeString(log.action).replace(/_/g, ' ');
                 const actor = safeString(log.actor?.name) || 'System';
 
-                doc.text(date + ' - ' + action + ' by ' + actor);
-            });
+                doc.text(`${date} - ${action} by ${actor}`);
 
-            doc.text('');
-            doc.text('');
+                // Add page break if needed
+                if (index < logsToShow.length - 1 && doc.y > 700) {
+                    doc.addPage();
+                }
+            });
+            doc.moveDown();
         }
 
-        // === VERIFICATION CODE (TEXT ONLY) ===
-        // Removed QR Image temporarily to fix NaN error
+        // === VERIFICATION QR CODE ===
         const verifyUrl = `${process.env.FRONTEND_URL || 'https://incident-system.vercel.app'}/verify/${verifyToken}`;
-
-        doc.fontSize(12);
-        doc.text('VERIFICATION');
-        doc.text('');
-
-        doc.fontSize(8);
-        doc.text('Token: ' + verifyToken);
-        doc.text('URL: ' + verifyUrl);
-        doc.text('Generated: ' + new Date().toISOString());
+        try {
+            const qrDataUrl = await QRCode.toDataURL(verifyUrl, { width: 150, margin: 1 });
+            doc.fontSize(12).text('Verification', { underline: true });
+            doc.moveDown(0.5);
+            doc.image(qrDataUrl, { width: 100 });
+            doc.fontSize(8).text(`Token: ${verifyToken}`);
+            doc.text(`Generated: ${new Date().toISOString()}`);
+        } catch (qrError) {
+            console.error('[PDF Export] QR generation error:', qrError);
+            doc.fontSize(10).text(`Verification Token: ${verifyToken}`);
+        }
 
         console.log('[PDF Export] Finalizing document');
         doc.end();
