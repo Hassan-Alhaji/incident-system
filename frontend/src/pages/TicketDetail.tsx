@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
     ArrowLeft, User, Shield, AlertCircle, FileText,
-    History, Paperclip, ExternalLink, Send, Activity, X, Download, Loader2
+    History, Paperclip, ExternalLink, Send, Activity, X
 } from 'lucide-react';
 
 interface Ticket {
@@ -56,51 +56,7 @@ const TicketDetail = () => {
         }
     };
 
-    const [isExporting, setIsExporting] = useState(false);
 
-    const handleExport = async () => {
-        if (isExporting) return;
-        setIsExporting(true);
-        try {
-            const response = await api.post(`/tickets/${id}/export-pdf`, {}, {
-                responseType: 'blob' // Important: Expect binary data
-            });
-
-            // Create blob link to download
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = `report-${ticket?.ticketNo || 'incident'}.pdf`;
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename=(.+)/);
-                if (fileNameMatch.length === 2) fileName = fileNameMatch[1];
-            }
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode?.removeChild(link);
-        } catch (err: any) {
-            console.error('Export error:', err);
-            let message = 'Export failed. Please try again.';
-
-            if (err.response && err.response.data instanceof Blob) {
-                try {
-                    const errorText = await err.response.data.text();
-                    const errorJson = JSON.parse(errorText);
-                    if (errorJson.message) message = `Export Failed: ${errorJson.message}`;
-                } catch (e) {
-                    // Blob was not JSON text
-                }
-            } else if (err.message) {
-                message = `Export Failed: ${err.message}`;
-            }
-
-            alert(message);
-        } finally {
-            setIsExporting(false);
-        }
-    };
     // ... (existing code) ...
 
 
@@ -370,22 +326,7 @@ const TicketDetail = () => {
                     Back to Dashboard
                 </button>
                 <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
-                    <button
-                        onClick={handleExport}
-                        disabled={isExporting}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold transition-all shadow-sm
-                            ${isExporting
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md active:scale-95'
-                            }`}
-                    >
-                        {isExporting ? (
-                            <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                            <Download size={16} />
-                        )}
-                        {isExporting ? 'Generating...' : 'Download Report'}
-                    </button>
+
 
 
                     {/* Escalation (Admin/Ops/Medical/Safety/Control) */}
