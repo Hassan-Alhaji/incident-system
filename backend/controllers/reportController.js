@@ -58,7 +58,7 @@ const exportPdf = async (req, res) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
 
         // Pipe to response
         doc.pipe(res);
@@ -244,12 +244,12 @@ const exportPdf = async (req, res) => {
 
         // Add page numbers
         const range = doc.bufferedPageRange();
-        for (let i = 0; i < range.count; i++) {
+        for (let i = range.start; i < range.start + range.count; i++) {
             doc.switchToPage(i);
             doc.fontSize(8).fill('#9e9e9e');
             doc.text(`Generated: ${new Date().toISOString()}`, 50, 780, { align: 'left', width: 250 });
             doc.text('SAMF Incident Management System', 300, 780, { align: 'right', width: 245 });
-            doc.text(`Page ${i + 1} of ${range.count}`, 300, 792, { align: 'right', width: 245 });
+            doc.text(`Page ${i + 1} of ${range.start + range.count}`, 300, 792, { align: 'right', width: 245 });
         }
 
         doc.end();
