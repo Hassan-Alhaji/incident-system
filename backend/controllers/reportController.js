@@ -25,11 +25,8 @@ const formatDate = (d, time = false) => {
     } catch { return 'N/A'; }
 };
 
-// Aggressively strip EVERYTHING except basic printable ASCII (32-126) for safety
-const clean = (text) => {
-    if (!text) return '';
-    return String(text).replace(/[^ -~]/g, '');
-};
+// Removed aggressive stripping to allow content (even if fonts fail to render some chars, better than empty)
+const clean = (text) => text;
 
 // ── PDF Export (PDFKit) ──────────────────────────────────────────────────────
 
@@ -116,9 +113,8 @@ const exportPdf = async (req, res) => {
             if (!value && value !== 0) return;
             const startY = doc.y;
             doc.fontSize(10).font(fontBold).fill('#666666').text(clean(safe(label)) + ':', { width: 130, continued: false });
-
             // Move cursor up to draw value on same line
-            doc.text(clean(safe(value)), 180, startY, { width: 360 });
+            doc.fill('#1a1a1a').text(clean(safe(value)), 180, startY, { width: 360 });
             doc.moveDown(0.3);
         };
 
