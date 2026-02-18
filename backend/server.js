@@ -21,8 +21,10 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(morgan('dev'));
+const path = require('path'); // Ensure path is required
 app.use(express.json());
-app.use('/uploads', express.static('uploads'));
+// Serve uploads from absolute path to ensure consistency regardless of CWD
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // *** HEALTH CHECK (Top Priority) ***
 app.get('/api/health', (req, res) => {

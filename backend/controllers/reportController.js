@@ -230,15 +230,47 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         for (const att of imageAttachments) {
             try {
                 let imgBuffer = null;
+                console.log(`Processing attachment: ${att.url} (${att.mimeType})`);
 
                 if (att.url.startsWith('http')) {
+                    console.log('Fetching via HTTP...');
                     const resp = await axios.get(att.url, { responseType: 'arraybuffer' });
                     imgBuffer = Buffer.from(resp.data, 'binary');
                 } else {
                     const relativePath = att.url.startsWith('/') ? att.url.substring(1) : att.url;
+
+                    // 1. Try relative to backend (safe default for Node)
                     const localPath = path.join(__dirname, '..', relativePath);
+                    console.log(`Resolved local path: ${localPath}`);
+
                     if (fs.existsSync(localPath)) {
+                        console.log('File found locally.');
                         imgBuffer = fs.readFileSync(localPath);
+                    } else {
+                        // 2. Try relative to CWD (Root, if running from root)
+                        const rootPath = path.join(process.cwd(), relativePath);
+                        console.log(`Trying root path: ${rootPath}`);
+
+                        if (fs.existsSync(rootPath)) {
+                            console.log('File found at root path.');
+                            imgBuffer = fs.readFileSync(rootPath);
+                        } else {
+                            // 3. Fallback: Try fetching via HTTP from localhost/reqHost
+                            // This handles cases where file is served statically but not found on expected disk path provided
+                            console.log('File NOT found on disk. Trying HTTP fallback...');
+                            const host = reqHost || 'localhost:5000';
+                            const protocol = host.includes('localhost') ? 'http' : 'https';
+                            const fileUrl = `${protocol}://${host}/${relativePath}`;
+                            console.log(`Fetching fallback URL: ${fileUrl}`);
+
+                            try {
+                                const resp = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                                imgBuffer = Buffer.from(resp.data, 'binary');
+                                console.log('HTTP fallback success.');
+                            } catch (httpErr) {
+                                console.error(`HTTP fallback failed: ${httpErr.message}`);
+                            }
+                        }
                     }
                 }
 
@@ -250,9 +282,14 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                     doc.moveDown(0.5);
                     doc.fontSize(9).text(att.name || 'Image', { align: 'center' });
                     doc.moveDown(1.5);
+                } else {
+                    doc.fontSize(10).fill('red').text(`[Image not found: ${att.name}]`);
+                    doc.moveDown();
                 }
             } catch (err) {
                 console.error(`Error loading image ${att.url}:`, err.message);
+                doc.fontSize(10).fill('red').text(`[Error loading image: ${att.name}]`);
+                doc.moveDown();
             }
         }
     }
