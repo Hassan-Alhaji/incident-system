@@ -1,6 +1,10 @@
 const prisma = require('../prismaClient');
 const PDFDocument = require('pdfkit');
 const xlsx = require('xlsx');
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const QRCode = require('qrcode');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +44,7 @@ const exportPdf = async (req, res) => {
                 controlReport: true,
                 safetyReport: true,
                 pitGridReport: true,
+                attachments: true,
                 activityLogs: {
                     include: { actor: { select: { name: true } } },
                     orderBy: { createdAt: 'desc' },
@@ -51,7 +56,6 @@ const exportPdf = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         // Setup streaming response
-        // Note: We don't verify token link in the footer anymore since we generate it on download
         const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
 
         const fileName = `report-${clean(safe(ticket.ticketNo))}.pdf`;
@@ -84,6 +88,49 @@ const exportPdf = async (req, res) => {
         const fontBold = 'Helvetica-Bold';
         const fontRegular = 'Helvetica';
 
+        // ── Layout Helpers ───────────────────────────────────────────────────
+
+        const drawSection = (title) => {
+            doc.moveDown(1.5);
+            // Gray background bar
+            doc.save();
+            doc.fillColor('#f5f5f5').rect(50, doc.y, 495, 25).fill();
+            doc.restore();
+
+            doc.fontSize(12).font(fontBold).fill('#2e7d32').text(title.toUpperCase(), 60, doc.y + 7);
+            doc.moveDown(0.8);
+            doc.fill('#1a1a1a');
+        };
+
+        const drawField = (label, value) => {
+            if (!value && value !== 0) return;
+
+            const startY = doc.y;
+            // Column 1: Label (width 140)
+            doc.fontSize(10).font(fontBold).fill('#555555')
+                .text(label + ':', 50, startY, { width: 140 });
+
+            const labelHeight = doc.y - startY;
+
+            // Column 2: Value (starts at x=200, width=345)
+            // Note: We use the same startY.
+            doc.font(fontRegular).fill('#1a1a1a')
+                .text(String(value), 200, startY, { width: 345, align: 'left' });
+
+            const valueHeight = doc.y - startY;
+
+            // Advance by the taller column + padding
+            const rowHeight = Math.max(labelHeight, valueHeight);
+            doc.y = startY + rowHeight + 8; // 8px padding
+        };
+
+        const drawText = (text) => {
+            if (!text) return;
+            doc.fontSize(10).font(fontRegular).fill('#1a1a1a')
+                .text(String(text), { width: 495, align: 'justify' });
+            doc.moveDown(0.5);
+        };
+
         // ── Header ───────────────────────────────────────────────────────────
 
         // Green header bar
@@ -94,35 +141,14 @@ const exportPdf = async (req, res) => {
 
         // Status badge
         const status = safe(ticket.status).toUpperCase().replace(/_/g, ' ');
-        doc.fontSize(12).font(fontBold).fill('white').text(status, 400, 45, { width: 145, align: 'right' });
+        doc.fontSize(12).font(fontBold).fill('white').text(status, 400, 35, { width: 145, align: 'right' });
+
+        // Generation Date (Top Right)
+        doc.fontSize(9).font(fontRegular).fill('#e8f5e9')
+            .text(`Generated: ${new Date().toLocaleDateString()}`, 400, 65, { width: 145, align: 'right' });
 
         doc.y = 130;
         doc.fill('#1a1a1a');
-
-        // ── Helpers for Content ──────────────────────────────────────────────
-
-        const drawSection = (title) => {
-            doc.moveDown(1.5);
-            doc.fontSize(14).font(fontBold).fill('#2e7d32').text(title.toUpperCase());
-            doc.rect(doc.x, doc.y + 2, 495, 1).fill('#e0e0e0'); // Underline
-            doc.moveDown(0.8);
-            doc.fill('#1a1a1a');
-        };
-
-        const drawField = (label, value) => {
-            if (!value && value !== 0) return;
-            const startY = doc.y;
-            doc.fontSize(10).font(fontBold).fill('#666666').text(clean(safe(label)) + ':', { width: 130, continued: false });
-            // Move cursor up to draw value on same line
-            doc.fill('#1a1a1a').text(clean(safe(value)), 180, startY, { width: 360 });
-            doc.moveDown(0.3);
-        };
-
-        const drawText = (text) => {
-            if (!text) return;
-            doc.fontSize(10).font(fontRegular).fill('#1a1a1a').text(clean(safe(text)), { width: 495, align: 'justify' });
-            doc.moveDown(0.5);
-        };
 
         // ── Body ─────────────────────────────────────────────────────────────
 
@@ -139,7 +165,7 @@ const exportPdf = async (req, res) => {
 
         drawSection('Description');
         if (ticket.description) drawText(ticket.description);
-        else doc.fontSize(10).fill('#999').text('No description provided.');
+        else doc.fontSize(10).fill('#999').text('No description provided.', { align: 'center' });
 
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
@@ -237,7 +263,70 @@ const exportPdf = async (req, res) => {
 
                 doc.fontSize(9).font(fontRegular).fill('#333')
                     .text(`${date}  |  ${action}  |  ${actor}`);
+                doc.moveDown(0.5);
             });
+        }
+
+        // ── Attachments (New Page) ───────────────────────────────────────────
+
+        if (ticket.attachments && ticket.attachments.length > 0) {
+            doc.addPage();
+            drawSection('Attachments');
+
+            for (const att of ticket.attachments) {
+                // Determine if image based on mimetype
+                if (att.mimeType && att.mimeType.startsWith('image/')) {
+                    try {
+                        let imgBuffer = null;
+
+                        // Check if remote or local
+                        if (att.url.startsWith('http')) {
+                            const resp = await axios.get(att.url, { responseType: 'arraybuffer' });
+                            imgBuffer = Buffer.from(resp.data, 'binary');
+                        } else {
+                            // Assume simplified local path structure (e.g. /uploads/file.png)
+                            // Remove leading slash if needed
+                            const relativePath = att.url.startsWith('/') ? att.url.substring(1) : att.url;
+                            const localPath = path.join(__dirname, '..', relativePath);
+                            if (fs.existsSync(localPath)) {
+                                imgBuffer = fs.readFileSync(localPath);
+                            }
+                        }
+
+                        if (imgBuffer) {
+                            if (doc.y > 650) doc.addPage(); // Ensure space
+                            doc.image(imgBuffer, { fit: [400, 300], align: 'center' });
+                            doc.moveDown(0.5);
+                            doc.fontSize(9).text(att.name || 'Image', { align: 'center' });
+                            doc.moveDown(1);
+                        }
+                    } catch (imgErr) {
+                        console.error('Failed to embed image:', imgErr.message);
+                        doc.text(`[Image Error: ${att.name}]`, { align: 'center' });
+                    }
+                }
+            }
+        }
+
+        // ── QR Code (Last Page) ──────────────────────────────────────────────
+
+        // Ensure space for QR
+        if (doc.y > 600) doc.addPage();
+
+        doc.moveDown(2);
+
+        // Generate QR Code linking to ticket detail (frontend)
+        // Note: Replace with actual frontend base URL from env or hardcode fallback
+        const baseUrl = process.env.FRONTEND_URL || 'https://incident-system-kappa.vercel.app';
+        const verifyLink = `${baseUrl}/tickets/${ticket.id}`;
+
+        try {
+            const qrDataUrl = await QRCode.toDataURL(verifyLink);
+            doc.image(qrDataUrl, { fit: [100, 100], align: 'center' });
+            doc.moveDown(0.5);
+            doc.fontSize(8).fill('#666666').text('Scan to view online', { align: 'center' });
+        } catch (qrErr) {
+            console.error('QR Gen Error:', qrErr);
         }
 
         // ── Footer ───────────────────────────────────────────────────────────
@@ -318,7 +407,7 @@ const verifyReport = async (req, res) => {
     // Debug hook to verify deployment version
     if (req.params.token === 'version') {
         return res.json({
-            version: 'pdfkit-v1',
+            version: 'pdfkit-v2-refined',
             timestamp: new Date().toISOString(),
             engine: 'PDFKit'
         });
