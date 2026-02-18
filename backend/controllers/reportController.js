@@ -319,6 +319,15 @@ const exportExcel = async (req, res) => {
 // ── Verify Report ────────────────────────────────────────────────────────────
 
 const verifyReport = async (req, res) => {
+    // Debug hook to verify deployment version
+    if (req.params.token === 'version') {
+        return res.json({
+            version: 'pdfkit-v1',
+            timestamp: new Date().toISOString(),
+            engine: 'PDFKit'
+        });
+    }
+
     try {
         const record = await prisma.ticketExport.findUnique({
             where: { verifyToken: req.params.token },
