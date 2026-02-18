@@ -1,10 +1,5 @@
 const prisma = require('../prismaClient');
-const pdfLib = require('pdf-lib');
-const { PDFDocument, StandardFonts, rgb } = pdfLib;
-
-if (!StandardFonts || !StandardFonts.Helvetica) {
-    console.error('CRITICAL: pdf-lib StandardFonts NOT loaded correctly:', Object.keys(pdfLib));
-}
+const PDFDocument = require('pdfkit');
 const xlsx = require('xlsx');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -30,21 +25,16 @@ const formatDate = (d, time = false) => {
     } catch { return 'N/A'; }
 };
 
-// Aggressively strip EVERYTHING except basic printable ASCII (32-126)
-// This eliminates ALL possible sources of NaN from character width calculation
+// Aggressively strip EVERYTHING except basic printable ASCII (32-126) for safety
 const clean = (text) => {
     if (!text) return '';
     return String(text).replace(/[^ -~]/g, '');
 };
 
-// ── PDF Export ───────────────────────────────────────────────────────────────
+// ── PDF Export (PDFKit) ──────────────────────────────────────────────────────
 
 const exportPdf = async (req, res) => {
-    const logs = [];
-    const log = (msg) => logs.push(`[${new Date().toISOString().split('T')[1]}] ${msg}`);
-
     try {
-        log(`Starting export for ${req.params.id}`);
         const ticket = await prisma.ticket.findUnique({
             where: { id: req.params.id },
             include: {
@@ -56,323 +46,221 @@ const exportPdf = async (req, res) => {
                 activityLogs: {
                     include: { actor: { select: { name: true } } },
                     orderBy: { createdAt: 'desc' },
-                    take: 15,
-                },
-            },
+                    take: 20
+                }
+            }
         });
 
-        if (!ticket) throw new Error('Ticket not found');
-        log('Ticket loaded');
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-        const pdf = await PDFDocument.create();
-        const font = await pdf.embedFont(StandardFonts.Helvetica);
-        const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-        log('Fonts embedded');
+        // Setup streaming response
+        // Note: We don't verify token link in the footer anymore since we generate it on download
+        const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-        const W = 595;
-        const H = 842;
-        const M = 50;
+        const fileName = `report-${clean(safe(ticket.ticketNo))}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-        let page = pdf.addPage([W, H]);
-        let y = H - M;
-        log(`Initial page created. W=${W}, H=${H}, y=${y}`);
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
-        const checkY = (context) => {
-            if (isNaN(y)) {
-                log(`CRITICAL: y is NaN at ${context}`);
-                y = H - M; // reset to safe value to prevent crash
-            }
-        };
+        // Pipe to response
+        doc.pipe(res);
 
-        const newPage = (need) => {
-            checkY('before newPage');
-            if (y < M + (need || 30)) {
-                log(`Adding new page. y=${y}, need=${need}`);
-                page = pdf.addPage([W, H]);
-                y = H - M;
-                log(`New page added. Reset y=${y}`);
-            }
-        };
-
-        const safeDraw = (operation, fn) => {
+        // Also capture buffer for internal storage (TicketExport)
+        const buffers = [];
+        doc.on('data', chunk => buffers.push(chunk));
+        doc.on('end', async () => {
             try {
-                fn();
-            } catch (e) {
-                log(`ERROR in ${operation}: ${e.message}`);
-            }
-        };
-
-        // Draw a single line of text
-        const drawLine = (text, size, useFont, color, indent) => {
-            const sz = size || 10;
-            const x = M + (indent || 0);
-
-            checkY(`before drawLine("${text?.substring(0, 10)}...")`);
-            newPage(sz + 6);
-
-            const safeTxt = clean(safe(text));
-            // log(`Drawing text: "${safeTxt}" at x=${x}, y=${y}`);
-
-            safeDraw('drawText', () => {
-                if (isNaN(x) || isNaN(y)) throw new Error(`NaN coords: x=${x}, y=${y}`);
-                page.drawText(safeTxt, {
-                    x: x,
-                    y: y,
-                    size: sz,
-                    font: useFont || font,
-                    color: color || rgb(0.15, 0.15, 0.15),
+                const pdfData = Buffer.concat(buffers);
+                await prisma.ticketExport.create({
+                    data: {
+                        ticketId: req.params.id,
+                        verifyToken: verifyToken,
+                        pdfUrl: 'BUFFERED',
+                        snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo })
+                    }
                 });
-            });
+            } catch (e) { console.error('Export Log Error:', e); }
+        });
 
-            y -= sz + 5;
-            checkY('after drawLine decrement');
-        };
-
-        const sectionTitle = (text) => {
-            log(`Section: ${text}`);
-            newPage(30);
-
-            // Draw title
-            drawLine(text, 14, bold, rgb(0.1, 0.4, 0.25), 0);
-
-            // Draw underline (manually because drawLine changed y)
-            // Note: drawLine moved y down by 19 (14+5). So we want line at y + 3?
-            // Actually, drawLine draws at `y` then decrements.
-            // So if we want to underline the text we just drew, we should use the OLD y.
-            // But here we use current y? Wait.
-            // If drawLine drew at 700, y becomes 681.
-            // We want underline at ~685?
-
-            // Let's just key off current y to be safe from NaN
-            const lineY = y + 3;
-
-            safeDraw('sectionUnderline', () => {
-                if (isNaN(lineY)) throw new Error(`NaN lineY=${lineY}`);
-                page.drawLine({
-                    start: { x: M, y: lineY },
-                    end: { x: W - M, y: lineY },
-                    thickness: 1,
-                    color: rgb(0.85, 0.85, 0.85),
-                });
-            });
-
-            y -= 5;
-            checkY('after sectionTitle decrement');
-        };
-
-        const field = (label, value) => {
-            if (!value && value !== 0) return; // skip empty
-            drawLine(clean(safe(label)) + ':  ' + clean(safe(value)), 10, font, rgb(0.2, 0.2, 0.2), 10);
-        };
-
-        const spacer = () => { y -= 10; checkY('spacer'); };
-
-        const writeText = (text) => {
-            const str = clean(safe(text));
-            if (!str) return;
-            const maxChars = 85;
-            let i = 0;
-            // log(`Writing block text length ${str.length}`);
-            while (i < str.length) {
-                let end = Math.min(i + maxChars, str.length);
-                if (end < str.length) {
-                    const lastSpace = str.lastIndexOf(' ', end);
-                    if (lastSpace > i) end = lastSpace;
-                }
-                drawLine(str.substring(i, end).trim(), 10, font, rgb(0.2, 0.2, 0.2), 10);
-                i = end;
-                if (str[i] === ' ') i++;
-            }
-        };
+        // ── Styles ───────────────────────────────────────────────────────────
+        const fontBold = 'Helvetica-Bold';
+        const fontRegular = 'Helvetica';
 
         // ── Header ───────────────────────────────────────────────────────────
-        log('Drawing Header');
-        safeDraw('headerRect', () => page.drawRectangle({ x: 0, y: H - 70, width: W, height: 70, color: rgb(0.1, 0.4, 0.25) }));
-        safeDraw('headerTitle', () => page.drawText('INCIDENT REPORT', { x: M, y: H - 45, size: 22, font: bold, color: rgb(1, 1, 1) }));
-        safeDraw('headerSub', () => page.drawText(clean('Ticket #' + safe(ticket.ticketNo)), { x: M, y: H - 62, size: 11, font: font, color: rgb(0.85, 0.95, 0.88) }));
 
-        const statusText = clean(safe(ticket.status).replace(/_/g, ' '));
-        safeDraw('statusBadge', () => page.drawText(statusText, { x: W - M - 120, y: H - 50, size: 11, font: bold, color: rgb(1, 1, 1) }));
+        // Green header bar
+        doc.rect(0, 0, 595, 100).fill('#2e7d32');
 
-        y = H - 95;
+        doc.fontSize(24).font(fontBold).fill('white').text('INCIDENT REPORT', 50, 35);
+        doc.fontSize(12).font(fontRegular).fill('#e8f5e9').text(`Ticket #${safe(ticket.ticketNo)}`, 50, 65);
+
+        // Status badge
+        const status = safe(ticket.status).toUpperCase().replace(/_/g, ' ');
+        doc.fontSize(12).font(fontBold).fill('white').text(status, 400, 45, { width: 145, align: 'right' });
+
+        doc.y = 130;
+        doc.fill('#1a1a1a');
+
+        // ── Helpers for Content ──────────────────────────────────────────────
+
+        const drawSection = (title) => {
+            doc.moveDown(1.5);
+            doc.fontSize(14).font(fontBold).fill('#2e7d32').text(title.toUpperCase());
+            doc.rect(doc.x, doc.y + 2, 495, 1).fill('#e0e0e0'); // Underline
+            doc.moveDown(0.8);
+            doc.fill('#1a1a1a');
+        };
+
+        const drawField = (label, value) => {
+            if (!value && value !== 0) return;
+            const startY = doc.y;
+            doc.fontSize(10).font(fontBold).fill('#666666').text(clean(safe(label)) + ':', { width: 130, continued: false });
+
+            // Move cursor up to draw value on same line
+            doc.text(clean(safe(value)), 180, startY, { width: 360 });
+            doc.moveDown(0.3);
+        };
+
+        const drawText = (text) => {
+            if (!text) return;
+            doc.fontSize(10).font(fontRegular).fill('#1a1a1a').text(clean(safe(text)), { width: 495, align: 'justify' });
+            doc.moveDown(0.5);
+        };
 
         // ── Body ─────────────────────────────────────────────────────────────
-        sectionTitle('BASIC INFORMATION');
-        field('Event', ticket.eventName);
-        field('Type', ticket.type);
-        field('Priority', ticket.priority);
-        field('Location', ticket.location || 'N/A');
-        field('Date', ticket.incidentDate ? formatDate(ticket.incidentDate) : formatDate(ticket.createdAt));
-        field('Time', ticket.incidentTime || 'N/A');
-        field('Reporter', ticket.createdBy?.name || ticket.reporterName || 'N/A');
-        if (ticket.postNumber) field('Post Number', ticket.postNumber);
-        if (ticket.marshalId) field('Marshal ID', ticket.marshalId);
-        spacer();
 
-        sectionTitle('DESCRIPTION');
-        if (ticket.description) writeText(ticket.description);
-        else drawLine('No description provided.', 10, font, rgb(0.5, 0.5, 0.5), 10);
-        spacer();
+        drawSection('Basic Information');
+        drawField('Event', ticket.eventName);
+        drawField('Type', ticket.type);
+        drawField('Priority', ticket.priority);
+        drawField('Location', ticket.location || 'N/A');
+        drawField('Date', ticket.incidentDate ? formatDate(ticket.incidentDate) : formatDate(ticket.createdAt));
+        drawField('Time', ticket.incidentTime || 'N/A');
+        drawField('Reporter', ticket.createdBy?.name || ticket.reporterName || 'N/A');
+        if (ticket.postNumber) drawField('Post Number', ticket.postNumber);
+        if (ticket.marshalId) drawField('Marshal ID', ticket.marshalId);
+
+        drawSection('Description');
+        if (ticket.description) drawText(ticket.description);
+        else doc.fontSize(10).fill('#999').text('No description provided.');
 
         if (ticket.medicalReport) {
             const m = ticket.medicalReport;
-            sectionTitle('MEDICAL REPORT');
-            field('Patient', safe(m.patientGivenName) + ' ' + safe(m.patientSurname));
-            field('Date of Birth', m.patientDob ? formatDate(m.patientDob) : 'N/A');
-            field('Gender', m.patientGender);
-            field('Role', m.patientRole);
-            if (m.motorsportId) field('Motorsport ID', m.motorsportId);
-            if (m.carNumber) field('Car Number', m.carNumber);
-            if (m.permitNumber) field('Permit Number', m.permitNumber);
-            field('Injury Type', m.injuryType);
-            field('License Action', m.licenseAction);
-            if (m.treatmentLocation) field('Treatment Location', m.treatmentLocation);
-            if (m.arrivalMethod) field('Arrival Method', m.arrivalMethod);
-            if (m.initialCondition) field('Initial Condition', m.initialCondition);
-            if (m.treatmentGiven) field('Treatment Given', m.treatmentGiven);
-            if (m.summary) { spacer(); writeText('Summary: ' + safe(m.summary)); }
-            if (m.recommendation) { spacer(); writeText('Recommendation: ' + safe(m.recommendation)); }
-            spacer();
-        }
+            drawSection('Medical Report');
+            drawField('Patient', `${safe(m.patientGivenName)} ${safe(m.patientSurname)}`);
+            drawField('DOB', m.patientDob ? formatDate(m.patientDob) : 'N/A');
+            drawField('Gender', m.patientGender);
+            drawField('Role', m.patientRole);
+            if (m.motorsportId) drawField('Motorsport ID', m.motorsportId);
+            if (m.carNumber) drawField('Car Number', m.carNumber);
+            drawField('Injury Type', m.injuryType);
+            drawField('License Action', m.licenseAction);
+            if (m.treatmentLocation) drawField('Treatment Location', m.treatmentLocation);
+            if (m.arrivalMethod) drawField('Arrival Method', m.arrivalMethod);
+            if (m.initialCondition) drawField('Initial Condition', m.initialCondition);
+            if (m.treatmentGiven) drawField('Treatment Given', m.treatmentGiven);
 
-        if (ticket.controlReport) {
-            const c = ticket.controlReport;
-            sectionTitle('CONTROL REPORT');
-            if (c.competitorNumber) field('Competitor Number', c.competitorNumber);
-            if (c.lapNumber !== null && c.lapNumber !== undefined) field('Lap Number', c.lapNumber);
-            if (c.sector !== null && c.sector !== undefined) field('Sector', c.sector);
-            if (c.violationType) field('Violation Type', c.violationType);
-            if (c.competitors) field('Competitors', c.competitors);
-            if (c.actionTaken) field('Action Taken', c.actionTaken);
-            if (c.penaltyValue) field('Penalty', c.penaltyValue);
-            if (c.reasoning) { spacer(); writeText('Reasoning: ' + safe(c.reasoning)); }
-            spacer();
+            if (m.summary) {
+                doc.moveDown(0.5);
+                doc.font(fontBold).text('Summary:');
+                drawText(m.summary);
+            }
+            if (m.recommendation) {
+                doc.moveDown(0.5);
+                doc.font(fontBold).text('Recommendation:');
+                drawText(m.recommendation);
+            }
         }
 
         if (ticket.pitGridReport) {
             const p = ticket.pitGridReport;
-            sectionTitle('PIT & GRID REPORT');
-            if (p.sessionCategory) field('Session', p.sessionCategory);
-            if (p.teamName) field('Team', p.teamName);
-            if (p.carNumber) field('Car Number', p.carNumber);
-            if (p.driverName) field('Driver', p.driverName);
-            if (p.pitNumber) field('Pit Number', p.pitNumber);
-            if (p.lapNumber !== null && p.lapNumber !== undefined) field('Lap Number', p.lapNumber);
-            if (p.speedLimit) field('Speed Limit', p.speedLimit);
-            if (p.speedRecorded) field('Speed Recorded', p.speedRecorded);
-            if (p.radarOperatorName) field('Radar Operator', p.radarOperatorName);
+            drawSection('Pit & Grid Report');
+            if (p.sessionCategory) drawField('Session', p.sessionCategory);
+            if (p.teamName) drawField('Team', p.teamName);
+            if (p.carNumber) drawField('Car Number', p.carNumber);
+            if (p.driverName) drawField('Driver', p.driverName);
+            if (p.pitNumber) drawField('Pit Number', p.pitNumber);
+            if (p.lapNumber !== null && p.lapNumber !== undefined) drawField('Lap Number', p.lapNumber);
+            if (p.speedLimit) drawField('Speed Limit', p.speedLimit);
+            if (p.speedRecorded) drawField('Speed Recorded', p.speedRecorded);
 
             const violations = [];
-            if (p.drivingOnWhiteLine) violations.push('Driving on White Line');
+            if (p.drivingOnWhiteLine) violations.push('White Line');
             if (p.refueling) violations.push('Refueling');
             if (p.driverChange) violations.push('Driver Change');
             if (p.excessMechanics) violations.push('Excess Mechanics');
-            if (violations.length > 0) field('Violations', violations.join(', '));
-            if (p.remarks) { spacer(); writeText('Remarks: ' + safe(p.remarks)); }
-            spacer();
+            if (violations.length > 0) drawField('Violations', violations.join(', '));
+
+            if (p.remarks) {
+                doc.moveDown(0.5);
+                doc.font(fontBold).text('Remarks:');
+                drawText(p.remarks);
+            }
+        }
+
+        if (ticket.controlReport) {
+            const c = ticket.controlReport;
+            drawSection('Control Report');
+            if (c.competitorNumber) drawField('Competitor #', c.competitorNumber);
+            if (c.lapNumber !== null) drawField('Lap', c.lapNumber);
+            if (c.sector !== null) drawField('Sector', c.sector);
+            if (c.violationType) drawField('Violation', c.violationType);
+            if (c.actionTaken) drawField('Action Taken', c.actionTaken);
+            if (c.penaltyValue) drawField('Penalty', c.penaltyValue);
+
+            if (c.reasoning) {
+                doc.moveDown(0.5);
+                doc.font(fontBold).text('Reasoning:');
+                drawText(c.reasoning);
+            }
         }
 
         if (ticket.safetyReport) {
             const s = ticket.safetyReport;
-            sectionTitle('SAFETY REPORT');
-            if (s.hazardType) field('Hazard Type', s.hazardType);
-            if (s.locationDetail) field('Location Detail', s.locationDetail);
-            field('Intervention Required', s.interventionRequired);
-            if (s.resourcesDeployed) field('Resources Deployed', s.resourcesDeployed);
-            if (s.trackStatus) field('Track Status', s.trackStatus);
-            if (s.damageDescription) { spacer(); writeText('Damage: ' + safe(s.damageDescription)); }
-            spacer();
+            drawSection('Safety Report');
+            if (s.hazardType) drawField('Hazard Type', s.hazardType);
+            if (s.locationDetail) drawField('Location Detail', s.locationDetail);
+            drawField('Intervention', s.interventionRequired);
+            if (s.resourcesDeployed) drawField('Resources', s.resourcesDeployed);
+            if (s.trackStatus) drawField('Track Status', s.trackStatus);
+
+            if (s.damageDescription) {
+                doc.moveDown(0.5);
+                doc.font(fontBold).text('Damage:');
+                drawText(s.damageDescription);
+            }
         }
 
         if (ticket.activityLogs && ticket.activityLogs.length > 0) {
-            sectionTitle('ACTIVITY TIMELINE');
-            for (const log of ticket.activityLogs) {
+            drawSection('Activity Timeline');
+            ticket.activityLogs.forEach(log => {
                 const date = formatDate(log.createdAt, true);
                 const action = safe(log.action).replace(/_/g, ' ');
                 const actor = safe(log.actor?.name) || 'System';
-                drawLine(date + '  |  ' + action + '  |  ' + actor, 9, font, rgb(0.35, 0.35, 0.35), 10);
-            }
-            spacer();
+
+                doc.fontSize(9).font(fontRegular).fill('#333')
+                    .text(`${date}  |  ${action}  |  ${actor}`);
+            });
         }
 
         // ── Footer ───────────────────────────────────────────────────────────
-        log('Drawing Footer');
-        const verifyToken = Math.random().toString(36).substring(2, 10).toUpperCase();
-        newPage(40);
 
-        safeDraw('footerLine', () => page.drawLine({ start: { x: M, y: 60 }, end: { x: W - M, y: 60 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) }));
-        safeDraw('footerToken', () => page.drawText(clean('Token: ' + verifyToken + '  |  Generated: ' + new Date().toISOString()), { x: M, y: 45, size: 7, font: font, color: rgb(0.5, 0.5, 0.5) }));
-        safeDraw('footerCopy', () => page.drawText('SAMF Incident Management System', { x: M, y: 35, size: 7, font: font, color: rgb(0.5, 0.5, 0.5) }));
-
-        // ── Save ─────────────────────────────────────────────────────────────
-        log('Saving PDF...');
-        const pdfBytes = await pdf.save();
-        log(`PDF Saved. Bytes: ${pdfBytes ? pdfBytes.length : 'NULL'}`);
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename="report-' + clean(safe(ticket.ticketNo)) + '.pdf"');
-        res.setHeader('Content-Length', pdfBytes.length);
-        res.send(Buffer.from(pdfBytes));
-
-        try {
-            await prisma.ticketExport.create({
-                data: { ticketId: req.params.id, verifyToken: verifyToken, pdfUrl: 'BUFFERED', snapshotJson: JSON.stringify({ id: ticket.id, ticketNo: ticket.ticketNo }) },
-            });
-        } catch (e) {
-            log(`Export log error: ${e.message}`);
+        // Add page numbers
+        const range = doc.bufferedPageRange();
+        for (let i = 0; i < range.count; i++) {
+            doc.switchToPage(i);
+            doc.fontSize(8).fill('#9e9e9e');
+            doc.text(`Generated: ${new Date().toISOString()}`, 50, 780, { align: 'left', width: 250 });
+            doc.text('SAMF Incident Management System', 300, 780, { align: 'right', width: 245 });
+            doc.text(`Page ${i + 1} of ${range.count}`, 300, 792, { align: 'right', width: 245 });
         }
 
-    } catch (mainError) {
-        console.error('[PDF Export Error]:', mainError);
-        log(`FATAL ERROR: ${mainError.message}`);
-        log(`Stack: ${mainError.stack}`);
+        doc.end();
 
-        // ── Fallback PDF Generation ──────────────────────────────────────────
-        try {
-            const errPdf = await PDFDocument.create();
-            const page = errPdf.addPage([595, 842]);
-            const font = await errPdf.embedFont(StandardFonts.Helvetica);
-            const { height } = page.getSize();
-
-            page.drawText('EXPORT FAILED - DEBUG REPORT', { x: 50, y: height - 50, size: 18, font, color: rgb(1, 0, 0) });
-            page.drawText('Please share this document with support.', { x: 50, y: height - 70, size: 10, font });
-
-            let y = height - 100;
-            const drawErrLine = (text) => {
-                if (y < 50) return;
-                const safeLine = String(text).replace(/[^ -~]/g, ''); // aggressive clean
-                page.drawText(safeLine, { x: 50, y, size: 8, font, color: rgb(0, 0, 0) });
-                y -= 10;
-            };
-
-            drawErrLine(`Error: ${mainError.message}`);
-
-            drawErrLine('--- STACK TRACE ---');
-            const stack = mainError.stack ? mainError.stack.split('\n') : [];
-            stack.forEach(line => drawErrLine(line));
-
-            y -= 10;
-            drawErrLine('--- DEBUG LOGS (Last 30) ---');
-            logs.slice(-30).forEach(l => drawErrLine(l));
-
-            const errBytes = await errPdf.save();
-
-            if (!res.headersSent) {
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', 'attachment; filename="report-error.pdf"');
-                res.setHeader('Content-Length', errBytes.length);
-                res.send(Buffer.from(errBytes));
-            }
-
-        } catch (fallbackError) {
-            console.error('Fallback PDF failed:', fallbackError);
-            if (!res.headersSent) {
-                res.status(500).json({
-                    message: `Export failed completely. Main: ${mainError.message}. Fallback: ${fallbackError.message}`,
-                    debugLogs: logs
-                });
-            }
-        }
+    } catch (error) {
+        console.error('[PDFKit Export Error]:', error);
+        if (!res.headersSent) res.status(500).json({ message: 'Export failed: ' + error.message });
     }
 };
 
