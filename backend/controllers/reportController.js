@@ -230,65 +230,83 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         for (const att of imageAttachments) {
             try {
                 let imgBuffer = null;
-                console.log(`Processing attachment: ${att.url} (${att.mimeType})`);
+                console.log(`[PDF] Processing attachment: ${att.url} (${att.mimeType})`);
 
                 if (att.url.startsWith('http')) {
-                    console.log('Fetching via HTTP...');
+                    console.log('[PDF] Fetching via External URL...');
                     const resp = await axios.get(att.url, { responseType: 'arraybuffer' });
                     imgBuffer = Buffer.from(resp.data, 'binary');
                 } else {
                     const relativePath = att.url.startsWith('/') ? att.url.substring(1) : att.url;
 
-                    // 1. Try relative to backend (safe default for Node)
-                    const localPath = path.join(__dirname, '..', relativePath);
-                    console.log(`Resolved local path: ${localPath}`);
+                    // 1. Try relative to backend (standard node deployment)
+                    const backendPath = path.join(__dirname, '..', relativePath);
+                    console.log(`[PDF] Checking backend path: ${backendPath}`);
 
-                    if (fs.existsSync(localPath)) {
-                        console.log('File found locally.');
-                        imgBuffer = fs.readFileSync(localPath);
+                    if (fs.existsSync(backendPath)) {
+                        console.log('[PDF] File found at backend path.');
+                        imgBuffer = fs.readFileSync(backendPath);
                     } else {
-                        // 2. Try relative to CWD (Root, if running from root)
+                        // 2. Try relative to CWD (container/root deployment)
                         const rootPath = path.join(process.cwd(), relativePath);
-                        console.log(`Trying root path: ${rootPath}`);
+                        console.log(`[PDF] Checking root path: ${rootPath}`);
 
                         if (fs.existsSync(rootPath)) {
-                            console.log('File found at root path.');
+                            console.log('[PDF] File found at root path.');
                             imgBuffer = fs.readFileSync(rootPath);
                         } else {
-                            // 3. Fallback: Try fetching via HTTP from localhost/reqHost
-                            // This handles cases where file is served statically but not found on expected disk path provided
-                            console.log('File NOT found on disk. Trying HTTP fallback...');
-                            const host = reqHost || 'localhost:5000';
-                            const protocol = host.includes('localhost') ? 'http' : 'https';
-                            const fileUrl = `${protocol}://${host}/${relativePath}`;
-                            console.log(`Fetching fallback URL: ${fileUrl}`);
+                            // 3. Fallback: Try fetching via HTTP from localhost
+                            // This works if the static middleware is serving the file, even if we can't find the path on disk
+                            console.log('[PDF] File NOT found on disk. Attempting HTTP fallback...');
+
+                            // Determine port: explicit env, or default 3000. 
+                            // Note: reqHost might be the external URL (https://app.com), which is good, but localhost is often faster/safer internally in containers.
+                            // Let's try localhost first if port is known.
+                            const port = process.env.PORT || 3000;
+                            const localhostUrl = `http://localhost:${port}/${relativePath}`;
+                            console.log(`[PDF] Trying Localhost: ${localhostUrl}`);
 
                             try {
-                                const resp = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                                const resp = await axios.get(localhostUrl, { responseType: 'arraybuffer' });
                                 imgBuffer = Buffer.from(resp.data, 'binary');
-                                console.log('HTTP fallback success.');
-                            } catch (httpErr) {
-                                console.error(`HTTP fallback failed: ${httpErr.message}`);
+                                console.log('[PDF] Localhost fallback success.');
+                            } catch (localErr) {
+                                console.warn(`[PDF] Localhost fallback failed: ${localErr.message}`);
+
+                                // 4. Last Resort: Try the request host (Public URL)
+                                if (reqHost) {
+                                    const protocol = reqHost.includes('localhost') ? 'http' : 'https';
+                                    const publicUrl = `${protocol}://${reqHost}/${relativePath}`;
+                                    console.log(`[PDF] Trying Public URL: ${publicUrl}`);
+                                    try {
+                                        const resp = await axios.get(publicUrl, { responseType: 'arraybuffer' });
+                                        imgBuffer = Buffer.from(resp.data, 'binary');
+                                        console.log('[PDF] Public URL fallback success.');
+                                    } catch (publicErr) {
+                                        console.error(`[PDF] Public URL fallback failed: ${publicErr.message}`);
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
                 if (imgBuffer) {
-                    // Check if image fits on current page (approx 350 height needed: 300 image + 50 text/margin)
-                    if (doc.y > 500) doc.addPage();
+                    // Check if image fits on current page
+                    if (doc.y > 650) doc.addPage(); // Ensure enough space
 
-                    doc.image(imgBuffer, { fit: [400, 300], align: 'center' });
+                    // Resize logic could be improved here to maintain aspect ratio if needed, but 'fit' does that.
+                    doc.image(imgBuffer, { fit: [450, 300], align: 'center' });
                     doc.moveDown(0.5);
                     doc.fontSize(9).text(att.name || 'Image', { align: 'center' });
-                    doc.moveDown(1.5);
+                    doc.moveDown(2);
                 } else {
                     doc.fontSize(10).fill('red').text(`[Image not found: ${att.name}]`);
                     doc.moveDown();
                 }
             } catch (err) {
-                console.error(`Error loading image ${att.url}:`, err.message);
-                doc.fontSize(10).fill('red').text(`[Error loading image: ${att.name}]`);
+                console.error(`[PDF] Error handling image ${att.url}:`, err.message);
+                doc.fontSize(10).fill('red').text(`[Error loading: ${att.name}]`);
                 doc.moveDown();
             }
         }
