@@ -241,6 +241,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
                     // 1. Try relative to backend (standard node deployment)
                     const backendPath = path.join(__dirname, '..', relativePath);
+                    att.localPath = backendPath; // Store debug info
                     console.log(`[PDF] Checking backend path: ${backendPath}`);
 
                     if (fs.existsSync(backendPath)) {
@@ -249,6 +250,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                     } else {
                         // 2. Try relative to CWD (container/root deployment)
                         const rootPath = path.join(process.cwd(), relativePath);
+                        att.rootPath = rootPath; // Store debug info
                         console.log(`[PDF] Checking root path: ${rootPath}`);
 
                         if (fs.existsSync(rootPath)) {
@@ -256,14 +258,12 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                             imgBuffer = fs.readFileSync(rootPath);
                         } else {
                             // 3. Fallback: Try fetching via HTTP from localhost
-                            // This works if the static middleware is serving the file, even if we can't find the path on disk
                             console.log('[PDF] File NOT found on disk. Attempting HTTP fallback...');
 
-                            // Determine port: explicit env, or default 3000. 
-                            // Note: reqHost might be the external URL (https://app.com), which is good, but localhost is often faster/safer internally in containers.
-                            // Let's try localhost first if port is known.
                             const port = process.env.PORT || 3000;
-                            const localhostUrl = `http://localhost:${port}/${relativePath}`;
+                            // Ensure proper URL construction if relativePath starts with slash or not
+                            const cleanRelPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+                            const localhostUrl = `http://127.0.0.1:${port}/${cleanRelPath}`;
                             console.log(`[PDF] Trying Localhost: ${localhostUrl}`);
 
                             try {
@@ -272,11 +272,12 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                                 console.log('[PDF] Localhost fallback success.');
                             } catch (localErr) {
                                 console.warn(`[PDF] Localhost fallback failed: ${localErr.message}`);
+                                att.httpError = `Local: ${localErr.message}`;
 
                                 // 4. Last Resort: Try the request host (Public URL)
                                 if (reqHost) {
                                     const protocol = reqHost.includes('localhost') ? 'http' : 'https';
-                                    const publicUrl = `${protocol}://${reqHost}/${relativePath}`;
+                                    const publicUrl = `${protocol}://${reqHost}/${cleanRelPath}`;
                                     console.log(`[PDF] Trying Public URL: ${publicUrl}`);
                                     try {
                                         const resp = await axios.get(publicUrl, { responseType: 'arraybuffer' });
@@ -284,6 +285,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                                         console.log('[PDF] Public URL fallback success.');
                                     } catch (publicErr) {
                                         console.error(`[PDF] Public URL fallback failed: ${publicErr.message}`);
+                                        att.httpError += ` | Public: ${publicErr.message}`;
                                     }
                                 }
                             }
@@ -301,13 +303,22 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                     doc.fontSize(9).text(att.name || 'Image', { align: 'center' });
                     doc.moveDown(2);
                 } else {
-                    doc.fontSize(10).fill('red').text(`[Image not found: ${att.name}]`);
-                    doc.moveDown();
+                    doc.moveDown(0.5);
+                    doc.fontSize(8).fill('red').text(`[Image Not Found] FILE: ${att.name || att.url}`, { align: 'left' });
+                    // Optional: Only show debug info if not in production? No, we need it now.
+                    doc.fontSize(6).text(`Tried Local: ${att.localPath || 'Not Set'}`, { align: 'left' });
+                    doc.text(`Tried Root: ${att.rootPath || 'Not Set'}`, { align: 'left' });
+                    doc.text(`Tried HTTP: ${att.httpError || 'Failed'}`, { align: 'left' });
+                    doc.moveDown(1);
                 }
             } catch (err) {
                 console.error(`[PDF] Error handling image ${att.url}:`, err.message);
-                doc.fontSize(10).fill('red').text(`[Error loading: ${att.name}]`);
-                doc.moveDown();
+                doc.moveDown(0.5);
+                doc.fontSize(8).fill('red').text(`[Error loading image]`, { align: 'left' });
+                doc.fontSize(6).text(`File: ${att.name}`, { align: 'left' });
+                doc.text(`URL: ${att.url}`, { align: 'left' });
+                doc.text(`Error: ${err.message}`, { align: 'left' });
+                doc.moveDown(1);
             }
         }
     }
