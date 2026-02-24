@@ -335,7 +335,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
     // QR Code links to Backend Verify URL (Direct PDF Access)
     // Construct link relative to request host if possible, or fallback
-    const host = reqHost || process.env.BACKEND_URL || 'incident-system-api.onrender.com';
+    const host = reqHost || process.env.BACKEND_URL || 'incident-system-yqtd.onrender.com';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const verifyLink = `${protocol}://${host}/api/verify/${verifyToken}`;
 
