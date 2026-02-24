@@ -95,7 +95,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         if (!text) return;
         checkSpace(30);
         doc.fontSize(10).font(fontRegular).fill(colorTextPrimary)
-            .text(String(text), { width: 495, align: 'justify' });
+            .text(String(text), 50, doc.y, { width: 495, align: 'justify' });
         doc.moveDown(0.8);
     };
 
@@ -145,12 +145,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Car Number', m.carNumber);
         drawField('Injury Type', m.injuryType);
         drawField('Treatment', m.treatmentGiven);
-
-        if (m.summary) {
-            doc.moveDown(0.5);
-            doc.font(fontBold).text('Notes:');
-            drawText(m.summary);
-        }
+        drawField('Notes', m.summary);
     }
 
     if (ticket.pitGridReport) {
@@ -166,12 +161,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         if (p.driverChange) violations.push('Driver Change');
         if (p.excessMechanics) violations.push('Excess Mechanics');
         if (violations.length > 0) drawField('Violations', violations.join(', '));
-
-        if (p.remarks) {
-            doc.moveDown(0.5);
-            doc.font(fontBold).text('Remarks:');
-            drawText(p.remarks);
-        }
+        drawField('Remarks', p.remarks);
     }
 
     if (ticket.controlReport) {
@@ -180,11 +170,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Competitor #', c.competitorNumber);
         drawField('Violation', c.violationType);
         drawField('Action Taken', c.actionTaken);
-        if (c.reasoning) {
-            doc.moveDown(0.5);
-            doc.font(fontBold).text('Reasoning:');
-            drawText(c.reasoning);
-        }
+        drawField('Reasoning', c.reasoning);
     }
 
     if (ticket.safetyReport) {
@@ -193,11 +179,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Hazard', s.hazardType);
         drawField('Location Detail', s.locationDetail);
         drawField('Intervention Required', s.interventionRequired);
-        if (s.damageDescription) {
-            doc.moveDown(0.5);
-            doc.font(fontBold).text('Damage:');
-            drawText(s.damageDescription);
-        }
+        drawField('Damage', s.damageDescription);
     }
 
     // Timeline - Keep it compact
