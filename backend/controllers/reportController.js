@@ -99,6 +99,19 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         doc.moveDown(0.8);
     };
 
+    const drawLongText = (label, text) => {
+        if (!text) return;
+        checkSpace(40);
+
+        doc.fontSize(10).font(fontBold).fill(colorTextSecondary)
+            .text(label + ':', 50, doc.y, { width: 495, align: 'left' });
+
+        doc.font(fontRegular).fill(colorTextPrimary)
+            .text(String(text), 50, doc.y, { width: 495, align: 'justify' });
+
+        doc.moveDown(0.8);
+    };
+
     // ── Header ───────────────────────────────────────────────────────────
 
     doc.rect(0, 0, 595, 100).fill(colorPrimary);
@@ -145,7 +158,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Car Number', m.carNumber);
         drawField('Injury Type', m.injuryType);
         drawField('Treatment', m.treatmentGiven);
-        drawField('Notes', m.summary);
+        drawLongText('Notes', m.summary);
     }
 
     if (ticket.pitGridReport) {
@@ -161,7 +174,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         if (p.driverChange) violations.push('Driver Change');
         if (p.excessMechanics) violations.push('Excess Mechanics');
         if (violations.length > 0) drawField('Violations', violations.join(', '));
-        drawField('Remarks', p.remarks);
+        drawLongText('Remarks', p.remarks);
     }
 
     if (ticket.controlReport) {
@@ -170,7 +183,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Competitor #', c.competitorNumber);
         drawField('Violation', c.violationType);
         drawField('Action Taken', c.actionTaken);
-        drawField('Reasoning', c.reasoning);
+        drawLongText('Reasoning', c.reasoning);
     }
 
     if (ticket.safetyReport) {
@@ -179,7 +192,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawField('Hazard', s.hazardType);
         drawField('Location Detail', s.locationDetail);
         drawField('Intervention Required', s.interventionRequired);
-        drawField('Damage', s.damageDescription);
+        drawLongText('Damage Details', s.damageDescription);
     }
 
     // Timeline - Keep it compact
