@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const crypto = require('crypto');
 
 // Role Definitions
 const ROLES = {
@@ -387,19 +388,27 @@ const uploadAttachments = async (req, res) => {
 
         const startCount = ticket.attachments.length;
 
-        const attachmentsData = files.map((file, index) => ({
-            ticketId,
-            url: `/uploads/${file.filename}`,
-            type: file.mimetype.startsWith('image/') ? 'IMAGE' : 'DOCUMENT',
-            name: file.originalname,
-            size: file.size,
-            mimeType: file.mimetype,
-            refId: `${ticket.ticketNo}-A${startCount + index + 1}` // e.g. INC-2026-0011-A1
-        }));
+        // Use loop to save buffer data individually
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const attachmentId = crypto.randomUUID();
+            const refId = `${ticket.ticketNo}-A${startCount + i + 1}`;
+            const downloadUrl = `/api/attachments/${attachmentId}/content`;
 
-        await prisma.attachment.createMany({
-            data: attachmentsData
-        });
+            await prisma.attachment.create({
+                data: {
+                    id: attachmentId,
+                    ticketId,
+                    url: downloadUrl,
+                    type: file.mimetype.startsWith('image/') ? 'IMAGE' : 'DOCUMENT',
+                    name: file.originalname,
+                    size: file.size,
+                    mimeType: file.mimetype,
+                    refId: refId,
+                    data: file.buffer // Stored in DB
+                }
+            });
+        }
 
         await prisma.activityLog.create({
             data: {

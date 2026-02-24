@@ -880,7 +880,17 @@ const TicketDetail = () => {
                                     {ticket.attachments && ticket.attachments.length > 0 ? (
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                             {ticket.attachments.map((att: any, i: number) => {
-                                                const fileUrl = `http://localhost:3000${att.url.replace(/\\/g, '/')}`;
+                                                // Derive backend root from the active API configuration to ensure consistency
+                                                const apiBase = api.defaults.baseURL || '';
+                                                // If apiBase is relative (e.g. '/api'), this works. If absolute, it works.
+                                                // We need to handle the case where att.url already has /api prefix (it does).
+
+                                                let fileUrl = att.url;
+                                                if (!fileUrl.startsWith('http')) {
+                                                    // Remove /api suffix from base if present, to avoid duplication with att.url which starts with /api
+                                                    const root = apiBase.replace(/\/api\/?$/, '');
+                                                    fileUrl = `${root}${att.url.replace(/\\/g, '/')}`;
+                                                }
                                                 return (
                                                     <div key={i} className="border rounded-lg p-2 bg-gray-50 relative group">
                                                         <a href={fileUrl} target="_blank" rel="noreferrer" className="block">

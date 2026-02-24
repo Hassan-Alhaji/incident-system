@@ -232,7 +232,10 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                 let imgBuffer = null;
                 console.log(`[PDF] Processing attachment: ${att.url} (${att.mimeType})`);
 
-                if (att.url.startsWith('http')) {
+                if (att.data) {
+                    console.log(`[PDF] Using database buffer for ${att.name}`);
+                    imgBuffer = att.data;
+                } else if (att.url.startsWith('http')) {
                     console.log('[PDF] Fetching via External URL...');
                     const resp = await axios.get(att.url, { responseType: 'arraybuffer' });
                     imgBuffer = Buffer.from(resp.data, 'binary');
@@ -332,7 +335,7 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
     // QR Code links to Backend Verify URL (Direct PDF Access)
     // Construct link relative to request host if possible, or fallback
-    const host = reqHost || process.env.BACKEND_URL || 'incident-backend.onrender.com';
+    const host = reqHost || process.env.BACKEND_URL || 'incident-system-api.onrender.com';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const verifyLink = `${protocol}://${host}/api/verify/${verifyToken}`;
 

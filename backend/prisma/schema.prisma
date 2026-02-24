@@ -102,6 +102,7 @@ model Attachment {
   size      Int
   mimeType  String
   refId     String?
+  data      Bytes?
   createdAt DateTime @default(now())
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
 }

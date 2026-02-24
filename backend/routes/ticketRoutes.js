@@ -11,7 +11,7 @@ const {
     addComment
 } = require('../controllers/ticketController');
 const { protect } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware');
+const upload = require('../middleware/dbUploadMiddleware');
 const {
     escalateTicket,
     transferTicket,

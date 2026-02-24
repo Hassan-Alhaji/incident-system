@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { CheckCircle, XCircle, ShieldCheck, FileSearch } from 'lucide-react';
+import api from '../utils/api';
 
 const PublicVerify = () => {
     const { token } = useParams();
@@ -11,8 +12,7 @@ const PublicVerify = () => {
     useEffect(() => {
         const verify = async () => {
             try {
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-                const response = await axios.get(`${apiUrl}/verify/${token}`);
+                const response = await api.get(`/verify/${token}`);
                 setResult(response.data);
             } catch (error) {
                 setResult({ valid: false });

@@ -1,7 +1,19 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
-    let url = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    let url = import.meta.env.VITE_API_URL;
+
+    if (!url) {
+        if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            console.error('CRITICAL: VITE_API_URL is missing in production environment variables! Assuming backend is relative to origin.');
+            // We shouldn't default to localhost if hosted online. 
+            // Better to default to origin or a known placeholder so the error is obvious.
+            url = '/api';
+        } else {
+            url = 'http://localhost:3000/api';
+        }
+    }
+
     if (!url.endsWith('/api')) {
         url += '/api';
     }

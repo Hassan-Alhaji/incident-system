@@ -42,6 +42,7 @@ const medicalRoutes = require('./routes/medicalRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const publicRoutes = require('./routes/publicTicketRoutes');
 const eventRoutes = require('./routes/eventRoutes');
+const attachmentRoutes = require('./routes/attachmentRoutes');
 
 // Mount Routes
 console.log('[DEBUG] Mounting /api/auth...');
@@ -52,6 +53,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/public', publicRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/attachments', attachmentRoutes);
 
 // Mount medical routes under /api/tickets/:id
 app.use('/api/tickets/:id', medicalRoutes);
