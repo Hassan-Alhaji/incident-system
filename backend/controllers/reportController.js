@@ -39,90 +39,86 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
     res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
 
     const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
-
-    // Pipe to response
     doc.pipe(res);
-
-    // Capture buffer if needed (only for exportPdf, but we can skip logic or handle it if needed)
-    // For now we stream directly.
 
     // ── Styles ───────────────────────────────────────────────────────────
     const fontBold = 'Helvetica-Bold';
     const fontRegular = 'Helvetica';
+    const colorPrimary = '#1e3a8a'; // Deep blue
+    const colorSecondary = '#e2e8f0'; // Light slate background
+    const colorTextPrimary = '#0f172a'; // Dark slate
+    const colorTextSecondary = '#64748b'; // Muted slate
 
     // ── Layout Helpers ───────────────────────────────────────────────────
 
-    const drawSection = (title) => {
-        // Check space before starting section
-        if (doc.y > 680) doc.addPage();
-        else doc.moveDown(1.5);
+    const checkSpace = (neededSpace) => {
+        if (doc.y + neededSpace > 750) {
+            doc.addPage();
+            return true;
+        }
+        return false;
+    };
 
-        // Gray background bar
+    const drawSection = (title) => {
+        checkSpace(60); // Require at least 60 points for a section header + first field
+        if (doc.y > 100) doc.moveDown(1.5);
+
+        const startY = doc.y;
         doc.save();
-        doc.fillColor('#f5f5f5').rect(50, doc.y, 495, 25).fill();
+        doc.fillColor(colorSecondary).rect(50, startY, 495, 24).fill();
         doc.restore();
 
-        doc.fontSize(12).font(fontBold).fill('#2e7d32').text(title.toUpperCase(), 60, doc.y + 7);
-        doc.moveDown(0.8);
-        doc.fill('#1a1a1a');
+        doc.fontSize(11).font(fontBold).fill(colorPrimary).text(title.toUpperCase(), 60, startY + 7);
+        doc.y = startY + 34;
+        doc.fill(colorTextPrimary);
     };
 
     const drawField = (label, value) => {
-        if (!value && value !== 0) return;
+        if (value === null || value === undefined || value === '') return;
 
-        // Ensure we don't break page in middle of field
-        if (doc.y > 750) doc.addPage();
+        checkSpace(30);
 
         const startY = doc.y;
-        // Label
-        doc.fontSize(10).font(fontBold).fill('#555555')
-            .text(label + ':', 50, startY, { width: 140 });
+        doc.fontSize(10).font(fontBold).fill(colorTextSecondary)
+            .text(label, 50, startY, { width: 140 });
 
         const labelHeight = doc.y - startY;
 
-        // Value
-        doc.font(fontRegular).fill('#1a1a1a')
-            .text(String(value), 200, startY, { width: 345, align: 'left' });
+        doc.font(fontRegular).fill(colorTextPrimary)
+            .text(String(value), 190, startY, { width: 355, align: 'left' });
 
         const valueHeight = doc.y - startY;
-
-        // Advance
-        const rowHeight = Math.max(labelHeight, valueHeight);
-        doc.y = startY + rowHeight + 8;
+        doc.y = startY + Math.max(labelHeight, valueHeight) + 8;
     };
 
     const drawText = (text) => {
         if (!text) return;
-        doc.fontSize(10).font(fontRegular).fill('#1a1a1a')
+        checkSpace(30);
+        doc.fontSize(10).font(fontRegular).fill(colorTextPrimary)
             .text(String(text), { width: 495, align: 'justify' });
-        doc.moveDown(0.5);
+        doc.moveDown(0.8);
     };
 
     // ── Header ───────────────────────────────────────────────────────────
 
-    doc.rect(0, 0, 595, 100).fill('#2e7d32');
+    doc.rect(0, 0, 595, 100).fill(colorPrimary);
 
     doc.fontSize(24).font(fontBold).fill('white').text('INCIDENT REPORT', 50, 35);
-    doc.fontSize(12).font(fontRegular).fill('#e8f5e9').text(`Ticket #${safe(ticket.ticketNo)}`, 50, 65);
+    doc.fontSize(12).font(fontRegular).fill('#bfdbfe').text(`Ticket #${safe(ticket.ticketNo)}`, 50, 65);
 
     const status = safe(ticket.status).toUpperCase().replace(/_/g, ' ');
     doc.fontSize(12).font(fontBold).fill('white').text(status, 400, 35, { width: 145, align: 'right' });
 
-    doc.fontSize(9).font(fontRegular).fill('#e8f5e9')
+    doc.fontSize(9).font(fontRegular).fill('#bfdbfe')
         .text(`Generated: ${new Date().toLocaleDateString()}`, 400, 65, { width: 145, align: 'right' });
 
-    doc.y = 130;
-    doc.fill('#1a1a1a');
+    doc.y = 120;
+    doc.fill(colorTextPrimary);
 
     // ── Body ─────────────────────────────────────────────────────────────
 
-    // Basic Info
-    doc.save();
-    doc.fillColor('#f5f5f5').rect(50, doc.y, 495, 25).fill();
-    doc.restore();
-    doc.fontSize(12).font(fontBold).fill('#2e7d32').text('BASIC INFORMATION', 60, doc.y + 7);
-    doc.moveDown(1.5);
-
+    // Event Info
+    drawSection('Incident Overview');
     drawField('Event', ticket.eventName);
     drawField('Type', ticket.type);
     drawField('Priority', ticket.priority);
@@ -133,35 +129,36 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
     if (ticket.postNumber) drawField('Post Number', ticket.postNumber);
     if (ticket.marshalId) drawField('Marshal ID', ticket.marshalId);
 
-    drawSection('Description');
-    if (ticket.description) drawText(ticket.description);
-    else doc.fontSize(10).fill('#999').text('No description provided.', { align: 'center' });
+    if (ticket.description) {
+        drawSection('Description');
+        drawText(ticket.description);
+    }
 
     // Sub-reports
     if (ticket.medicalReport) {
         const m = ticket.medicalReport;
-        drawSection('Medical Report');
-        drawField('Patient', `${safe(m.patientGivenName)} ${safe(m.patientSurname)}`);
-        drawField('DOB', m.patientDob ? formatDate(m.patientDob) : 'N/A');
+        drawSection('Medical Details');
+        drawField('Patient', `${safe(m.patientGivenName)} ${safe(m.patientSurname)}`.trim());
+        drawField('Date of Birth', m.patientDob ? formatDate(m.patientDob) : '');
         drawField('Gender', m.patientGender);
         drawField('Role', m.patientRole);
-        if (m.carNumber) drawField('Car Number', m.carNumber);
+        drawField('Car Number', m.carNumber);
         drawField('Injury Type', m.injuryType);
-        if (m.treatmentGiven) drawField('Treatment', m.treatmentGiven);
+        drawField('Treatment', m.treatmentGiven);
 
         if (m.summary) {
             doc.moveDown(0.5);
-            doc.font(fontBold).text('Summary:');
+            doc.font(fontBold).text('Notes:');
             drawText(m.summary);
         }
     }
 
     if (ticket.pitGridReport) {
         const p = ticket.pitGridReport;
-        drawSection('Pit & Grid Report');
-        if (p.teamName) drawField('Team', p.teamName);
-        if (p.carNumber) drawField('Car Number', p.carNumber);
-        if (p.driverName) drawField('Driver', p.driverName);
+        drawSection('Pit & Grid Details');
+        drawField('Team', p.teamName);
+        drawField('Car Number', p.carNumber);
+        drawField('Driver', p.driverName);
 
         const violations = [];
         if (p.drivingOnWhiteLine) violations.push('White Line');
@@ -179,10 +176,10 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
     if (ticket.controlReport) {
         const c = ticket.controlReport;
-        drawSection('Control Report');
-        if (c.competitorNumber) drawField('Competitor #', c.competitorNumber);
-        if (c.violationType) drawField('Violation', c.violationType);
-        if (c.actionTaken) drawField('Action Taken', c.actionTaken);
+        drawSection('Control Details');
+        drawField('Competitor #', c.competitorNumber);
+        drawField('Violation', c.violationType);
+        drawField('Action Taken', c.actionTaken);
         if (c.reasoning) {
             doc.moveDown(0.5);
             doc.font(fontBold).text('Reasoning:');
@@ -192,10 +189,10 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
     if (ticket.safetyReport) {
         const s = ticket.safetyReport;
-        drawSection('Safety Report');
-        if (s.hazardType) drawField('Hazard', s.hazardType);
-        if (s.locationDetail) drawField('Location Detail', s.locationDetail);
-        drawField('Intervention', s.interventionRequired);
+        drawSection('Safety Details');
+        drawField('Hazard', s.hazardType);
+        drawField('Location Detail', s.locationDetail);
+        drawField('Intervention Required', s.interventionRequired);
         if (s.damageDescription) {
             doc.moveDown(0.5);
             doc.font(fontBold).text('Damage:');
@@ -203,13 +200,15 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         }
     }
 
+    // Timeline - Keep it compact
     if (ticket.activityLogs && ticket.activityLogs.length > 0) {
         drawSection('Activity Timeline');
         ticket.activityLogs.forEach(log => {
+            checkSpace(20);
             const date = formatDate(log.createdAt, true);
             const action = safe(log.action).replace(/_/g, ' ');
             const actor = safe(log.actor?.name) || 'System';
-            doc.fontSize(9).font(fontRegular).fill('#333')
+            doc.fontSize(9).font(fontRegular).fill(colorTextSecondary)
                 .text(`${date}  |  ${action}  |  ${actor}`);
             doc.moveDown(0.4);
         });
@@ -217,78 +216,48 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
 
     // ── Images ───────────────────────────────────────────────────────────────
 
-    // Filter for valid image attachments first
     const imageAttachments = (ticket.attachments || []).filter(att =>
         att.mimeType && att.mimeType.startsWith('image/')
     );
 
     if (imageAttachments.length > 0) {
-        // Only add page if we have images
-        doc.addPage();
-        drawSection('Attachments');
+        drawSection('Image Attachments');
+        doc.moveDown(1);
 
         for (const att of imageAttachments) {
             try {
                 let imgBuffer = null;
-                console.log(`[PDF] Processing attachment: ${att.url} (${att.mimeType})`);
 
                 if (att.data) {
-                    console.log(`[PDF] Using database buffer for ${att.name}`);
                     imgBuffer = att.data;
                 } else if (att.url.startsWith('http')) {
-                    console.log('[PDF] Fetching via External URL...');
                     const resp = await axios.get(att.url, { responseType: 'arraybuffer' });
                     imgBuffer = Buffer.from(resp.data, 'binary');
                 } else {
                     const relativePath = att.url.startsWith('/') ? att.url.substring(1) : att.url;
-
-                    // 1. Try relative to backend (standard node deployment)
                     const backendPath = path.join(__dirname, '..', relativePath);
-                    att.localPath = backendPath; // Store debug info
-                    console.log(`[PDF] Checking backend path: ${backendPath}`);
-
                     if (fs.existsSync(backendPath)) {
-                        console.log('[PDF] File found at backend path.');
                         imgBuffer = fs.readFileSync(backendPath);
                     } else {
-                        // 2. Try relative to CWD (container/root deployment)
                         const rootPath = path.join(process.cwd(), relativePath);
-                        att.rootPath = rootPath; // Store debug info
-                        console.log(`[PDF] Checking root path: ${rootPath}`);
-
                         if (fs.existsSync(rootPath)) {
-                            console.log('[PDF] File found at root path.');
                             imgBuffer = fs.readFileSync(rootPath);
                         } else {
-                            // 3. Fallback: Try fetching via HTTP from localhost
-                            console.log('[PDF] File NOT found on disk. Attempting HTTP fallback...');
-
                             const port = process.env.PORT || 3000;
-                            // Ensure proper URL construction if relativePath starts with slash or not
                             const cleanRelPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
                             const localhostUrl = `http://127.0.0.1:${port}/${cleanRelPath}`;
-                            console.log(`[PDF] Trying Localhost: ${localhostUrl}`);
-
                             try {
                                 const resp = await axios.get(localhostUrl, { responseType: 'arraybuffer' });
                                 imgBuffer = Buffer.from(resp.data, 'binary');
-                                console.log('[PDF] Localhost fallback success.');
                             } catch (localErr) {
-                                console.warn(`[PDF] Localhost fallback failed: ${localErr.message}`);
-                                att.httpError = `Local: ${localErr.message}`;
-
-                                // 4. Last Resort: Try the request host (Public URL)
                                 if (reqHost) {
                                     const protocol = reqHost.includes('localhost') ? 'http' : 'https';
                                     const publicUrl = `${protocol}://${reqHost}/${cleanRelPath}`;
-                                    console.log(`[PDF] Trying Public URL: ${publicUrl}`);
                                     try {
                                         const resp = await axios.get(publicUrl, { responseType: 'arraybuffer' });
                                         imgBuffer = Buffer.from(resp.data, 'binary');
-                                        console.log('[PDF] Public URL fallback success.');
                                     } catch (publicErr) {
-                                        console.error(`[PDF] Public URL fallback failed: ${publicErr.message}`);
-                                        att.httpError += ` | Public: ${publicErr.message}`;
+                                        console.error(`Public error fallback failed`);
                                     }
                                 }
                             }
@@ -297,56 +266,36 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                 }
 
                 if (imgBuffer) {
-                    // Check if image fits on current page
-                    if (doc.y > 650) doc.addPage(); // Ensure enough space
+                    // Check if image + label fits on current page (requires ~320 points)
+                    checkSpace(320);
 
-                    // Resize logic could be improved here to maintain aspect ratio if needed, but 'fit' does that.
-                    doc.image(imgBuffer, { fit: [450, 300], align: 'center' });
+                    doc.image(imgBuffer, { fit: [450, 280], align: 'center' });
                     doc.moveDown(0.5);
-                    doc.fontSize(9).text(att.name || 'Image', { align: 'center' });
+                    doc.fontSize(9).fill(colorTextSecondary).text(att.name || 'Image Snapshot', { align: 'center' });
                     doc.moveDown(2);
-                } else {
-                    doc.moveDown(0.5);
-                    doc.fontSize(8).fill('red').text(`[Image Not Found] FILE: ${att.name || att.url}`, { align: 'left' });
-                    // Optional: Only show debug info if not in production? No, we need it now.
-                    doc.fontSize(6).text(`Tried Local: ${att.localPath || 'Not Set'}`, { align: 'left' });
-                    doc.text(`Tried Root: ${att.rootPath || 'Not Set'}`, { align: 'left' });
-                    doc.text(`Tried HTTP: ${att.httpError || 'Failed'}`, { align: 'left' });
-                    doc.moveDown(1);
                 }
             } catch (err) {
                 console.error(`[PDF] Error handling image ${att.url}:`, err.message);
-                doc.moveDown(0.5);
-                doc.fontSize(8).fill('red').text(`[Error loading image]`, { align: 'left' });
-                doc.fontSize(6).text(`File: ${att.name}`, { align: 'left' });
-                doc.text(`URL: ${att.url}`, { align: 'left' });
-                doc.text(`Error: ${err.message}`, { align: 'left' });
-                doc.moveDown(1);
             }
         }
     }
 
-    // ── QR Code & disclaimer (Last Page) ─────────────────────────────────────
+    // ── QR Code ──────────────────────────────────────────────────────────────
 
-    // Ensure space for QR
-    if (doc.y > 600) doc.addPage();
-
+    // Allow QR code to flow naturally unless we are near the bottom
+    checkSpace(150);
     doc.moveDown(2);
 
-    // QR Code links to Backend Verify URL (Direct PDF Access)
-    // Construct link relative to request host if possible, or fallback
     const host = reqHost || process.env.BACKEND_URL || 'incident-system-yqtd.onrender.com';
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const verifyLink = `${protocol}://${host}/api/verify/${verifyToken}`;
 
     try {
         const qrDataUrl = await QRCode.toDataURL(verifyLink);
-        doc.image(qrDataUrl, { fit: [100, 100], align: 'center' });
+        doc.image(qrDataUrl, { fit: [90, 90], align: 'center' });
         doc.moveDown(0.5);
-        doc.fontSize(8).fill('#666666').text('Scan to View Verified Online Report', { align: 'center' });
-        doc.moveDown(0.2);
-        doc.text('This document is digitally verified online.', { align: 'center' });
-        doc.text('No physical signature or stamp required.', { align: 'center' });
+        doc.fontSize(9).font(fontBold).fill(colorPrimary).text('Official Online Record', { align: 'center' });
+        doc.fontSize(8).font(fontRegular).fill(colorTextSecondary).text('Scan QR code to access the verified digital report.', { align: 'center' });
     } catch (qrErr) {
         console.error('QR Gen Error:', qrErr);
     }
@@ -356,10 +305,12 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(8).fill('#9e9e9e');
+        // Top border for footer
+        doc.moveTo(50, 770).lineTo(545, 770).lineWidth(0.5).strokeColor(colorSecondary).stroke();
+
+        doc.fontSize(8).fill(colorTextSecondary);
         doc.text(`Generated: ${new Date().toISOString()}`, 50, 780, { align: 'left', width: 250 });
-        doc.text('SAMF Incident Management System', 300, 780, { align: 'right', width: 245 });
-        doc.text(`Page ${i + 1} of ${range.start + range.count}`, 300, 792, { align: 'right', width: 245 });
+        doc.text(`Page ${i + 1} of ${range.start + range.count}`, 300, 780, { align: 'right', width: 245 });
     }
 
     doc.end();
