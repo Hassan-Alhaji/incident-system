@@ -205,8 +205,8 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[
                         { label: 'Open', count: tickets.filter(t => t.status === 'OPEN').length, icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                        { label: 'Reviewing', count: tickets.filter(t => t.status === 'UNDER_REVIEW').length, icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-                        { label: 'Resolved', count: tickets.filter(t => t.status === 'RESOLVED').length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
+                        { label: 'Reviewing', count: tickets.filter(t => t.status === 'ESCALATED').length, icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+                        { label: 'Closed', count: tickets.filter(t => t.status === 'CLOSED').length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
                         { label: 'Total', count: tickets.length, icon: MoreHorizontal, color: 'text-purple-600', bg: 'bg-purple-50' }
                     ].map((stat, i) => (
                         <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
