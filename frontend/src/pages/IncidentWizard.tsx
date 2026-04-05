@@ -356,17 +356,21 @@ const IncidentWizard = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-                                <select
+                                <input
+                                    type="text"
                                     className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                    placeholder="Enter or select event name"
+                                    list="event-options"
                                     value={formData.eventName}
                                     onChange={e => updateField('eventName', e.target.value)}
-                                >
-                                    <option value="">Select Event</option>
+                                />
+                                <datalist id="event-options">
+                                    <option value="Saudi Grand Prix 2026" />
+                                    <option value="F1 Jeddah Corniche Circuit" />
                                     {events.map(e => (
-                                        <option key={e.id} value={e.name}>{e.name}</option>
+                                        <option key={e.id} value={e.name} />
                                     ))}
-                                </select>
-
+                                </datalist>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
