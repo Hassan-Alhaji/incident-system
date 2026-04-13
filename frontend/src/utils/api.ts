@@ -5,10 +5,12 @@ const getBaseUrl = () => {
 
     if (!url) {
         if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            console.error('CRITICAL: VITE_API_URL is missing in production environment variables! Assuming backend is relative to origin.');
-            // We shouldn't default to localhost if hosted online. 
-            // Better to default to origin or a known placeholder so the error is obvious.
-            url = '/api';
+            // Support testing from mobile phone on the same local wifi network
+            if (window.location.hostname.match(/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/)) {
+                url = `${window.location.protocol}//${window.location.hostname}:3000/api`;
+            } else {
+                url = '/api';
+            }
         } else {
             url = 'http://localhost:3000/api';
         }

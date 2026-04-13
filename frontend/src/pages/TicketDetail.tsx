@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import {
     ArrowLeft, User, Shield, AlertCircle, FileText,
-    History, Paperclip, ExternalLink, Send, Activity, X, Download, Loader2
+    History, Paperclip, ExternalLink, Send, Activity, X, Download, Loader2, MapPin
 } from 'lucide-react';
 
 interface Ticket {
@@ -22,6 +22,7 @@ interface Ticket {
     drivers: string;
     witnesses: string;
     createdAt: string;
+    closedAt?: string | null;
     createdBy: { name: string; role: string };
     assignedToId?: string | null;
     escalatedToRole?: string | null; // Add this
@@ -29,6 +30,7 @@ interface Ticket {
     attachments?: any[];
     medicalReport?: any;
     pitGridReport?: any;
+    offCircuitReport?: any;
 }
 
 const TicketDetail = () => {
@@ -107,6 +109,28 @@ const TicketDetail = () => {
         }
     };
 
+    const [showOffCircuitModal, setShowOffCircuitModal] = useState(false);
+    const [offCircuitForm, setOffCircuitForm] = useState({
+        sequenceOfEvents: '',
+        immediateCauses: '',
+        underlyingCauses: '',
+        rootCauses: '',
+        immediateActions: '',
+        preventiveActions: '',
+    });
+
+    const handleSubmitOffCircuit = async () => {
+        try {
+            await api.put(`/tickets/${id}/off-circuit-report`, offCircuitForm);
+            alert('Investigation Report Submitted');
+            setShowOffCircuitModal(false);
+            window.location.reload();
+        } catch (err) {
+            console.error(err);
+            alert('Failed to submit report');
+        }
+    };
+
     const handleSendAction = async () => {
         if (!comment.trim() && files.length === 0) return;
         setIsSending(true);
@@ -157,6 +181,20 @@ const TicketDetail = () => {
 
     if (loading) return <div className="p-8 text-center">Loading ticket details...</div>;
     if (!ticket) return <div className="p-8 text-center">Ticket not found</div>;
+
+    const formatDuration = (start: string, end: string) => {
+        const diffMs = new Date(end).getTime() - new Date(start).getTime();
+        if (diffMs <= 0) return '0 دقيقة';
+        
+        const totalMinutes = Math.floor(diffMs / 60000);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        
+        if (hours > 0) {
+            return `${hours} ساعة و ${minutes} دقيقة`;
+        }
+        return `${minutes} دقيقة`;
+    };
 
     const drivers = JSON.parse(ticket.drivers || '[]');
     const witnesses = JSON.parse(ticket.witnesses || '[]');
@@ -229,6 +267,53 @@ const TicketDetail = () => {
                 </div>
             )}
 
+            {/* Off-Circuit Investigation Modal */}
+            {showOffCircuitModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <Shield size={20} className="text-purple-600" /> Investigation Details
+                        </h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Sequence of Events</label>
+                                <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.sequenceOfEvents} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, sequenceOfEvents: e.target.value })} placeholder="Describe the chronological order..." />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Immediate Causes</label>
+                                    <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.immediateCauses} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, immediateCauses: e.target.value })} placeholder="e.g., Equipment failure, human error" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Underlying Causes</label>
+                                    <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.underlyingCauses} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, underlyingCauses: e.target.value })} placeholder="e.g., Lack of training, procedures not followed" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Root Causes</label>
+                                <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.rootCauses} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, rootCauses: e.target.value })} placeholder="The fundamental reason..." />
+                            </div>
+                            <h3 className="text-lg font-bold mt-6 mb-2 border-b pb-2">Actions</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Immediate Actions Taken</label>
+                                    <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.immediateActions} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, immediateActions: e.target.value })} placeholder="Actions taken right after incident" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Preventive Actions</label>
+                                    <textarea className="w-full border rounded-lg p-2 h-20" value={offCircuitForm.preventiveActions} onChange={(e) => setOffCircuitForm({ ...offCircuitForm, preventiveActions: e.target.value })} placeholder="Actions to prevent recurrence" />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button onClick={() => setShowOffCircuitModal(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+                                <button onClick={handleSubmitOffCircuit} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg">Submit Investigation</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Escalation Modal */}
             {showEscalationModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -246,7 +331,7 @@ const TicketDetail = () => {
                                     {(() => {
                                         let options: { value: string, label: string }[] = [];
 
-                                        if (user?.role === 'ADMIN') {
+                                        if (user?.role === 'ADMIN' || user?.canEscalate === true) {
                                             options = [
                                                 { value: 'MEDICAL_OP_TEAM', label: 'Medical Department' },
                                                 { value: 'CONTROL_OP_TEAM', label: 'Sporting Department' }, // Mapped to Control
@@ -269,6 +354,14 @@ const TicketDetail = () => {
                                                 case 'DEPUTY_MEDICAL_OFFICER':
                                                     options = [{ value: 'CHIEF_MEDICAL_OFFICER', label: 'Chief Medical Officer' }];
                                                     break;
+                                                case 'CHIEF_MEDICAL_OFFICER':
+                                                    options = [
+                                                        { value: 'SAFETY_OP_TEAM', label: 'Safety Department' },
+                                                        { value: 'CONTROL_OP_TEAM', label: 'Sporting/Control Department' },
+                                                        { value: 'SCRUTINEERS', label: 'Stewards/Scrutineers' },
+                                                        { value: 'JUDGEMENT', label: 'Judges' }
+                                                    ];
+                                                    break;
 
                                                 // Safety
                                                 case 'SAFETY_OP_TEAM':
@@ -281,6 +374,14 @@ const TicketDetail = () => {
                                                     break;
                                                 case 'DEPUTY_SAFETY_OFFICER':
                                                     options = [{ value: 'SAFETY_OFFICER_CHIEF', label: 'Chief Safety Officer' }];
+                                                    break;
+                                                case 'SAFETY_OFFICER_CHIEF':
+                                                    options = [
+                                                        { value: 'MEDICAL_OP_TEAM', label: 'Medical Department' },
+                                                        { value: 'CONTROL_OP_TEAM', label: 'Sporting/Control Department' },
+                                                        { value: 'SCRUTINEERS', label: 'Stewards/Scrutineers' },
+                                                        { value: 'JUDGEMENT', label: 'Judges' }
+                                                    ];
                                                     break;
 
                                                 // Control / Sport
@@ -376,12 +477,13 @@ const TicketDetail = () => {
                         if (!user) return null;
                         if (ticket.status === 'DRAFT') return null;
 
-                        const canEscalateRole = ['ADMIN', 'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM', 'DEPUTY_MEDICAL_OFFICER', 'DEPUTY_SAFETY_OFFICER', 'DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OFFICER_CHIEF', 'CHIEF_OF_CONTROL', 'SCRUTINEERS', 'JUDGEMENT'].includes(user.role);
+                        const canEscalateRole = ['ADMIN', 'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM', 'DEPUTY_MEDICAL_OFFICER', 'DEPUTY_SAFETY_OFFICER', 'DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OFFICER_CHIEF', 'CHIEF_OF_CONTROL', 'SCRUTINEERS', 'JUDGEMENT'].includes(user.role) || user.canEscalate === true;
 
                         if (!canEscalateRole) return null;
 
-                        // Admin override
-                        if (user.role === 'ADMIN') {
+                        // Super Escalater override
+                        const isSuperEscalater = ['ADMIN', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OFFICER_CHIEF', 'CHIEF_OF_CONTROL', 'DEPUTY_MEDICAL_OFFICER', 'DEPUTY_SAFETY_OFFICER', 'DEPUTY_CONTROL_OP_OFFICER'].includes(user.role) || user.canEscalate === true;
+                        if (isSuperEscalater) {
                             return (
                                 <button
                                     onClick={() => setShowEscalationModal(true)}
@@ -552,6 +654,15 @@ const TicketDetail = () => {
                             <Activity size={16} /> Medical Assessment
                         </button>
                     )}
+
+                    {(user?.role === 'ADMIN' || user?.role.includes('SAFETY')) && ticket.type === 'OFF_CIRCUIT' && ticket.offCircuitReport && !ticket.offCircuitReport.immediateCauses && (
+                        <button
+                            onClick={() => setShowOffCircuitModal(true)}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm font-medium"
+                        >
+                            <Shield size={16} /> Investigation Details
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -589,7 +700,14 @@ const TicketDetail = () => {
                                         })()}
                                     </div>
                                 )}
-                            </div>                        </div>
+                                {(ticket.status === 'CLOSED' || ticket.status === 'RESOLVED') && ticket.closedAt && (
+                                    <div className="mt-2 text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 flex items-center gap-1.5 shadow-sm">
+                                        <Activity size={14} className="text-gray-500" />
+                                        وقت الإغلاق: {formatDuration(ticket.createdAt, ticket.closedAt)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
                         {/* Tabs */}
                         <div className="flex border-b border-gray-100 overflow-x-auto">
@@ -677,7 +795,7 @@ const TicketDetail = () => {
                                                     </h4>
                                                     <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
                                                         <div><span className="block text-xs uppercase text-emerald-400 font-bold tracking-wider">Full Name</span> <span className="font-bold text-gray-900 text-base">{ticket.medicalReport.patientGivenName} {ticket.medicalReport.patientSurname}</span></div>
-                                                        <div><span className="block text-xs uppercase text-emerald-400 font-bold tracking-wider">DOB / Gender</span> <span className="font-medium text-gray-800">{ticket.medicalReport.patientDob ? new Date(ticket.medicalReport.patientDob).toLocaleDateString() : '-'} ({ticket.medicalReport.patientGender})</span></div>
+                                                        <div><span className="block text-xs uppercase text-emerald-400 font-bold tracking-wider">DOB / Gender</span> <span className="font-medium text-gray-800">{ticket.medicalReport.patientDob ? new Date(ticket.medicalReport.patientDob).toLocaleDateString('en-US') : '-'} ({ticket.medicalReport.patientGender})</span></div>
                                                         <div><span className="block text-xs uppercase text-emerald-400 font-bold tracking-wider">Role</span> <span className="font-medium text-gray-800">{ticket.medicalReport.patientRole?.replace('_', ' ')}</span></div>
                                                         <div><span className="block text-xs uppercase text-emerald-400 font-bold tracking-wider">Competitor No</span> <span className="font-bold text-gray-900">{ticket.medicalReport.carNumber || '-'}</span></div>
                                                     </div>
@@ -744,6 +862,84 @@ const TicketDetail = () => {
                                         </div>
                                     )}
 
+                                    {/* OFF-CIRCUIT DETAIL VIEW */}
+                                    {ticket.type === 'OFF_CIRCUIT' && ticket.offCircuitReport && (
+                                        <div className="space-y-6">
+                                            {/* Injured Person Info */}
+                                            {ticket.offCircuitReport.injuredName && (
+                                                <div className="bg-purple-50/50 p-6 rounded-xl border border-purple-100">
+                                                    <h4 className="font-bold text-purple-900 border-b border-purple-200 pb-2 mb-4 flex items-center gap-2">
+                                                        <User size={18} /> Injured Person Details
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-8 text-sm">
+                                                        <div><span className="block text-xs uppercase text-purple-400 font-bold tracking-wider">Name</span> <span className="font-bold text-gray-900">{ticket.offCircuitReport.injuredName}</span></div>
+                                                        <div><span className="block text-xs uppercase text-purple-400 font-bold tracking-wider">Affiliation</span> <span className="font-medium text-gray-800">{ticket.offCircuitReport.injuredAffiliate}</span></div>
+                                                        <div><span className="block text-xs uppercase text-purple-400 font-bold tracking-wider">Contact</span> <span className="font-medium text-gray-800">{ticket.offCircuitReport.injuredContact || '-'}</span></div>
+                                                        {ticket.offCircuitReport.injuredAffiliate === 'Employee' && (
+                                                            <div><span className="block text-xs uppercase text-purple-400 font-bold tracking-wider">Job Title</span> <span className="font-medium text-gray-800">{ticket.offCircuitReport.employeeJobTitle}</span></div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Investigation Details */}
+                                            {ticket.offCircuitReport.immediateCauses && (
+                                                <div className="bg-white p-6 rounded-xl border border-purple-100 shadow-sm">
+                                                    <h4 className="font-bold text-purple-900 border-b border-purple-100 pb-2 mb-4 flex items-center gap-2">
+                                                        <Shield size={18} /> Investigation Report
+                                                    </h4>
+                                                    <div className="space-y-4 text-sm">
+                                                        {ticket.offCircuitReport.sequenceOfEvents && (
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-purple-600 font-bold tracking-wider mb-1">Sequence of Events</span>
+                                                                <p className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-gray-700">{ticket.offCircuitReport.sequenceOfEvents}</p>
+                                                            </div>
+                                                        )}
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-purple-600 font-bold tracking-wider mb-1">Immediate Causes</span>
+                                                                <p className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-gray-700">{ticket.offCircuitReport.immediateCauses}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-purple-600 font-bold tracking-wider mb-1">Underlying Causes</span>
+                                                                <p className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-gray-700">{ticket.offCircuitReport.underlyingCauses || 'N/A'}</p>
+                                                            </div>
+                                                        </div>
+                                                        {ticket.offCircuitReport.rootCauses && (
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-red-600 font-bold tracking-wider mb-1">Root Causes</span>
+                                                                <p className="bg-red-50 p-3 rounded-lg border border-red-100 text-gray-800 font-medium">{ticket.offCircuitReport.rootCauses}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Actions Taken */}
+                                            {(ticket.offCircuitReport.immediateActions || ticket.offCircuitReport.preventiveActions) && (
+                                                <div className="bg-blue-50/50 p-6 rounded-xl border border-blue-100">
+                                                    <h4 className="font-bold text-blue-900 border-b border-blue-200 pb-2 mb-4 flex items-center gap-2">
+                                                        <Activity size={18} /> Corrective & Preventive Actions
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                                        {ticket.offCircuitReport.immediateActions && (
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-blue-600 font-bold tracking-wider mb-1">Immediate Actions</span>
+                                                                <p className="bg-white p-3 rounded-lg border border-blue-100 text-gray-700">{ticket.offCircuitReport.immediateActions}</p>
+                                                            </div>
+                                                        )}
+                                                        {ticket.offCircuitReport.preventiveActions && (
+                                                            <div>
+                                                                <span className="block text-xs uppercase text-blue-600 font-bold tracking-wider mb-1">Preventive Actions</span>
+                                                                <p className="bg-white p-3 rounded-lg border border-blue-100 text-gray-700">{ticket.offCircuitReport.preventiveActions}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Description (Common) */}
                                     <div>
                                         <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -767,11 +963,19 @@ const TicketDetail = () => {
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 mb-1">Date & Time</p>
-                                            <p className="text-sm font-bold text-gray-900">{new Date(ticket.dateTime).toLocaleString()}</p>
+                                            <p className="text-sm font-bold text-gray-900">{ticket.dateTime ? new Date(ticket.dateTime).toLocaleString('en-US') : new Date(ticket.createdAt).toLocaleString('en-US')}</p>
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 mb-1">Location</p>
-                                            <p className="text-sm font-bold text-gray-900">{ticket.location}</p>
+                                            <div className="text-sm font-bold text-gray-900 break-all">
+                                                {ticket.location?.includes('http') ? (
+                                                    <a href={ticket.location} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+                                                        <MapPin size={14} className="text-blue-600" /> افتح الخريطة
+                                                    </a>
+                                                ) : (
+                                                    ticket.location || 'N/A'
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -820,7 +1024,7 @@ const TicketDetail = () => {
                                             <div className="bg-gray-50 p-3 rounded-lg flex-1">
                                                 <div className="flex justify-between items-start mb-1">
                                                     <span className="text-sm font-bold text-gray-900">{log.action.replace('_', ' ')}</span>
-                                                    <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleString()}</span>
+                                                    <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleString('en-US')}</span>
                                                 </div>
                                                 <p className="text-xs text-gray-600">{log.details}</p>
                                                 <div className="mt-2 flex items-center gap-1">
@@ -847,7 +1051,7 @@ const TicketDetail = () => {
                                                 <div className="bg-white p-3 rounded-full shadow-sm text-red-600"><Activity size={24} /></div>
                                                 <div>
                                                     <h3 className="font-bold text-gray-900 text-lg">Medical Report</h3>
-                                                    <p className="text-xs text-gray-500">Submitted by {medicalReport.author?.name} on {new Date(medicalReport.createdAt).toLocaleString()}</p>
+                                                    <p className="text-xs text-gray-500">Submitted by {medicalReport.author?.name} on {new Date(medicalReport.createdAt).toLocaleString('en-US')}</p>
                                                 </div>
                                             </div>
                                             <div className="space-y-4">

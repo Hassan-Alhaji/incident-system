@@ -13,6 +13,14 @@ interface User {
     firstName?: string;
     lastName?: string;
     isProfileCompleted?: boolean;
+    userGroup?: string;
+    canViewMedical?: boolean;
+    canViewSafety?: boolean;
+    canViewSport?: boolean;
+    canViewAll?: boolean;
+    canViewAnalytics?: boolean;
+    canEscalate?: boolean;
+    canManageUsers?: boolean;
 }
 
 interface AuthContextType {

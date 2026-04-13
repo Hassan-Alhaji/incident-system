@@ -12,6 +12,8 @@ const Login = () => {
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [resendTimer, setResendTimer] = useState(0);
+    const [testCode, setTestCode] = useState('');
 
     // Vercel Deployment Trigger: 2026-02-07 14:15
 
@@ -27,9 +29,18 @@ const Login = () => {
             // If we're in test mode, the backend sends the code back for convenience
             if (response.data.testCode) {
                 console.log('TEST MODE: OTP Code is', response.data.testCode);
+                setTestCode(response.data.testCode);
             }
 
             setStep(2);
+            // Start 30s resend countdown
+            setResendTimer(30);
+            const interval = setInterval(() => {
+                setResendTimer(prev => {
+                    if (prev <= 1) { clearInterval(interval); return 0; }
+                    return prev - 1;
+                });
+            }, 1000);
         } catch (err: any) {
             console.error('Login Error:', err);
             const message = err.response?.data?.message || err.message || 'Failed to send code';
@@ -120,6 +131,14 @@ const Login = () => {
                                 <p className="font-medium text-gray-900">{email}</p>
                             </div>
 
+                            {/* ⚠️ TEST MODE: Show OTP on screen — remove after testing */}
+                            {testCode && (
+                                <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-center">
+                                    <p className="text-xs font-semibold text-amber-600 mb-1">🔧 Test Mode — Code:</p>
+                                    <p className="text-3xl font-mono font-bold text-amber-800 tracking-[0.3em]">{testCode}</p>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Verification Code</label>
                                 <input
@@ -149,6 +168,15 @@ const Login = () => {
                                 <div className="flex items-center justify-center gap-1">
                                     <ArrowLeft size={16} /> Try different email
                                 </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={resendTimer > 0 || loading}
+                                onClick={handleSendOtp}
+                                className="w-full text-center text-sm text-emerald-600 hover:text-emerald-700 font-medium disabled:text-gray-400 disabled:cursor-not-allowed transition-colors mt-2"
+                            >
+                                {resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Code'}
                             </button>
                         </form>
                     )}

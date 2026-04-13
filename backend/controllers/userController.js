@@ -5,10 +5,14 @@ const { hashPassword } = require('../utils/authUtils');
 const getUsers = async (req, res) => {
     try {
         const users = await prisma.user.findMany({
+            where: {
+                role: { notIn: ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER'] }
+            },
             select: {
-                id: true, name: true, email: true, role: true,
+                id: true, name: true, email: true, mobile: true, role: true, userGroup: true,
                 isIntakeEnabled: true, createdAt: true, status: true,
-                canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true
+                canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true,
+                canViewAnalytics: true, canEscalate: true, canManageUsers: true
             }
         });
         res.json(users);
@@ -20,8 +24,8 @@ const getUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
     try {
-        const { name, email, password, role, isIntakeEnabled } = req.body;
-        console.log('[User] Creating user:', { name, email, role, isIntakeEnabled });
+        const { name, email, password, role, userGroup, isIntakeEnabled } = req.body;
+        console.log('[User] Creating user:', { name, email, role, userGroup, isIntakeEnabled });
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) return res.status(400).json({ message: 'User already exists' });
@@ -31,13 +35,18 @@ const createUser = async (req, res) => {
             data: {
                 name,
                 email,
+                mobile: req.body.mobile || '',
                 password: '', // No password for OTP users
                 role: role || 'SPORT_MARSHAL',
+                userGroup: userGroup || 'IN_CIRCUIT',
                 isIntakeEnabled: isIntakeEnabled || false,
                 canViewMedical: req.body.canViewMedical || false,
                 canViewSafety: req.body.canViewSafety || false,
                 canViewSport: req.body.canViewSport || false,
-                canViewAll: req.body.canViewAll || false
+                canViewAll: req.body.canViewAll || false,
+                canViewAnalytics: req.body.canViewAnalytics || false,
+                canEscalate: req.body.canEscalate || false,
+                canManageUsers: req.body.canManageUsers || false
             }
         });
 
@@ -51,26 +60,46 @@ const createUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
     try {
-        await prisma.user.delete({ where: { id: req.params.id } });
-        res.json({ message: 'User deleted' });
+        const userId = req.params.id;
+        // Check for open tickets before deletion
+        const openTickets = await prisma.ticket.count({
+            where: {
+                OR: [
+                    { createdById: userId, status: { notIn: ['CLOSED', 'RESOLVED'] } },
+                    { assignedToId: userId, status: { notIn: ['CLOSED', 'RESOLVED'] } }
+                ]
+            }
+        });
+        if (openTickets > 0) {
+            return res.status(400).json({ message: 'Cannot delete: user has ' + openTickets + ' open ticket(s). Close or reassign them first.' });
+        }
+        // Soft delete: deactivate instead of permanently removing
+        await prisma.user.update({ where: { id: userId }, data: { status: 'SUSPENDED' } });
+        res.json({ message: 'User deactivated successfully' });
     } catch (error) {
+        console.error('[User] deleteUser Error:', error);
         res.status(500).json({ message: 'Error deleting user' });
     }
 };
 
 const updateUser = async (req, res) => {
     try {
-        const { name, email, role, isIntakeEnabled } = req.body;
+        const { name, email, role, userGroup, isIntakeEnabled } = req.body;
 
         const updateData = {};
         if (name) updateData.name = name;
         if (email) updateData.email = email;
+        if (req.body.mobile !== undefined) updateData.mobile = req.body.mobile;
         if (role) updateData.role = role;
+        if (userGroup) updateData.userGroup = userGroup;
         if (typeof isIntakeEnabled === 'boolean') updateData.isIntakeEnabled = isIntakeEnabled;
         if (typeof req.body.canViewMedical === 'boolean') updateData.canViewMedical = req.body.canViewMedical;
         if (typeof req.body.canViewSafety === 'boolean') updateData.canViewSafety = req.body.canViewSafety;
         if (typeof req.body.canViewSport === 'boolean') updateData.canViewSport = req.body.canViewSport;
         if (typeof req.body.canViewAll === 'boolean') updateData.canViewAll = req.body.canViewAll;
+        if (typeof req.body.canViewAnalytics === 'boolean') updateData.canViewAnalytics = req.body.canViewAnalytics;
+        if (typeof req.body.canEscalate === 'boolean') updateData.canEscalate = req.body.canEscalate;
+        if (typeof req.body.canManageUsers === 'boolean') updateData.canManageUsers = req.body.canManageUsers;
 
         const user = await prisma.user.update({
             where: { id: req.params.id },
@@ -164,6 +193,41 @@ const updateProfile = async (req, res) => {
 
 const xlsx = require('xlsx');
 
+const downloadTemplate = async (req, res) => {
+    try {
+        const worksheet = xlsx.utils.json_to_sheet([
+            {
+                first_name: 'John',
+                last_name: 'Doe',
+                email: 'john.doe@example.com',
+                mobile: '+966500000000',
+                group: 'IN_CIRCUIT',
+                medical_marshal: 'No'
+            },
+            {
+                first_name: 'Jane',
+                last_name: 'Smith',
+                email: 'jane.smith@example.com',
+                mobile: '+966500000001',
+                group: 'OFF_CIRCUIT',
+                medical_marshal: 'Yes'
+            }
+        ]);
+
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Users');
+
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        res.setHeader('Content-Disposition', 'attachment; filename="users_template.xlsx"');
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('Template Generate Error:', error);
+        res.status(500).json({ message: 'Failed to generate template' });
+    }
+};
+
 // ... (existing functions)
 const importRegistry = async (req, res) => {
     if (!req.file) {
@@ -171,6 +235,7 @@ const importRegistry = async (req, res) => {
     }
 
     try {
+        const importGroup = req.body.userGroup || 'IN_CIRCUIT';
         const workbook = xlsx.readFile(req.file.path);
         // Clean up file after reading
         fs.unlinkSync(req.file.path);
@@ -184,58 +249,55 @@ const importRegistry = async (req, res) => {
         let errors = [];
 
         for (const row of data) {
-            const marshalId = row['marshal_id']?.toString();
             const email = row['email'];
             const firstName = row['first_name'];
             const lastName = row['last_name'];
             const mobile = row['mobile']?.toString();
+            const group = row['group'] === 'OFF_CIRCUIT' ? 'OFF_CIRCUIT' : 'IN_CIRCUIT';
             const isMedical = row['medical_marshal'] === 'Yes';
 
-            if (!marshalId || !email) {
-                errors.push(`Row missing ID or Email: ${JSON.stringify(row)}`);
+            if (!email || !firstName || !lastName) {
+                errors.push(`Row missing Email or Names: ${JSON.stringify(row)}`);
+                continue;
+            }
+
+            // Ensure English Names
+            const englishRegex = /^[A-Za-z\s]+$/;
+            if (!englishRegex.test(firstName) || !englishRegex.test(lastName)) {
+                errors.push(`Skipped ${email}: Names must be in English.`);
                 continue;
             }
 
             try {
-                // Determine Role
                 let role = 'SPORT_MARSHAL';
                 if (isMedical) role = 'MEDICAL_MARSHAL';
 
-                // Upsert User
                 const existingUser = await prisma.user.findFirst({
-                    where: { OR: [{ marshalId: marshalId }, { email: email }] }
+                    where: { email: email }
                 });
 
                 if (existingUser) {
-                    await prisma.user.update({
-                        where: { id: existingUser.id },
-                        data: {
-                            name: `${firstName} ${lastName}`,
-                            marshalId: marshalId,
-                            email: email,
-                            mobile: mobile,
-                            role: role,
-                            isMedical: isMedical,
-                        }
-                    });
-                    updated++;
+                    errors.push(`Skipped ${email}: User already exists.`);
+                    continue;
                 } else {
                     await prisma.user.create({
                         data: {
                             name: `${firstName} ${lastName}`,
+                            firstName: firstName,
+                            lastName: lastName,
                             email: email,
-                            marshalId: marshalId,
                             mobile: mobile,
                             role: role,
+                            userGroup: group,
                             isMedical: isMedical,
-                            password: 'OTP_ONLY',
+                            password: '', // OTP only
                             status: 'ACTIVE'
                         }
                     });
                     added++;
                 }
             } catch (err) {
-                errors.push(`Failed to process ${marshalId}: ${err.message}`);
+                errors.push(`Failed to process ${email}: ${err.message}`);
             }
         }
 
@@ -268,4 +330,4 @@ const toggleUserStatus = async (req, res) => {
     }
 };
 
-module.exports = { getUsers, createUser, deleteUser, updateUser, importRegistry, toggleUserStatus, updateProfile };
+module.exports = { getUsers, createUser, deleteUser, updateUser, importRegistry, toggleUserStatus, updateProfile, downloadTemplate };

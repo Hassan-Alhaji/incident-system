@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-
+import { saveOfflineTicket } from '../utils/offlineStore';
+import LocationPickerMap from '../components/LocationPickerMap';
 
 const STEPS_GENERAL = [
     { id: 'info', title: 'Event Info', icon: ClipboardList },
@@ -36,13 +37,20 @@ const STEPS_MEDICAL = [
     { id: 'review', title: 'Review', icon: CheckCircle },
 ];
 
+const STEPS_OFF_CIRCUIT = [
+    { id: 'info', title: 'Basic Info', icon: ClipboardList },
+    { id: 'injured', title: 'Injured Person', icon: User },
+    { id: 'evidence', title: 'Evidence', icon: Camera },
+    { id: 'review', title: 'Review', icon: CheckCircle },
+];
+
 const IncidentWizard = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
     useEffect(() => {
         if (user) {
-            setFormData(prev => ({
+            setFormData((prev: any) => ({
                 ...prev,
                 reporterName: user.name || '',
                 reporterMobile: user.mobile || prev.reporterMobile || '',
@@ -62,16 +70,27 @@ const IncidentWizard = () => {
     // Allow Medical Roles AND Admins to see Medical Report option
     const isMedicalRole = user?.isMedical || user?.role?.includes('MEDICAL') || user?.role === 'ADMIN';
 
-    const [currentStep, setCurrentStep] = useState(0);
+    const getInitialState = (key: string, defaultValue: any) => {
+        try {
+            const saved = localStorage.getItem('incident_draft');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed[key] !== undefined) return parsed[key];
+            }
+        } catch (e) {}
+        return defaultValue;
+    };
+
+    const [currentStep, setCurrentStep] = useState(() => getInitialState('currentStep', 0));
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Logic State
-    const [eventCategory, setEventCategory] = useState<'TRACK' | 'OTHER' | ''>('');
-    const [selectedType, setSelectedType] = useState<string>('');
-    const [subType, setSubType] = useState<'INCIDENT' | 'MEDICAL' | 'PIT_GRID'>('INCIDENT');
+    const [eventCategory, setEventCategory] = useState<'TRACK' | 'OTHER' | ''>(() => getInitialState('eventCategory', ''));
+    const [selectedType, setSelectedType] = useState<string>(() => getInitialState('selectedType', ''));
+    const [subType, setSubType] = useState<'INCIDENT' | 'MEDICAL' | 'PIT_GRID'>(() => getInitialState('subType', 'INCIDENT'));
 
     // General Form Data
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState(() => getInitialState('formData', {
         eventName: '',
         venue: 'Jeddah Corniche Circuit',
         dateTime: new Date().toISOString().slice(0, 16),
@@ -102,10 +121,10 @@ const IncidentWizard = () => {
 
         drivers: [] as { name: string, carNo: string }[],
         witnesses: [] as { name: string, contact: string, location: string }[],
-    });
+    }));
 
     // Medical Specific Data
-    const [medicalData, setMedicalData] = useState({
+    const [medicalData, setMedicalData] = useState(() => getInitialState('medicalData', {
         // Header
         headerDriverName: '',
 
@@ -147,24 +166,47 @@ const IncidentWizard = () => {
         subsequentTreatment: [] as string[],
         subsequentDetail: '',
         medicalPersonnelName: user?.name || '',
-    });
+    }));
 
     const [files, setFiles] = useState<File[]>([]);
 
+    // Off-Circuit Data
+    const [offCircuitData, setOffCircuitData] = useState(() => getInitialState('offCircuitData', {
+        incidentType: 'Other',
+        injuredName: '',
+        injuredAffiliate: 'Contractor',
+        injuredContact: '',
+        employeeDepartment: '',
+        employeeJobTitle: '',
+        employeeNumber: '',
+        gosiReportDate: ''
+    }));
+
+    // Persist draft on change
+    useEffect(() => {
+        localStorage.setItem('incident_draft', JSON.stringify({
+            currentStep, eventCategory, selectedType, subType, formData, medicalData, offCircuitData
+        }));
+    }, [currentStep, eventCategory, selectedType, subType, formData, medicalData, offCircuitData]);
+
+    // Geolocation handled by LocationPickerMap
+
     // Determine Active Steps
-    const activeSteps = subType === 'MEDICAL' ? STEPS_MEDICAL : STEPS_GENERAL;
+    const activeSteps = user?.userGroup === 'OFF_CIRCUIT'
+        ? STEPS_OFF_CIRCUIT
+        : subType === 'MEDICAL' ? STEPS_MEDICAL : STEPS_GENERAL;
 
     // Helper: Update Fields
     const updateField = (field: string, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData((prev: any) => ({ ...prev, [field]: value }));
     };
     const updateMedical = (field: string, value: any) => {
-        setMedicalData(prev => ({ ...prev, [field]: value }));
+        setMedicalData((prev: any) => ({ ...prev, [field]: value }));
     };
     const toggleSubsequentTreatment = (val: string) => {
-        setMedicalData(prev => {
+        setMedicalData((prev: any) => {
             const list = prev.subsequentTreatment.includes(val)
-                ? prev.subsequentTreatment.filter(x => x !== val)
+                ? prev.subsequentTreatment.filter((x: any) => x !== val)
                 : [...prev.subsequentTreatment, val];
             return { ...prev, subsequentTreatment: list };
         });
@@ -178,32 +220,51 @@ const IncidentWizard = () => {
         setSelectedType(type);
         setSubType(sub);
         if (sub !== 'MEDICAL') {
-            setCurrentStep(prev => prev + 1);
+            setCurrentStep((prev: any) => prev + 1);
         }
     };
 
-    const handleNext = () => {
-        if (currentStep < activeSteps.length - 1) {
-            // Validation
-            if (activeSteps[currentStep].id === 'type' && (!eventCategory || !selectedType)) {
-                alert("Please select category and type.");
-                return;
+    const isStepValid = () => {
+        const stepId = activeSteps[currentStep].id;
+        
+        if (user?.userGroup === 'OFF_CIRCUIT') {
+            if (stepId === 'info') return !!(offCircuitData.incidentType && formData.dateTime && formData.location && formData.description);
+            if (stepId === 'injured') return !!offCircuitData.injuredName;
+        } else {
+            if (stepId === 'info') return !!(formData.eventName && formData.dateTime);
+            if (stepId === 'type') return !!(eventCategory && selectedType);
+            if (stepId === 'details') {
+                if (eventCategory === 'OTHER') return !!formData.location;
+                if (eventCategory === 'TRACK' && subType === 'INCIDENT') return !!(formData.location || formData.postNumber);
             }
-            setCurrentStep(prev => prev + 1);
+            if (stepId === 'patient') return !!(medicalData.patientGivenName && medicalData.patientSurname);
+            if (stepId === 'clinical') return !!(medicalData.injuryType && medicalData.incidentDescription);
+        }
+        return true;
+    };
+
+    const handleNext = () => {
+        if (!isStepValid()) {
+            alert('Please ensure all required fields are filled, and Location is confirmed from the map.');
+            return;
+        }
+        if (currentStep < activeSteps.length - 1) {
+            setCurrentStep((prev: any) => prev + 1);
         } else {
             handleSubmit();
         }
     };
 
     const handleBack = () => {
-        if (currentStep > 0) setCurrentStep(prev => prev - 1);
+        if (currentStep > 0) setCurrentStep((prev: any) => prev - 1);
     };
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
+        let payload: any = {};
         try {
             // Construct Payload
-            const payload: any = {
+            payload = {
                 type: selectedType,
                 priority: formData.priority,
                 eventName: formData.eventName,
@@ -288,6 +349,21 @@ const IncidentWizard = () => {
                 };
             }
 
+            // Off-Circuit Payload
+            if (user?.userGroup === 'OFF_CIRCUIT') {
+                payload.type = 'OFF_CIRCUIT'; // Force type
+                payload.offCircuitReport = {
+                    incidentType: offCircuitData.incidentType,
+                    injuredName: offCircuitData.injuredName,
+                    injuredAffiliate: offCircuitData.injuredAffiliate,
+                    injuredContact: offCircuitData.injuredContact,
+                    employeeDepartment: offCircuitData.employeeDepartment,
+                    employeeJobTitle: offCircuitData.employeeJobTitle,
+                    employeeNumber: offCircuitData.employeeNumber,
+                    gosiReportDate: offCircuitData.gosiReportDate ? new Date(offCircuitData.gosiReportDate) : null,
+                };
+            }
+
             // Create Ticket
             const res = await api.post('/tickets', payload);
             const ticketId = res.data.id;
@@ -301,10 +377,25 @@ const IncidentWizard = () => {
                 });
             }
 
+            localStorage.removeItem('incident_draft');
             navigate('/dashboard');
 
         } catch (error: any) {
             console.error(error);
+            // Handle offline and network errors
+            if (!navigator.onLine || error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+                const saved = await saveOfflineTicket({
+                    id: Date.now().toString(),
+                    payload,
+                    attachments: files, // raw File objects
+                    timestamp: Date.now()
+                });
+                if (saved) {
+                    alert('You are currently offline or experiencing network issues. Your ticket has been saved locally and will be synced once connection is restored.');
+                    navigate('/dashboard');
+                    return;
+                }
+            }
             const msg = error.response?.data?.message || error.message || 'Failed to submit ticket';
             alert(`Error: ${msg}`);
         } finally {
@@ -346,61 +437,114 @@ const IncidentWizard = () => {
             {/* Content Card */}
             <div className="bg-white rounded-xl shadow-lg p-4 md:p-8 min-h-[500px]">
 
-                {/* STEP 0: EVENT INFO */}
+                {/* STEP 0: EVENT INFO OR BASIC INFO */}
                 {currentStep === 0 && (
-                    <div className="space-y-6 max-w-2xl mx-auto">
-                        <h2 className="text-xl font-bold mb-4">Event Information</h2>
-                        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl mb-6 text-sm text-emerald-800">
-                            Please provide the event details and your post assignment.
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-                                <input
-                                    type="text"
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="Enter or select event name"
-                                    list="event-options"
-                                    value={formData.eventName}
-                                    onChange={e => updateField('eventName', e.target.value)}
-                                />
-                                <datalist id="event-options">
-                                    <option value="Saudi Grand Prix 2026" />
-                                    <option value="F1 Jeddah Corniche Circuit" />
-                                    {events.map(e => (
-                                        <option key={e.id} value={e.name} />
-                                    ))}
-                                </datalist>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                                <input
-                                    type="text"
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
-                                    value={formData.venue}
-                                    onChange={e => updateField('venue', e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-                                <input
-                                    type="datetime-local"
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
-                                    value={formData.dateTime}
-                                    onChange={e => updateField('dateTime', e.target.value)}
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Post Number</label>
-                                <input
-                                    type="text"
-                                    className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="e.g. 14.2"
-                                    value={formData.postNumber}
-                                    onChange={e => updateField('postNumber', e.target.value)}
-                                />
-                            </div>
-                        </div>
+                    <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-200">
+                        {user?.userGroup === 'OFF_CIRCUIT' ? (
+                            <>
+                                <h2 className="text-xl font-bold mb-4">Off-Circuit Incident Details</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Incident Type</label>
+                                        <select 
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            value={offCircuitData.incidentType}
+                                            onChange={e => setOffCircuitData((prev: any) => ({ ...prev, incidentType: e.target.value }))}
+                                        >
+                                            <option>Violation</option>
+                                            <option>Health</option>
+                                            <option>Near Miss</option>
+                                            <option>Property Damage</option>
+                                            <option>Injury</option>
+                                            <option>Security Breach</option>
+                                            <option>Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                                        <input
+                                            type="datetime-local"
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            value={formData.dateTime}
+                                            onChange={e => updateField('dateTime', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Incident Location</label>
+                                        <LocationPickerMap
+                                            initialUrl={formData.location}
+                                            onLocationConfirm={(lat, lng) => updateField('location', `https://www.google.com/maps?q=${lat},${lng}`)}
+                                            onCaptureMap={(file) => setFiles((prev: any) => [...prev, file])}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                        <textarea
+                                            rows={4}
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            placeholder="Describe what happened..."
+                                            value={formData.description}
+                                            onChange={e => updateField('description', e.target.value)}
+                                        ></textarea>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h2 className="text-xl font-bold mb-4">Event Information</h2>
+                                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl mb-6 text-sm text-emerald-800">
+                                    Please provide the event details and your post assignment.
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            placeholder="Enter or select event name"
+                                            list="event-options"
+                                            value={formData.eventName}
+                                            onChange={e => updateField('eventName', e.target.value)}
+                                        />
+                                        <datalist id="event-options">
+                                            <option value="Saudi Grand Prix 2026" />
+                                            <option value="F1 Jeddah Corniche Circuit" />
+                                            {events.map(e => (
+                                                <option key={e.id} value={e.name} />
+                                            ))}
+                                        </datalist>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            value={formData.venue}
+                                            onChange={e => updateField('venue', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+                                        <input
+                                            type="datetime-local"
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            value={formData.dateTime}
+                                            onChange={e => updateField('dateTime', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Post Number</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500"
+                                            placeholder="e.g. 14.2"
+                                            value={formData.postNumber}
+                                            onChange={e => updateField('postNumber', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -706,20 +850,24 @@ const IncidentWizard = () => {
                         )}
                         {eventCategory !== 'TRACK' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                                    <input type="text" placeholder="Sector / Turn" className="w-full border border-gray-300 rounded-lg p-3" value={formData.location} onChange={e => updateField('location', e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                                    <select className="w-full border border-gray-300 rounded-lg p-3" value={formData.priority} onChange={e => updateField('priority', e.target.value)}>
-                                        <option value="LOW">Low</option>
-                                        <option value="MEDIUM">Medium</option>
-                                        <option value="HIGH">High</option>
-                                        <option value="CRITICAL">Critical</option>
-                                    </select>
-                                </div>
-                            </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Incident Location</label>
+                                            <LocationPickerMap
+                                                initialUrl={formData.location}
+                                                onLocationConfirm={(lat, lng) => updateField('location', `https://www.google.com/maps?q=${lat},${lng}`)}
+                                                onCaptureMap={(file) => setFiles((prev: any) => [...prev, file])}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                                            <select className="w-full border border-gray-300 rounded-lg p-3" value={formData.priority} onChange={e => updateField('priority', e.target.value)}>
+                                                <option value="LOW">Low</option>
+                                                <option value="MEDIUM">Medium</option>
+                                                <option value="HIGH">High</option>
+                                                <option value="CRITICAL">Critical</option>
+                                            </select>
+                                        </div>
+                                    </div>
                         )}
 
                         {/* Pit/Grid Specifics */}
@@ -833,13 +981,7 @@ const IncidentWizard = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                             <textarea rows={4} className="w-full border border-gray-300 rounded-lg p-3" value={formData.description} onChange={e => updateField('description', e.target.value)} />
                         </div>
-                        {eventCategory === 'TRACK' && (
-                            <div className="mt-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">4. Signature of Official Submitting</label>
-                                <input className="w-full border p-2 rounded border-emerald-300 bg-emerald-50" placeholder="Type your name to sign" value={formData.reporterSignature} onChange={e => updateField('reporterSignature', e.target.value)} />
-                            </div>
 
-                        )}
                         {eventCategory === 'OTHER' && (
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mt-6">
                                 <h3 className="font-bold text-gray-900 mb-4 border-b pb-2">3. Reporter Information</h3>
@@ -852,10 +994,6 @@ const IncidentWizard = () => {
                                         <label className="block text-sm font-medium text-gray-700">Mobile Number</label>
                                         <input className="w-full border p-2 rounded bg-gray-100" value={formData.reporterMobile} readOnly={!!user && !!user.mobile} onChange={e => updateField('reporterMobile', e.target.value)} />
                                     </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700">Signature (Type Name) <span className="text-red-500">*</span></label>
-                                        <input className="w-full border p-2 rounded border-emerald-300 bg-emerald-50" placeholder="Type your name to sign" value={formData.reporterSignature} onChange={e => updateField('reporterSignature', e.target.value)} />
-                                    </div>
                                 </div>
                             </div>
                         )}
@@ -863,12 +1001,12 @@ const IncidentWizard = () => {
                 )
                 }
 
-                {/* General Witnesses Step (Only for Non-Medical) */}
+                {/* General Witnesses Step (Only for Non-Medical and non-offcircuit) */}
                 {
-                    subType !== 'MEDICAL' && activeSteps[currentStep].id === 'witnesses' && (
+                    subType !== 'MEDICAL' && user?.userGroup !== 'OFF_CIRCUIT' && activeSteps[currentStep].id === 'witnesses' && (
                         <div className="max-w-2xl mx-auto space-y-6">
                             <h3 className="text-xl font-bold">Witnesses</h3>
-                            {formData.witnesses.map((w, i) => (
+                            {formData.witnesses.map((w: any, i: number) => (
                                 <div key={i} className="bg-gray-50 p-4 rounded space-y-2">
                                     <input className="w-full border p-2" placeholder="Name" value={w.name} onChange={e => { const n = [...formData.witnesses]; n[i].name = e.target.value; updateField('witnesses', n); }} />
                                     <input className="w-full border p-2" placeholder="Contact" value={w.contact} onChange={e => { const n = [...formData.witnesses]; n[i].contact = e.target.value; updateField('witnesses', n); }} />
@@ -879,6 +1017,59 @@ const IncidentWizard = () => {
                     )
                 }
 
+                {/* --- OFF-CIRCUIT: INJURED PERSON --- */}
+                {user?.userGroup === 'OFF_CIRCUIT' && activeSteps[currentStep].id === 'injured' && (
+                    <div className="space-y-6 max-w-3xl mx-auto animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-2 h-full bg-purple-500"></div>
+                            <h3 className="font-bold text-gray-900 mb-4 border-b pb-2 flex items-center gap-2">
+                                <User size={18} className="text-purple-500" /> Injured Person Details
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                                    <input className="w-full border p-2 rounded" placeholder="John Doe" value={offCircuitData.injuredName} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, injuredName: e.target.value }))} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Contact Number</label>
+                                    <input className="w-full border p-2 rounded" placeholder="+966..." value={offCircuitData.injuredContact} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, injuredContact: e.target.value }))} />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Affiliate</label>
+                                    <div className="flex gap-4">
+                                        {['Employee', 'Contractor', 'Other'].map(aff => (
+                                            <label key={aff} className="flex items-center gap-2 cursor-pointer bg-gray-50 border p-2 rounded">
+                                                <input type="radio" name="affiliate" checked={offCircuitData.injuredAffiliate === aff} onChange={() => setOffCircuitData((prev: any) => ({ ...prev, injuredAffiliate: aff }))} />
+                                                <span>{aff}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                                {offCircuitData.injuredAffiliate === 'Employee' && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Department</label>
+                                            <input className="w-full border p-2 rounded" value={offCircuitData.employeeDepartment} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, employeeDepartment: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Job Title</label>
+                                            <input className="w-full border p-2 rounded" value={offCircuitData.employeeJobTitle} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, employeeJobTitle: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">Employee/GOSI ID</label>
+                                            <input className="w-full border p-2 rounded" value={offCircuitData.employeeNumber} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, employeeNumber: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">GOSI Report Date</label>
+                                            <input type="date" className="w-full border p-2 rounded" value={offCircuitData.gosiReportDate} onChange={e => setOffCircuitData((prev: any) => ({ ...prev, gosiReportDate: e.target.value }))} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* --- EVIDENCE (Common) --- */}
                 {
                     activeSteps[currentStep].id === 'evidence' && (
@@ -886,7 +1077,7 @@ const IncidentWizard = () => {
                             <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 bg-gray-50 flex flex-col items-center justify-center">
                                 <Camera size={48} className="text-emerald-500 mb-4" />
                                 <h3 className="text-lg font-bold text-gray-900">Upload Evidence</h3>
-                                <input type="file" id="file-upload" className="hidden" multiple accept="image/*,video/*" onChange={e => e.target.files && setFiles(Array.from(e.target.files))} />
+                                <input type="file" id="file-upload" className="hidden" multiple accept="image/*,video/*" onChange={e => { if(e.target.files) { const newFiles = Array.from(e.target.files); setFiles((prev: any) => [...prev, ...newFiles]); } }} />
                                 <label htmlFor="file-upload" className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold cursor-pointer hover:bg-emerald-700 transition">Browse Files</label>
                                 {files.length > 0 && <div className="mt-8 text-sm text-gray-600">{files.length} files selected</div>}
                             </div>
@@ -976,8 +1167,30 @@ const IncidentWizard = () => {
                                 </div>
                             )}
 
+                            {/* --- OFF-CIRCUIT SUMMARY --- */}
+                            {user?.userGroup === 'OFF_CIRCUIT' && (
+                                <div className="space-y-6">
+                                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 w-2 h-full bg-purple-500"></div>
+                                        <h4 className="font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                                            <AlertTriangle size={18} className="text-purple-500" /> Off-Circuit Incident Report
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                            <div><span className="text-gray-500 text-xs uppercase tracking-wider">Incident Type</span> <div className="font-bold text-gray-900">{offCircuitData.incidentType}</div></div>
+                                            <div><span className="text-gray-500 text-xs uppercase tracking-wider">Date & Time</span> <div className="font-medium text-gray-900">{formData.dateTime.replace('T', ' ')}</div></div>
+                                            <div><span className="text-gray-500 text-xs uppercase tracking-wider">GPS / Location</span> <div className="font-medium text-gray-900 truncate"><a href={formData.location} target="_blank" className="text-blue-500 hover:underline">{formData.location}</a></div></div>
+                                            <div><span className="text-gray-500 text-xs uppercase tracking-wider">Injured Person</span> <div className="font-bold text-gray-900">{offCircuitData.injuredName || 'None'}</div></div>
+                                        </div>
+                                        <div className="mt-4">
+                                            <span className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Description</span>
+                                            <div className="bg-gray-50 p-3 rounded text-gray-800">{formData.description}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* --- INCIDENT / GENERAL SUMMARY --- */}
-                            {subType !== 'MEDICAL' && (
+                            {subType !== 'MEDICAL' && user?.userGroup !== 'OFF_CIRCUIT' && (
                                 <div className="space-y-6">
                                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
                                         <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500"></div>
@@ -1044,7 +1257,7 @@ const IncidentWizard = () => {
                                                 <Users size={18} className="text-purple-500" /> Witnesses
                                             </h4>
                                             <div className="space-y-2">
-                                                {formData.witnesses.map((w, i) => (
+                                                {formData.witnesses.map((w: any, i: number) => (
                                                     <div key={i} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded">
                                                         <span className="font-medium">{w.name}</span>
                                                         <span className="text-gray-500">{w.contact}</span>
@@ -1080,7 +1293,7 @@ const IncidentWizard = () => {
                                     <div><label className="block text-gray-400 text-xs">Marshal Name</label> {user?.name}</div>
                                     <div><label className="block text-gray-400 text-xs">Marshal Email</label> {user?.email}</div>
                                     <div><label className="block text-gray-400 text-xs">Marshal Mobile</label> {user?.mobile || 'Auto (Backend)'}</div>
-                                    <div><label className="block text-gray-400 text-xs">Date</label> {new Date().toLocaleDateString()}</div>
+                                    <div><label className="block text-gray-400 text-xs">Date</label> {new Date().toLocaleDateString('en-US')}</div>
                                 </div>
                             </div>
                         </div>
@@ -1093,7 +1306,7 @@ const IncidentWizard = () => {
             < div className="flex justify-between mt-8 max-w-5xl mx-auto" >
                 <button onClick={handleBack} disabled={currentStep === 0 || isSubmitting} className="px-8 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"><ArrowLeft size={18} /> Back</button>
                 {activeSteps[currentStep].id !== 'type' && (
-                    <button onClick={handleNext} disabled={isSubmitting} className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:bg-gray-300 shadow-lg shadow-emerald-200 transition-all flex items-center gap-2">
+                    <button onClick={handleNext} disabled={isSubmitting || !isStepValid()} className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-emerald-200 transition-all flex items-center gap-2">
                         {isSubmitting ? 'Submitting...' : (currentStep === activeSteps.length - 1 ? 'Submit Report' : 'Next Step')}
                         {!isSubmitting && currentStep < activeSteps.length - 1 && <ArrowRight size={18} />}
                         {!isSubmitting && currentStep === activeSteps.length - 1 && <Send size={18} />}

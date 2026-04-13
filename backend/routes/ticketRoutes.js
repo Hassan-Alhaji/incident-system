@@ -8,7 +8,8 @@ const {
     submitTicket,
     closeTicket,
     uploadAttachments,
-    addComment
+    addComment,
+    updateOffCircuitReport
 } = require('../controllers/ticketController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/dbUploadMiddleware');
@@ -54,5 +55,7 @@ router.route('/:id/medical-report')
     .post(protect, submitMedicalReport)
     .get(protect, getMedicalReport);
 
+router.route('/:id/off-circuit-report')
+    .put(protect, updateOffCircuitReport);
 
 module.exports = router;

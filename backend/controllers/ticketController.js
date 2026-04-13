@@ -4,14 +4,14 @@ const crypto = require('crypto');
 // Role Definitions
 const ROLES = {
     // Medical
-    MEDICAL_CREATORS: ['MEDICAL_MARSHAL', 'MEDICAL_VENDOR', 'MEDICAL_EVACUATION'],
-    MEDICAL_PROCESSORS: ['MEDICAL_OP_TEAM', 'DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER'],
+    MEDICAL_CREATORS: ['MEDICAL_MARSHAL', 'MEDICAL_VENDOR', 'MEDICAL_EVACUATION', 'MEDICAL_EVACUATION_CREW'],
+    MEDICAL_PROCESSORS: ['MEDICAL_OP_TEAM', 'OPERATION_MEDICAL_TEAM', 'DEPUTY_MEDICAL_OFFICER', 'DEPUTY_CHIEF_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER'],
     // Safety
     SAFETY_CREATORS: ['SAFETY_MARSHAL'],
-    SAFETY_PROCESSORS: ['SAFETY_OP_TEAM', 'DEPUTY_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF'],
+    SAFETY_PROCESSORS: ['SAFETY_OP_TEAM', 'OPERATION_SAFETY_TEAM', 'DEPUTY_SAFETY_OFFICER', 'DEPUTY_CHIEF_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF', 'CHIEF_SAFETY_OFFICER'],
     // Sport
     SPORT_CREATORS: ['SPORT_MARSHAL'],
-    SPORT_PROCESSORS: ['CONTROL_OP_TEAM', 'DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_OF_CONTROL'],
+    SPORT_PROCESSORS: ['CONTROL_OP_TEAM', 'OPERATION_CONTROL_TEAM', 'DEPUTY_CONTROL_OP_OFFICER', 'DEPUTY_CHIEF_CONTROL_OFFICER', 'CHIEF_OF_CONTROL'],
 
     // Exclusive
     SCRUTINEERS: ['SCRUTINEERS'],
@@ -42,6 +42,8 @@ const createTicket = async (req, res) => {
             reporterName,
             reporterSignature,
             marshalMobile,
+            // OffCircuit Data
+            offCircuitReport,
             // Explicit type override
             type: requestedType
         } = req.body;
@@ -76,6 +78,11 @@ const createTicket = async (req, res) => {
                 }
             };
         }
+        if (req.user.userGroup === 'OFF_CIRCUIT' && offCircuitReport) {
+            nestedData.offCircuitReport = {
+                create: { ...offCircuitReport }
+            };
+        }
 
 
         // Generate Ticket NO with Collision Check
@@ -101,6 +108,7 @@ const createTicket = async (req, res) => {
                 drivers,
                 witnesses,
                 createdById: req.user.id,
+                userGroup: req.user.userGroup || 'IN_CIRCUIT',
                 status: 'OPEN',
                 postNumber,
                 marshalId: req.user.marshalId,
@@ -140,26 +148,33 @@ const getTickets = async (req, res) => {
                     assignedTo: { select: { name: true } },
                     controlReport: true,
                     medicalReport: true,
-                    safetyReport: true
+                    safetyReport: true,
+                    offCircuitReport: true
                 },
                 orderBy: { createdAt: 'desc' }
             });
             return res.json(tickets);
         }
 
-        // 2. Base Visibility (Own, Assigned, Escalated to Me/MyRole)
+        // 2. Base Visibility (Own, Assigned, Escalated to Me/MyRole/MyDepartment)
         const orConditions = [
             { createdById: userId },
-            { assignedToId: userId },
-            { escalatedToRole: role }
+            { assignedToId: userId }
         ];
+
+        let escalatedRoles = [role];
+        if (ROLES.MEDICAL_PROCESSORS.includes(role)) escalatedRoles = ROLES.MEDICAL_PROCESSORS;
+        else if (ROLES.SAFETY_PROCESSORS.includes(role)) escalatedRoles = ROLES.SAFETY_PROCESSORS;
+        else if (ROLES.SPORT_PROCESSORS.includes(role)) escalatedRoles = ROLES.SPORT_PROCESSORS;
+
+        orConditions.push({ escalatedToRole: { in: escalatedRoles } });
 
         // 3. Department Views (Submitted only)
         if (canViewMedical) orConditions.push({ type: 'MEDICAL', status: { not: 'DRAFT' } });
         if (canViewSafety) orConditions.push({ type: 'SAFETY', status: { not: 'DRAFT' } });
         if (canViewSport) orConditions.push({ type: 'SPORT', status: { not: 'DRAFT' } });
 
-        // 4. Legacy Support for "Intake" (Mapping old roles to view permissions dynamically if needed, 
+        // Escalated tickets visible across departments for "Intake" (Mapping old roles to view permissions dynamically if needed, 
         // but for now relying on strict flags as requested. Admin must configure users.)
 
         const tickets = await prisma.ticket.findMany({
@@ -171,7 +186,8 @@ const getTickets = async (req, res) => {
                 assignedTo: { select: { name: true } },
                 controlReport: true,
                 medicalReport: true,
-                safetyReport: true
+                safetyReport: true,
+                offCircuitReport: true
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -194,6 +210,7 @@ const getTicketById = async (req, res) => {
                 medicalReport: { include: { author: { select: { name: true } } } },
                 controlReport: true,
                 safetyReport: true,
+                offCircuitReport: true,
                 investigationReport: { include: { author: { select: { name: true } } } },
                 attachments: true,
                 activityLogs: {
@@ -213,7 +230,13 @@ const getTicketById = async (req, res) => {
         // 2. Base Visibility
         if (ticket.createdById === userId) return res.json(ticket);
         if (ticket.assignedToId === userId) return res.json(ticket);
-        if (ticket.escalatedToRole === role) return res.json(ticket);
+        
+        let escalatedRoles = [role];
+        if (ROLES.MEDICAL_PROCESSORS.includes(role)) escalatedRoles = ROLES.MEDICAL_PROCESSORS;
+        else if (ROLES.SAFETY_PROCESSORS.includes(role)) escalatedRoles = ROLES.SAFETY_PROCESSORS;
+        else if (ROLES.SPORT_PROCESSORS.includes(role)) escalatedRoles = ROLES.SPORT_PROCESSORS;
+
+        if (ticket.escalatedToRole && escalatedRoles.includes(ticket.escalatedToRole)) return res.json(ticket);
 
         // 3. Draft Restriction (Only Creator/Admin can see drafts, usually)
         if (ticket.status === 'DRAFT') {
@@ -301,11 +324,15 @@ const updateTicket = async (req, res) => {
             return res.status(403).json({ message: 'Cannot edit this ticket in current status.' });
         }
 
-        // Update Allowed Fields
+        // Whitelist allowed fields to prevent mass assignment attacks
+        const ALLOWED_FIELDS = ["description","priority","location","eventName","venue","postNumber","drivers","witnesses","reporterName","reporterSignature","marshalMobile"];
+        const filteredData = {};
+        ALLOWED_FIELDS.forEach(f => { if (req.body[f] !== undefined) filteredData[f] = req.body[f]; });
+
         const updated = await prisma.ticket.update({
             where: { id: req.params.id },
             data: {
-                ...req.body,
+                ...filteredData,
                 activityLogs: {
                     create: {
                         actorId: req.user.id,
@@ -342,6 +369,8 @@ const closeTicket = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to close tickets' });
         }
 
+        const { closureReason } = req.body || {};
+
         const updated = await prisma.ticket.update({
             where: { id: req.params.id },
             data: {
@@ -349,6 +378,7 @@ const closeTicket = async (req, res) => {
                 closedBy: req.user.name,
                 closedByRole: req.user.role,
                 closedAt: new Date(),
+                closureReason: closureReason || null,
                 activityLogs: {
                     create: {
                         actorId: req.user.id,
@@ -461,13 +491,56 @@ const addComment = async (req, res) => {
     }
 };
 
+const updateOffCircuitReport = async (req, res) => {
+    try {
+        const ticketId = req.params.id;
+        const data = req.body;
+
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: ticketId },
+            include: { offCircuitReport: true }
+        });
+
+        if (!ticket || !ticket.offCircuitReport) {
+            return res.status(404).json({ message: 'Off-Circuit Report not found' });
+        }
+
+        const updated = await prisma.offCircuitReport.update({
+            where: { ticketId },
+            data: {
+                sequenceOfEvents: data.sequenceOfEvents,
+                immediateCauses: data.immediateCauses,
+                underlyingCauses: data.underlyingCauses,
+                rootCauses: data.rootCauses,
+                immediateActions: data.immediateActions,
+                preventiveActions: data.preventiveActions
+            }
+        });
+
+        await prisma.activityLog.create({
+            data: {
+                ticketId,
+                actorId: req.user.id,
+                action: 'OFF_CIRCUIT_INVESTIGATION_UPDATED',
+                details: 'Investigation details updated'
+            }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to update Off-Circuit report' });
+    }
+};
+
 module.exports = {
     createTicket,
     getTickets,
     getTicketById,
+    updateTicket,
+    submitTicket,
+    closeTicket,
     uploadAttachments,
     addComment,
-    submitTicket,
-    updateTicket,
-    closeTicket
+    updateOffCircuitReport
 };

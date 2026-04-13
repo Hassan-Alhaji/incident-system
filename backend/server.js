@@ -43,6 +43,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const publicRoutes = require('./routes/publicTicketRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const attachmentRoutes = require('./routes/attachmentRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 // Mount Routes
 console.log('[DEBUG] Mounting /api/auth...');
@@ -54,6 +55,8 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/public', publicRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/oc', require('./routes/ocRoutes'));
 
 // Mount medical routes under /api/tickets/:id
 app.use('/api/tickets/:id', medicalRoutes);
@@ -72,10 +75,14 @@ app.use((req, res) => {
     res.status(404).json({ message: 'Route not found (Debug)', url: req.url });
 });
 
-// Start Server
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// Start Server conditionally (allow exporting for testing)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
 
-// Keep-alive for some environments
-setInterval(() => { }, 1000 * 60);
+    // Keep-alive for some environments
+    setInterval(() => { }, 1000 * 60);
+}
+
+module.exports = app;

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Plus, Filter, Search, Clock, CheckCircle2, AlertCircle, MoreHorizontal, TrendingUp, PieChart as PieIcon, Download, FileSpreadsheet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
+import AnalyticsDashboard from '../components/AnalyticsDashboard';
 
 interface Ticket {
     id: string;
@@ -15,6 +16,8 @@ interface Ticket {
     createdAt: string;
     createdBy: { name: string };
     description: string;
+    closedAt?: string;
+    updatedAt: string;
 }
 
 const COLORS = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981'];
@@ -35,7 +38,7 @@ const ExportSection = () => {
             });
 
             // Create blob link to download
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
             const link = document.createElement('a');
             link.href = url;
             const contentDisposition = response.headers['content-disposition'];
@@ -114,6 +117,12 @@ const Dashboard = () => {
     const [trendData, setTrendData] = useState<any[]>([]);
     const [typeData, setTypeData] = useState<any[]>([]);
 
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterDate, setFilterDate] = useState('');
+    const [filterEvent, setFilterEvent] = useState('');
+    const [filterDept, setFilterDept] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -138,7 +147,7 @@ const Dashboard = () => {
                 setTrendData(trend);
 
                 // Process Type Data
-                const types = ['ACCIDENT', 'INJURY', 'VIOLATION', 'MISSING_ITEM'];
+                const types = ['MEDICAL', 'SAFETY', 'SPORT'];
                 const typeStats = types.map(type => ({
                     name: type,
                     value: fetchedTickets.filter((t: Ticket) => t.type === type).length
@@ -179,6 +188,7 @@ const Dashboard = () => {
 
     // Only ADMIN and COC see full statistics
     const canViewStats = user?.role === 'ADMIN' || user?.role === 'CHIEF_OF_CONTROL';
+    const canViewAnalytics = user?.role === 'ADMIN' || user?.canViewAnalytics;
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto">
@@ -199,6 +209,9 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
+
+            {/* Premium Analytics Dashboard */}
+            {canViewAnalytics && <AnalyticsDashboard />}
 
             {/* Stats Cards - Restrict Visibility */}
             {canViewStats && (
@@ -294,17 +307,73 @@ const Dashboard = () => {
 
             {/* Filters & Search */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
-                <div className="relative flex-1 w-full md:w-auto md:min-w-[300px]">
+                <div className="relative flex-1 w-full md:w-auto min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
                         type="text"
-                        placeholder="Search by Ticket No, Driver, or Event..."
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 font-medium"
+                        placeholder="Search Ticket No..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 font-medium text-sm"
                     />
                 </div>
-                <button className="flex items-center gap-2 text-gray-600 border border-gray-200 px-5 py-3 rounded-xl hover:bg-gray-50 transition-colors font-medium">
+                
+                <input 
+                    type="date" 
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
+                />
+
+                <select 
+                    value={filterEvent}
+                    onChange={(e) => setFilterEvent(e.target.value)}
+                    className="border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
+                >
+                    <option value="">All Events</option>
+                    {Array.from(new Set(tickets.map(t => t.eventName))).map((event: any) => (
+                        <option key={event} value={event}>{event}</option>
+                    ))}
+                </select>
+
+                <select 
+                    value={filterDept}
+                    onChange={(e) => setFilterDept(e.target.value)}
+                    className="border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium capitalize"
+                >
+                    <option value="">All Departments</option>
+                    <option value="MEDICAL">Medical</option>
+                    <option value="SAFETY">Safety</option>
+                    <option value="SPORT">Sport</option>
+                    <option value="OFF_CIRCUIT">Off-Circuit</option>
+                </select>
+
+                <select 
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
+                >
+                    <option value="">All Status</option>
+                    <option value="OPEN">Open</option>
+                    <option value="ESCALATED">Escalated</option>
+                    <option value="UNDER_REVIEW">Under Review</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="RESOLVED">Resolved</option>
+                    <option value="REOPENED">Reopened</option>
+                </select>
+
+                <button 
+                    onClick={() => {
+                        setSearchQuery('');
+                        setFilterDate('');
+                        setFilterEvent('');
+                        setFilterDept('');
+                        setFilterStatus('');
+                    }}
+                    className="flex items-center gap-2 text-gray-500 border border-gray-200 px-5 py-3 rounded-xl hover:bg-gray-50 transition-colors font-medium text-sm"
+                >
                     <Filter size={18} />
-                    Filter
+                    Clear Filters
                 </button>
             </div>
 
@@ -328,7 +397,26 @@ const Dashboard = () => {
                             ) : tickets.length === 0 ? (
                                 <tr><td colSpan={6} className="text-center py-12 text-gray-500">No tickets found</td></tr>
                             ) : (
-                                tickets.map((ticket: any) => (
+                                tickets.filter(t => {
+                                    if (searchQuery && !t.ticketNo.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                                    if (filterDate && !t.createdAt.startsWith(filterDate)) return false;
+                                    if (filterEvent && t.eventName !== filterEvent) return false;
+                                    if (filterDept && t.type !== filterDept) return false;
+                                    if (filterStatus && t.status !== filterStatus) return false;
+                                    return true;
+                                }).map((ticket: any) => {
+                                    // Calculate Time Elapsed
+                                    let elapsedTimeStr = '-';
+                                    if (ticket.status === 'CLOSED' && ticket.closedAt) {
+                                        const created = new Date(ticket.createdAt).getTime();
+                                        const closed = new Date(ticket.closedAt).getTime();
+                                        const diffMins = Math.round((closed - created) / 60000);
+                                        if (diffMins < 60) elapsedTimeStr = `${diffMins} mins`;
+                                        else if (diffMins < 1440) elapsedTimeStr = `${(diffMins/60).toFixed(1)} hrs`;
+                                        else elapsedTimeStr = `${(diffMins/1440).toFixed(1)} days`;
+                                    }
+
+                                    return (
                                     <tr
                                         key={ticket.id}
                                         className="hover:bg-blue-50/30 transition-colors cursor-pointer group"
@@ -336,7 +424,7 @@ const Dashboard = () => {
                                     >
                                         <td className="px-6 py-4">
                                             <div className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{ticket.ticketNo}</div>
-                                            <div className="text-gray-500 text-xs mt-0.5">{new Date(ticket.createdAt).toLocaleDateString()} • {ticket.eventName}</div>
+                                            <div className="text-gray-500 text-xs mt-0.5">{new Date(ticket.createdAt).toLocaleDateString('en-US')} • {ticket.eventName}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="font-medium bg-gray-100 px-2 py-1 rounded text-xs text-gray-600 border border-gray-200">{ticket.type}</span>
@@ -372,9 +460,14 @@ const Dashboard = () => {
                                         </td>
                                         <td className="px-6 py-4 text-right text-gray-400 group-hover:text-blue-600 font-medium transition-colors">
                                             View Details &rarr;
+                                            {elapsedTimeStr !== '-' && (
+                                                <div className="text-[10px] text-gray-400 mt-1 flex items-center justify-end gap-1">
+                                                    <Clock size={10} /> Time: {elapsedTimeStr}
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
-                                ))
+                                )})
                             )}
                         </tbody>
                     </table>

@@ -1,19 +1,35 @@
 const prisma = require('../prismaClient');
+const { createNotification } = require('./notificationController');
 
 const ALLOWED_ESCALATIONS = {
     // Medical
     'MEDICAL_OP_TEAM': ['DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM'],
-    'DEPUTY_MEDICAL_OFFICER': ['CHIEF_MEDICAL_OFFICER'], // "Escalate: Yes (within Medical workflow only)" - Maybe to CMO?
-    'CHIEF_MEDICAL_OFFICER': [], // Top of chain? Or can escalate to Safety/Control? Prompt says "Escalate: Yes (within Medical workflow only)"
+    'OPERATION_MEDICAL_TEAM': ['DEPUTY_MEDICAL_OFFICER', 'DEPUTY_CHIEF_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM'],
+    'DEPUTY_MEDICAL_OFFICER': ['CHIEF_MEDICAL_OFFICER'],
+    'DEPUTY_CHIEF_MEDICAL_OFFICER': ['CHIEF_MEDICAL_OFFICER'],
+    'CHIEF_MEDICAL_OFFICER': [
+        'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM', 'SCRUTINEERS', 'JUDGEMENT'
+    ],
 
     // Safety
     'SAFETY_OP_TEAM': ['DEPUTY_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF', 'MEDICAL_OP_TEAM', 'CONTROL_OP_TEAM'],
-    'DEPUTY_SAFETY_OFFICER': ['SAFETY_OFFICER_CHIEF'],
-    'SAFETY_OFFICER_CHIEF': [],
+    'OPERATION_SAFETY_TEAM': ['DEPUTY_SAFETY_OFFICER', 'DEPUTY_CHIEF_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF', 'CHIEF_SAFETY_OFFICER', 'MEDICAL_OP_TEAM', 'CONTROL_OP_TEAM'],
+    'DEPUTY_SAFETY_OFFICER': ['SAFETY_OFFICER_CHIEF', 'CHIEF_SAFETY_OFFICER'],
+    'DEPUTY_CHIEF_SAFETY_OFFICER': ['SAFETY_OFFICER_CHIEF', 'CHIEF_SAFETY_OFFICER'],
+    'SAFETY_OFFICER_CHIEF': [
+        'MEDICAL_OP_TEAM', 'CONTROL_OP_TEAM', 'SCRUTINEERS', 'JUDGEMENT'
+    ],
+    'CHIEF_SAFETY_OFFICER': [
+        'MEDICAL_OP_TEAM', 'CONTROL_OP_TEAM', 'SCRUTINEERS', 'JUDGEMENT'
+    ],
 
     // Sport / Control
     'CONTROL_OP_TEAM': ['CHIEF_OF_CONTROL', 'DEPUTY_CONTROL_OP_OFFICER', 'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM'],
+    'OPERATION_CONTROL_TEAM': ['CHIEF_OF_CONTROL', 'DEPUTY_CHIEF_CONTROL_OFFICER', 'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM'],
     'DEPUTY_CONTROL_OP_OFFICER': [
+        'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM', 'SCRUTINEERS', 'JUDGEMENT', 'CHIEF_OF_CONTROL'
+    ],
+    'DEPUTY_CHIEF_CONTROL_OFFICER': [
         'MEDICAL_OP_TEAM', 'SAFETY_OP_TEAM', 'SCRUTINEERS', 'JUDGEMENT', 'CHIEF_OF_CONTROL'
     ],
     'CHIEF_OF_CONTROL': [
@@ -36,8 +52,8 @@ const escalateTicket = async (req, res) => {
         // Validate Escalation Path
         const allowedTargets = ALLOWED_ESCALATIONS[userRole] || [];
 
-        // Admin override
-        if (userRole !== 'ADMIN' && !allowedTargets.includes(toRole)) {
+        // Admin override and canEscalate permission check
+        if (userRole !== 'ADMIN' && req.user.canEscalate !== true && !allowedTargets.includes(toRole)) {
             return res.status(403).json({
                 message: `Escalation not allowed. Your role (${userRole}) cannot escalate to ${toRole}.`
             });
@@ -109,6 +125,25 @@ const escalateTicket = async (req, res) => {
             where: { id: ticketId },
             data: updateData
         });
+
+        // Notify all users of the target role about the escalation
+        try {
+            const targetUsers = await prisma.user.findMany({
+                where: { role: toRole, status: 'ACTIVE' },
+                select: { id: true }
+            });
+            for (const targetUser of targetUsers) {
+                await createNotification(
+                    targetUser.id,
+                    'Ticket Escalated to You',
+                    `Ticket ${ticket.ticketNo} has been escalated to your department. Reason: ${reason || 'N/A'}`,
+                    'ESCALATION',
+                    `/tickets/${ticketId}`
+                );
+            }
+        } catch (notifErr) {
+            console.error('Failed to send escalation notifications:', notifErr);
+        }
 
         res.json(updatedTicket);
     } catch (error) {

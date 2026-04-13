@@ -85,7 +85,7 @@ const MarshalDashboard = () => {
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs text-gray-500">
-                                    <span>{new Date(ticket.createdAt).toLocaleDateString()}</span>
+                                    <span>{new Date(ticket.createdAt).toLocaleDateString('en-US')}</span>
                                     <span>{ticket.type}</span>
                                 </div>
                             </div>

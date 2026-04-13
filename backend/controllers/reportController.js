@@ -195,6 +195,39 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         drawLongText('Damage Details', s.damageDescription);
     }
 
+    if (ticket.offCircuitReport) {
+        const oc = ticket.offCircuitReport;
+        drawSection('Off-Circuit Incident Details');
+        drawField('Incident Type', oc.incidentType);
+        drawField('Severity', oc.severity);
+        
+        if (oc.locationLat && oc.locationLng) {
+            checkSpace(40);
+            const mapUrl = `https://www.google.com/maps?q=${oc.locationLat},${oc.locationLng}`;
+            doc.fontSize(10).font(fontBold).fill(colorTextSecondary).text('Map Location:', 50, doc.y, { width: 495, align: 'left' });
+            doc.font(fontRegular).fill('#3b82f6').text('Click here to view Incident Location on Google Maps', 50, doc.y, { width: 495, align: 'left', link: mapUrl, underline: true });
+            doc.moveDown(0.8);
+            
+            // Note about snapshot
+            doc.fontSize(8).fill(colorTextSecondary).text('(Map snapshot requires Google Maps API Key, displaying direct link instead)', { align: 'left' });
+            doc.moveDown(1);
+        } else if (oc.locationAddress) {
+            drawField('Location Address', oc.locationAddress);
+        }
+
+        drawLongText('What Happened', oc.whatHappened);
+        drawLongText('Immediate Actions', oc.immediateActions);
+
+        if (oc.investigatorFilledBy) {
+            drawSection('Investigation Findings');
+            drawField('Analysis Method', oc.analysisMethod);
+            drawLongText('Immediate Causes', oc.immediateCauses);
+            drawLongText('Underlying Causes', oc.underlyingCauses);
+            drawLongText('Root Causes', oc.rootCauses);
+            drawLongText('Preventive Actions', oc.preventiveActions);
+        }
+    }
+
     // Timeline - Keep it compact
     if (ticket.activityLogs && ticket.activityLogs.length > 0) {
         drawSection('Activity Timeline');
@@ -261,13 +294,33 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
                 }
 
                 if (imgBuffer) {
-                    // Check if image + label fits on current page (requires ~320 points)
-                    checkSpace(320);
-
-                    doc.image(imgBuffer, { fit: [450, 280], align: 'center' });
-                    doc.moveDown(0.5);
-                    doc.fontSize(9).fill(colorTextSecondary).text(att.name || 'Image Snapshot', { align: 'center' });
-                    doc.moveDown(2);
+                    checkSpace(340);
+                    
+                    try {
+                        // Bulletproof image centering and scaling
+                        const dimensions = doc.openImage(imgBuffer);
+                        const maxWidth = doc.page.width - 100; // 50 margin each side
+                        const maxHeight = 300;
+                        
+                        let scale = 1;
+                        if (dimensions.width > maxWidth || dimensions.height > maxHeight) {
+                            scale = Math.min(maxWidth / dimensions.width, maxHeight / dimensions.height);
+                        }
+                        
+                        const scaledW = dimensions.width * scale;
+                        const scaledH = dimensions.height * scale;
+                        const xPos = (doc.page.width - scaledW) / 2;
+                        
+                        doc.image(imgBuffer, xPos, doc.y, { width: scaledW, height: scaledH });
+                        doc.y += scaledH + 5;
+                        
+                        doc.fontSize(9).fill(colorTextSecondary).text(att.name || 'Image Snapshot', { align: 'center' });
+                        doc.moveDown(1.5);
+                    } catch (drawErr) {
+                        console.error('[PDF] Error drawing image:', drawErr.message);
+                        doc.fontSize(10).fill('red').text(`[Image attachment could not be displayed in PDF because of incompatible format: ${att.mimeType || 'unknown'}]`, { align: 'center' });
+                        doc.moveDown(1);
+                    }
                 }
             } catch (err) {
                 console.error(`[PDF] Error handling image ${att.url}:`, err.message);
@@ -281,16 +334,14 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
     checkSpace(150);
     doc.moveDown(2);
 
-    const host = reqHost || process.env.BACKEND_URL || 'incident-system-yqtd.onrender.com';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const verifyLink = `${protocol}://${host}/api/verify/${verifyToken}`;
+    const qrText = `Ticket: ${safe(ticket.ticketNo)}\nDate: ${ticket.incidentDate ? formatDate(ticket.incidentDate) : formatDate(ticket.createdAt)}\nVerified by SMC HSE Department`;
 
     try {
-        const qrDataUrl = await QRCode.toDataURL(verifyLink);
+        const qrDataUrl = await QRCode.toDataURL(qrText);
         doc.image(qrDataUrl, { fit: [90, 90], align: 'center' });
         doc.moveDown(0.5);
-        doc.fontSize(9).font(fontBold).fill(colorPrimary).text('Official Online Record', { align: 'center' });
-        doc.fontSize(8).font(fontRegular).fill(colorTextSecondary).text('Scan QR code to access the verified digital report.', { align: 'center' });
+        doc.fontSize(9).font(fontBold).fill(colorPrimary).text('Verified Record', { align: 'center' });
+        doc.fontSize(8).font(fontRegular).fill(colorTextSecondary).text('Scan QR code to verify report details.', { align: 'center' });
     } catch (qrErr) {
         console.error('QR Gen Error:', qrErr);
     }
@@ -324,6 +375,7 @@ const exportPdf = async (req, res) => {
                 safetyReport: true,
                 pitGridReport: true,
                 attachments: true,
+                offCircuitReport: true,
                 activityLogs: {
                     include: { actor: { select: { name: true } } },
                     orderBy: { createdAt: 'desc' },
@@ -373,6 +425,7 @@ const verifyReport = async (req, res) => {
                         safetyReport: true,
                         pitGridReport: true,
                         attachments: true,
+                        offCircuitReport: true,
                         activityLogs: {
                             include: { actor: { select: { name: true } } },
                             orderBy: { createdAt: 'desc' },

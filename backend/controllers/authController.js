@@ -46,12 +46,15 @@ const requestEmailOtp = async (req, res) => {
         }
 
         if (user.status === 'SUSPENDED') {
-            return res.status(403).json({ message: 'Your account is deactivated please contact the administrator.' });
+            return res.status(403).json({ message: 'Your account is deactivated. Please contact the administrator.' });
+        }
+        if (user.status === 'PENDING') {
+            return res.status(403).json({ message: 'Your account is pending activation. Please contact your administrator for approval.' });
         }
 
         step = 3; // Generate OTP
         const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
-        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+        const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
         step = 4; // Update Database (Critical Step)
         await prisma.user.update({
@@ -67,12 +70,18 @@ const requestEmailOtp = async (req, res) => {
             console.error('Email failed:', e);
         }
 
-        // ALWAYS return success + OTP for testing (so you can login!)
-        res.json({
-            message: sent ? 'OTP sent to email' : 'Email failed (Using Test Mode)',
-            email,
-            testCode: otpCode // <--- YOUR CODE IS HERE
-        });
+        // Return success - only expose OTP in non-production for debugging
+        const response = {
+            message: sent ? 'OTP sent to email' : 'Email delivery pending',
+            email
+        };
+
+        // Only expose testCode in development/staging environments
+        if (process.env.NODE_ENV !== 'production') {
+            response.testCode = otpCode;
+        }
+
+        res.json(response);
 
     } catch (error) {
         console.error(`Error at step ${step}:`, error);
@@ -128,6 +137,9 @@ const verifyEmailOtp = async (req, res) => {
             mobile: updatedUser.mobile,
             isProfileCompleted: updatedUser.isProfileCompleted,
             role: updatedUser.role,
+            canEscalate: updatedUser.canEscalate,
+            canViewAnalytics: updatedUser.canViewAnalytics,
+            canManageUsers: updatedUser.canManageUsers,
             token: generateToken(updatedUser.id, updatedUser.role),
         });
 
@@ -137,7 +149,84 @@ const verifyEmailOtp = async (req, res) => {
     }
 };
 
-// Keep existing Marshal logic if needed, or deprecate. 
-// For now, I'll export the new ones.
+// @desc    Self-register for OC portal
+// @route   POST /api/auth/register
+// @access  Public
+const registerUser = async (req, res) => {
+    const { firstName, lastName, email, mobile } = req.body;
 
-module.exports = { requestEmailOtp, verifyEmailOtp };
+    try {
+        // Validation
+        if (!firstName || !lastName || !email || !mobile) {
+            return res.status(400).json({ message: 'First name, last name, email, and mobile number are required' });
+        }
+
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) {
+            return res.status(400).json({ message: 'An account with this email already exists. Please login instead.' });
+        }
+
+        // Check duplicate mobile
+        if (mobile) {
+            const existingMobile = await prisma.user.findFirst({ where: { mobile } });
+            if (existingMobile) {
+                return res.status(400).json({ message: 'This mobile number is already registered.' });
+            }
+        }
+
+        // Create user as OC_REPORTER
+        const user = await prisma.user.create({
+            data: {
+                name: `${firstName} ${lastName}`,
+                firstName,
+                lastName,
+                email,
+                mobile: mobile || null,
+                password: '',
+                role: 'OC_REPORTER',
+                userGroup: 'OFF_CIRCUIT',
+                status: 'PENDING',
+                isProfileCompleted: true
+            }
+        });
+
+        // Generate OTP immediately so they can verify right away
+        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+        const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { otpCode, otpExpires }
+        });
+
+        // Send OTP email
+        let sent = false;
+        try {
+            sent = await sendOTP(email, otpCode);
+        } catch (e) {
+            console.error('Email failed during registration:', e);
+        }
+
+        const response = {
+            message: 'Account created successfully. Please verify your email.',
+            email
+        };
+
+        // Expose testCode in non-production
+        if (process.env.NODE_ENV !== 'production') {
+            response.testCode = otpCode;
+        }
+
+        res.status(201).json(response);
+
+    } catch (error) {
+        console.error('[Auth] Register Error:', error);
+        if (error.code === 'P2002') {
+            return res.status(400).json({ message: 'Email or mobile already in use.' });
+        }
+        res.status(500).json({ message: 'Registration failed. Please try again.' });
+    }
+};
+
+module.exports = { requestEmailOtp, verifyEmailOtp, registerUser };

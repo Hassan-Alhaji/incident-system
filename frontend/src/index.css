@@ -1,7 +1,23 @@
 @import "tailwindcss";
 
 @layer base {
+  /* Force English/Western numerals everywhere */
+  *, *::before, *::after {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
   body {
     @apply bg-gray-50 text-gray-900;
+  }
+
+  /* Force LTR for all number/date/time inputs */
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="tel"],
+  input[type="email"] {
+    direction: ltr !important;
+    text-align: left !important;
   }
 }

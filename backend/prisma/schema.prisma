@@ -16,6 +16,7 @@ model User {
   lastName        String?
   isProfileCompleted Boolean            @default(false)
   role            Role                  @default(SPORT_MARSHAL)
+  userGroup       String                @default("IN_CIRCUIT")
   isIntakeEnabled Boolean               @default(false)
   marshalId       String?               @unique
   mobile          String?
@@ -27,6 +28,9 @@ model User {
   canViewSafety   Boolean               @default(false)
   canViewSport    Boolean               @default(false)
   canViewAll      Boolean               @default(false)
+  canViewAnalytics Boolean              @default(false)
+  canEscalate     Boolean               @default(false)
+  canManageUsers  Boolean               @default(false)
 
   otpCode         String?
   otpExpires      DateTime?
@@ -59,6 +63,7 @@ model Ticket {
   status              TicketStatus         @default(DRAFT)
   priority            Priority             @default(MEDIUM)
   escalatedToRole     String?
+  userGroup           String               @default("IN_CIRCUIT")
   eventId             String?
   eventName           String?
   venue               String?
@@ -79,6 +84,7 @@ model Ticket {
   closedBy            String?
   closedByRole        String?
   closedAt            DateTime?
+  hasInjury           Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   activityLogs        ActivityLog[]
@@ -88,6 +94,7 @@ model Ticket {
   medicalReport       MedicalReport?
   pitGridReport       PitGridReport?
   safetyReport        SafetyReport?
+  offCircuitReport    OffCircuitReport?
   assignedTo          User?                @relation("AssignedTickets", fields: [assignedToId], references: [id])
   createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
   ticketExports       TicketExport[]
@@ -253,17 +260,17 @@ enum Role {
   OPERATION_CONTROL_TEAM
   DEPUTY_CHIEF_CONTROL_OFFICER
   CHIEF_OF_CONTROL
-  CONTROL_OP_TEAM           // Legacy? Keeping to avoid delete
-  DEPUTY_CONTROL_OP_OFFICER // Legacy? Keeping to avoid delete
+  CONTROL_OP_TEAM
+  DEPUTY_CONTROL_OP_OFFICER
 
   // Safety
   SAFETY_MARSHAL
   OPERATION_SAFETY_TEAM
   DEPUTY_CHIEF_SAFETY_OFFICER
   CHIEF_SAFETY_OFFICER
-  SAFETY_OP_TEAM        // Legacy? Keeping to avoid delete
-  DEPUTY_SAFETY_OFFICER // Legacy? Keeping to avoid delete
-  SAFETY_OFFICER_CHIEF  // Legacy? Keeping to avoid delete
+  SAFETY_OP_TEAM
+  DEPUTY_SAFETY_OFFICER
+  SAFETY_OFFICER_CHIEF
 
   // Medical
   MEDICAL_MARSHAL
@@ -271,16 +278,22 @@ enum Role {
   OPERATION_MEDICAL_TEAM
   DEPUTY_CHIEF_MEDICAL_OFFICER
   CHIEF_MEDICAL_OFFICER
-  MEDICAL_VENDOR          // Legacy? Keeping to avoid delete
-  MEDICAL_EVACUATION      // Legacy? Keeping to avoid delete
-  MEDICAL_OP_TEAM         // Legacy? Keeping to avoid delete
-  DEPUTY_MEDICAL_OFFICER  // Legacy? Keeping to avoid delete
+  MEDICAL_VENDOR
+  MEDICAL_EVACUATION
+  MEDICAL_OP_TEAM
+  DEPUTY_MEDICAL_OFFICER
 
   // Other
   SCRUTINEERS
   JUDGEMENT
   OPERATIONS
   VIEWER
+
+  // Off-Circuit Roles
+  OC_REPORTER
+  OC_SUPERVISOR
+  OC_SAFETY_INVESTIGATOR
+  OC_HSE_MANAGER
 }
 
 enum TicketType {
@@ -293,6 +306,12 @@ enum TicketType {
   INJURY
   VIOLATION
   MISSING_ITEM
+  // Off-Circuit Types
+  NEAR_MISS
+  PROPERTY_DAMAGE
+  FIRE
+  SECURITY_BREACH
+  HEALTH
 }
 
 enum TicketStatus {
@@ -308,6 +327,12 @@ enum TicketStatus {
   CLOSED
   CLOSED_REJECTED
   REOPENED
+  // Off-Circuit Workflow Statuses
+  SUPERVISOR_REVIEW
+  RETURNED_FOR_EDIT
+  UNDER_INVESTIGATION
+  PENDING_ACTIONS
+  FINAL_REVIEW
 }
 
 enum Priority {
@@ -319,6 +344,66 @@ enum Priority {
 
 enum UserStatus {
   ACTIVE
+  PENDING
   SUSPENDED
   BANNED
+}
+
+model OffCircuitReport {
+  id                      String   @id @default(uuid())
+  ticketId                String   @unique
+
+  // === Reporter Section (Stage 1) ===
+  incidentType            String?    // VIOLATION, HEALTH, NEAR_MISS, PROPERTY_DAMAGE, INJURY, FIRE, SECURITY_BREACH, OTHER
+  incidentDate            DateTime?
+  incidentTime            String?
+  locationLat             Float?
+  locationLng             Float?
+  locationAddress         String?
+  whatHappened             String?
+  hasInjury               Boolean    @default(false)
+  severity                String?    // LOW, MEDIUM, HIGH, CRITICAL
+
+  // Injured Person(s) - JSON array [{name, affiliate, contact, dept, jobTitle, empNumber}]
+  injuredPersons          String?
+
+  // Witnesses - JSON array [{name, mobile}]
+  witnesses               String?
+
+  // Reporter ownership
+  reporterFilledBy        String?
+  reporterFilledAt        DateTime?
+
+  // === Supervisor Section (Stage 2) ===
+  gosiReportDate          DateTime?
+  gosiReportNumber        String?
+  immediateActions        String?
+  supervisorNotes         String?
+
+  supervisorFilledBy      String?
+  supervisorFilledAt      DateTime?
+  supervisorSignature     String?
+
+  // === Investigation Section (Stage 3) ===
+  immediateCauses         String?
+  underlyingCauses        String?
+  rootCauses              String?
+  analysisMethod          String?
+  preventiveActions       String?
+
+  investigatorFilledBy    String?
+  investigatorFilledAt    DateTime?
+  investigatorSignature   String?
+
+  // === HSE Manager Section (Stage 4) ===
+  finalDecision           String?
+  finalNotes              String?
+
+  hseManagerFilledBy      String?
+  hseManagerFilledAt      DateTime?
+  hseManagerSignature     String?
+
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  ticket                  Ticket     @relation(fields: [ticketId], references: [id])
 }

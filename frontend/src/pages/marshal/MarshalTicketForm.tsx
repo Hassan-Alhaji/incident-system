@@ -781,7 +781,7 @@ const MarshalTicketForm = () => {
                                 <div><label className="block text-gray-400 text-xs">Marshal Name</label> {user?.name}</div>
                                 <div><label className="block text-gray-400 text-xs">Marshal Email</label> {user?.email}</div>
                                 <div><label className="block text-gray-400 text-xs">Marshal Mobile</label> {user?.mobile || 'Auto (Backend)'}</div>
-                                <div><label className="block text-gray-400 text-xs">Date</label> {new Date().toLocaleDateString()}</div>
+                                <div><label className="block text-gray-400 text-xs">Date</label> {new Date().toLocaleDateString('en-US')}</div>
                             </div>
                         </div>
                     </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Plus, Trash2, Edit2, Users, Calendar, CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Users, Calendar, CheckCircle, XCircle, AlertCircle, Loader2, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Settings = () => {
@@ -15,10 +15,15 @@ const Settings = () => {
     const [userError, setUserError] = useState<string>('');
     const [userSuccess, setUserSuccess] = useState<string>('');
     const [userFormData, setUserFormData] = useState({
-        name: '', email: '', password: '', role: 'SPORT_MARSHAL',
+        name: '', email: '', password: '', mobile: '', role: 'SPORT_MARSHAL', userGroup: 'IN_CIRCUIT',
         isIntakeEnabled: false,
-        canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false
+        canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false,
+        canViewAnalytics: false, canEscalate: false, canManageUsers: false
     });
+
+    const [importing, setImporting] = useState(false);
+    const [importGroup, setImportGroup] = useState<'IN_CIRCUIT' | 'OFF_CIRCUIT'>('IN_CIRCUIT');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     // Events State
     const [events, setEvents] = useState<any[]>([]);
@@ -67,6 +72,29 @@ const Settings = () => {
         }
     };
 
+    const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('userGroup', importGroup);
+        
+        setImporting(true);
+        setUserError('');
+        try {
+            const res = await api.post('/users/import', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setUserSuccess(`Import completed: ${res.data.summary?.added} added, ${res.data.summary?.updated} updated.`);
+            fetchUsers();
+        } catch (err: any) {
+            setUserError(err.response?.data?.message || 'Import failed');
+        } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const deleteUser = async (id: string) => {
         if (!confirm('Are you sure you want to delete this user?')) return;
         try {
@@ -94,19 +122,23 @@ const Settings = () => {
         if (u) {
             setEditingUser(u.id);
             setUserFormData({
-                name: u.name, email: u.email, password: '', role: u.role,
+                name: u.name, email: u.email, password: '', mobile: u.mobile || '', role: u.role, userGroup: u.userGroup || 'IN_CIRCUIT',
                 isIntakeEnabled: u.isIntakeEnabled || false,
                 canViewMedical: u.canViewMedical || false,
                 canViewSafety: u.canViewSafety || false,
                 canViewSport: u.canViewSport || false,
-                canViewAll: u.canViewAll || false
+                canViewAll: u.canViewAll || false,
+                canViewAnalytics: u.canViewAnalytics || false,
+                canEscalate: u.canEscalate || false,
+                canManageUsers: u.canManageUsers || false
             });
         } else {
             setEditingUser(null);
             setUserFormData({
-                name: '', email: '', password: '', role: 'SPORT_MARSHAL',
+                name: '', email: '', password: '', mobile: '', role: 'SPORT_MARSHAL', userGroup: 'IN_CIRCUIT',
                 isIntakeEnabled: false,
-                canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false
+                canViewMedical: false, canViewSafety: false, canViewSport: false, canViewAll: false,
+                canViewAnalytics: false, canEscalate: false, canManageUsers: false
             });
         }
         setShowUserModal(true);
@@ -122,6 +154,22 @@ const Settings = () => {
             setEvents(res.data);
         } catch (err) { console.error(err); }
         finally { setLoadingEvents(false); }
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const res = await api.get('/users/template', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'users_template.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            setUserError('Failed to download template.');
+            setTimeout(() => setUserError(''), 5000);
+        }
     };
 
     const handleEventSubmit = async () => {
@@ -201,7 +249,39 @@ const Settings = () => {
             {/* Content */}
             {activeTab === 'users' ? (
                 <div className="space-y-4">
-                    <div className="flex justify-end">
+                    <div className="flex flex-col sm:flex-row justify-between gap-4">
+                        <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 p-2 rounded-lg">
+                            <span className="text-sm font-medium text-gray-700 px-2">Bulk Import:</span>
+                            <select 
+                                className="border border-gray-300 rounded-md text-sm p-1.5 outline-none"
+                                value={importGroup}
+                                onChange={(e) => setImportGroup(e.target.value as 'IN_CIRCUIT' | 'OFF_CIRCUIT')}
+                                disabled={importing}
+                            >
+                                <option value="IN_CIRCUIT">In-Circuit Group</option>
+                                <option value="OFF_CIRCUIT">Off-Circuit Group</option>
+                            </select>
+                            <input 
+                                type="file" 
+                                accept=".xlsx,.csv" 
+                                className="hidden" 
+                                ref={fileInputRef} 
+                                onChange={handleImportFile} 
+                            />
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={importing}
+                                className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {importing ? <Loader2 size={16} className="animate-spin" /> : <span>Upload Excel</span>}
+                            </button>
+                            <button
+                                onClick={handleDownloadTemplate}
+                                className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-sm font-medium hover:bg-gray-50 flex items-center gap-2 text-emerald-600 hover:text-emerald-700"
+                            >
+                                <Download size={16} /> <span className="hidden sm:inline">Template</span>
+                            </button>
+                        </div>
                         <button onClick={() => openUserModal()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-medium shadow-sm transition-all hover:translate-y-[-1px]">
                             <Plus size={20} /> Add User
                         </button>
@@ -240,8 +320,11 @@ const Settings = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-600 border border-gray-200">
+                                                    <span className="bg-gray-100 px-2 py-1 rounded text-xs font-bold text-gray-600 border border-gray-200 block mb-1 w-max">
                                                         {u.role.replace(/_/g, ' ')}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.userGroup === 'OFF_CIRCUIT' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {u.userGroup === 'OFF_CIRCUIT' ? 'Off-Circuit' : 'In-Circuit'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -340,7 +423,7 @@ const Settings = () => {
                                                         {e.isActive ? 'Active' : 'Inactive'}
                                                     </button>
                                                 </td>
-                                                <td className="px-6 py-4 text-sm text-gray-500">{new Date(e.createdAt).toLocaleDateString()}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-500">{new Date(e.createdAt).toLocaleDateString('en-US')}</td>
                                                 <td className="px-6 py-4 text-right">
                                                     <button onClick={() => deleteEvent(e.id)} className="text-gray-400 p-2 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors">
                                                         <Trash2 size={18} />
@@ -397,14 +480,37 @@ const Settings = () => {
                                     onChange={e => setUserFormData({ ...userFormData, email: e.target.value })}
                                 />
                             </div>
-
                             <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-700">Role</label>
-                                <select
-                                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
-                                    value={userFormData.role}
-                                    onChange={e => setUserFormData({ ...userFormData, role: e.target.value })}
-                                >
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Mobile Number *</label>
+                                <input
+                                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                    placeholder="+966500000000"
+                                    value={userFormData.mobile}
+                                    onChange={e => setUserFormData({ ...userFormData, mobile: e.target.value })}
+                                    dir="ltr"
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700">User Group</label>
+                                    <select
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white font-medium"
+                                        value={userFormData.userGroup}
+                                        onChange={e => setUserFormData({ ...userFormData, userGroup: e.target.value })}
+                                    >
+                                        <option value="IN_CIRCUIT">In-Circuit Operations</option>
+                                        <option value="OFF_CIRCUIT">Off-Circuit Operations</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700">Role</label>
+                                    <select
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
+                                        value={userFormData.role}
+                                        onChange={e => setUserFormData({ ...userFormData, role: e.target.value })}
+                                    >
                                     <optgroup label="Operations">
                                         <option value="SPORT_MARSHAL">Sport Marshal</option>
                                         <option value="OPERATION_CONTROL_TEAM">Operation Control Team</option>
@@ -427,9 +533,15 @@ const Settings = () => {
                                         <option value="CHIEF_MEDICAL_OFFICER">Chief Medical Officer</option>
                                     </optgroup>
 
+                                    <optgroup label="Stewards">
+                                        <option value="SCRUTINEERS">Scrutineers</option>
+                                        <option value="JUDGEMENT">Judgement / Stewards</option>
+                                    </optgroup>
+
                                     {user?.role === 'ADMIN' && <optgroup label="System"><option value="ADMIN">System Administrator</option></optgroup>}
                                 </select>
                             </div>
+                        </div>
 
                             <div className="space-y-3 pt-2">
                                 <h4 className="text-sm font-semibold text-gray-900">Additional Permissions</h4>
@@ -465,6 +577,30 @@ const Settings = () => {
                                             {userFormData.canViewAll && <CheckCircle size={14} />}
                                         </div>
                                         <span className="text-sm font-medium text-gray-700 select-none">View All Tickets</span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canViewAnalytics: !userFormData.canViewAnalytics })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canViewAnalytics ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canViewAnalytics && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 select-none">View Analytics (Dashboard)</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canEscalate: !userFormData.canEscalate })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canEscalate ? 'bg-amber-600 border-amber-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canEscalate && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-amber-800 select-none">Can Escalate (Cross-Department)</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
+                                        onClick={() => setUserFormData({ ...userFormData, canManageUsers: !userFormData.canManageUsers })}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${userFormData.canManageUsers ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-gray-300'}`}>
+                                            {userFormData.canManageUsers && <CheckCircle size={14} />}
+                                        </div>
+                                        <span className="text-sm font-medium text-purple-800 select-none">Can Manage Users (Add/Edit/Activate)</span>
                                     </div>
                                 </div>
 
