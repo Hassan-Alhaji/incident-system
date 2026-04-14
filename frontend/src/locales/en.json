@@ -50,7 +50,13 @@
     "verifying": "Verifying...",
     "tryDifferentEmail": "Try different email",
     "resendCode": "Resend Code",
-    "resendIn": "Resend code in"
+    "resendIn": "Resend code in",
+    "errors": {
+      "EMAIL_NOT_FOUND": "Email not registered. Please create an account first.",
+      "ACCOUNT_PENDING": "Your account is pending activation. Please wait for an administrator to approve it.",
+      "ACCOUNT_SUSPENDED": "Your account is suspended. Please contact the administrator.",
+      "GENERIC_ERROR": "Login failed. Please verify your email and try again."
+    }
   },
   "ticket": {
     "back": "Back",

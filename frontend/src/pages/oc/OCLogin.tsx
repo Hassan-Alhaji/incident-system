@@ -54,7 +54,12 @@ const OCLogin = () => {
             setStep('otp');
             setCountdown(60);
         } catch (err: any) {
-            setError(err.response?.data?.message || t('oc.login.error'));
+            const errorCode = err.response?.data?.code;
+            if (errorCode && t(`login.errors.${errorCode}`) !== `login.errors.${errorCode}`) {
+                setError(t(`login.errors.${errorCode}`));
+            } else {
+                setError(err.response?.data?.message || t('login.errors.GENERIC_ERROR'));
+            }
         } finally {
             setLoading(false);
         }

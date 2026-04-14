@@ -30,26 +30,16 @@ const requestEmailOtp = async (req, res) => {
             });
         }
 
-        // Auto-create New User as SPORT_MARSHAL
+        // Return error if user is not found
         if (!user) {
-            const nameFromEmail = email.split('@')[0];
-            user = await prisma.user.create({
-                data: {
-                    email,
-                    name: nameFromEmail, // Default name from email
-                    role: 'SPORT_MARSHAL', // Standard role
-                    password: '',
-                    status: 'ACTIVE'
-                }
-            });
-            // Proceed to generate OTP for this new user
+            return res.status(404).json({ code: 'EMAIL_NOT_FOUND', message: 'Email is not registered.' });
         }
 
         if (user.status === 'SUSPENDED') {
-            return res.status(403).json({ message: 'Your account is deactivated. Please contact the administrator.' });
+            return res.status(403).json({ code: 'ACCOUNT_SUSPENDED', message: 'Your account is deactivated. Please contact the administrator.' });
         }
         if (user.status === 'PENDING') {
-            return res.status(403).json({ message: 'Your account is pending activation. Please contact your administrator for approval.' });
+            return res.status(403).json({ code: 'ACCOUNT_PENDING', message: 'Your account is pending activation. Please wait for administrator approval.' });
         }
 
         step = 3; // Generate OTP
