@@ -407,7 +407,7 @@ const OCTicketWizard = () => {
                             onChange={(e) => setWhatHappened(e.target.value)}
                             rows={4}
                             placeholder={t('oc.wizard.whatHappenedPlaceholder')}
-                            className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 resize-none
+                            className={`w-full bg-slate-800 border rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 min-h-[120px] resize-y
                                 ${showErrors && !whatHappened.trim() ? 'border-red-500/50' : 'border-slate-700'}`}
                         />
                     </div>

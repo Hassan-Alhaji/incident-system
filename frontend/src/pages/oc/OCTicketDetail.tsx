@@ -518,14 +518,14 @@ ${attachmentsHtml}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.supervisor.immediateActions')} *</label>
-                                        <textarea value={immediateActions} onChange={(e) => setImmediateActions(e.target.value)} rows={3}
+                                        <textarea value={immediateActions} onChange={(e) => setImmediateActions(e.target.value)} rows={4}
                                             placeholder={t('oc.supervisor.immediateActionsPlaceholder')}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[100px] resize-y" />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.supervisor.notes')}</label>
-                                        <textarea value={supervisorNotes} onChange={(e) => setSupervisorNotes(e.target.value)} rows={2}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                        <textarea value={supervisorNotes} onChange={(e) => setSupervisorNotes(e.target.value)} rows={4}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[100px] resize-y" />
                                     </div>
                                     <div className="flex gap-2 pt-1">
                                         {/* Fix #5: disable return if no notes */}
@@ -578,30 +578,30 @@ ${attachmentsHtml}
                                     {/* Fix #20: char counter on textareas */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.investigation.immediateCauses')} *</label>
-                                        <textarea value={immediateCauses} onChange={(e) => setImmediateCauses(e.target.value.slice(0, 5000))} rows={3}
+                                        <textarea value={immediateCauses} onChange={(e) => setImmediateCauses(e.target.value.slice(0, 5000))} rows={4}
                                             placeholder={t('oc.investigation.immediateCausesPlaceholder')}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[120px] resize-y" />
                                         <p className={`text-[10px] text-right mt-0.5 ${immediateCauses.length > 4900 ? 'text-amber-400' : 'text-slate-600'}`}>{immediateCauses.length}/5000</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.investigation.underlyingCauses')} *</label>
-                                        <textarea value={underlyingCauses} onChange={(e) => setUnderlyingCauses(e.target.value.slice(0, 5000))} rows={3}
+                                        <textarea value={underlyingCauses} onChange={(e) => setUnderlyingCauses(e.target.value.slice(0, 5000))} rows={4}
                                             placeholder={t('oc.investigation.underlyingCausesPlaceholder')}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[120px] resize-y" />
                                         <p className={`text-[10px] text-right mt-0.5 ${underlyingCauses.length > 4900 ? 'text-amber-400' : 'text-slate-600'}`}>{underlyingCauses.length}/5000</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.investigation.rootCauses')} *</label>
-                                        <textarea value={rootCauses} onChange={(e) => setRootCauses(e.target.value.slice(0, 5000))} rows={3}
+                                        <textarea value={rootCauses} onChange={(e) => setRootCauses(e.target.value.slice(0, 5000))} rows={4}
                                             placeholder={t('oc.investigation.rootCausesPlaceholder')}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[120px] resize-y" />
                                         <p className={`text-[10px] text-right mt-0.5 ${rootCauses.length > 4900 ? 'text-amber-400' : 'text-slate-600'}`}>{rootCauses.length}/5000</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.investigation.preventiveActions')} *</label>
-                                        <textarea value={preventiveActions} onChange={(e) => setPreventiveActions(e.target.value.slice(0, 5000))} rows={3}
+                                        <textarea value={preventiveActions} onChange={(e) => setPreventiveActions(e.target.value.slice(0, 5000))} rows={4}
                                             placeholder={t('oc.investigation.preventiveActionsPlaceholder')}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[120px] resize-y" />
                                         <p className={`text-[10px] text-right mt-0.5 ${preventiveActions.length > 4900 ? 'text-amber-400' : 'text-slate-600'}`}>{preventiveActions.length}/5000</p>
                                     </div>
                                     <button onClick={handleSubmitInvestigation} disabled={actionLoading || !immediateCauses || !rootCauses}
@@ -634,8 +634,8 @@ ${attachmentsHtml}
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-xs font-medium text-slate-300 mb-1">{t('oc.hse.finalNotes')}</label>
-                                        <textarea value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} rows={3}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none" />
+                                        <textarea value={finalNotes} onChange={(e) => setFinalNotes(e.target.value)} rows={4}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 min-h-[100px] resize-y" />
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={() => setConfirmAction({ action: t('oc.hse.confirmReject'), handler: () => handleFinalDecision('REJECT') })}
