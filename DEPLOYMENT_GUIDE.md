@@ -64,12 +64,15 @@ Since you are using SQLite, **you cannot simply deploy to most cloud platforms**
 2.  **Update `schema.prisma`**:
     ```prisma
     datasource db {
-      provider = "postgresql"
-      url      = env("DATABASE_URL")
+      provider  = "postgresql"
+      url       = env("DATABASE_URL")
+      directUrl = env("DIRECT_URL")
     }
     ```
-3.  **Update `.env`**: Replace `DATABASE_URL` with the one from Supabase/Neon.
-4.  **Migrate**: Run `npx prisma migrate dev` to push your schema to the new DB.
+3.  **Update `.env`**:
+    - Replace `DATABASE_URL` with your **Transaction Pooler URL** (Port `6543`) from Supabase, and make sure it ends with `?pgbouncer=true`.
+    - Add `DIRECT_URL` with your **Session / Direct Connection URL** (Port `5432`) from Supabase.
+4.  **Migrate**: Run `npx prisma db push` (this uses the `DIRECT_URL` automatically).
 
 ### Phase 2: Deploy Backend (Render.com)
 1.  Push your code to **GitHub**.
@@ -78,8 +81,12 @@ Since you are using SQLite, **you cannot simply deploy to most cloud platforms**
     - Connect your GitHub repo.
     - Root Directory: `backend`
     - Build Command: `npm install`
-    - Start Command: `node server.js`
-    - **Environment Variables**: Add `DATABASE_URL`, `JWT_SECRET`, etc.
+    - Start Command: `npm start`
+    - **Environment Variables**: 
+      - Add `DATABASE_URL` (Supabase Pooler URL **with** `?pgbouncer=true`).
+      - Add `DIRECT_URL` (Supabase Session URL on port `5432`).
+      - Add `JWT_SECRET`, etc.
+    - **Important**: Do **not** run `npx prisma db push` as part of your Render Build Command. Run it locally connected to the `DIRECT_URL` before deploying, or update your build command precisely.
 4.  Render will give you a URL (e.g., `https://incident-backend.onrender.com`).
 
 ### Phase 3: Deploy Frontend (Vercel)
