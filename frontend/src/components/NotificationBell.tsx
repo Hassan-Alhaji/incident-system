@@ -26,6 +26,8 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
     const maxAlarms = 5;
 
     const playAlertSound = () => {
+        // Disabled based on user request (شيل الصوت حالياً)
+        return;
         try {
             const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
             if (audioCtx.state === 'suspended') {
