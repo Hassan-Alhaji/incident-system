@@ -419,12 +419,13 @@ ${attachmentsHtml}
             )}
 
             <div className="flex gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/50">
-                {(['details', 'timeline'] as const).map(tab => (
+                {(['details', 'timeline', 'attachments'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)}
                         className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all
                             ${activeTab === tab ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'text-slate-400 hover:text-slate-300'}`}>
                         {tab === 'details' && <FileText size={12} className="inline mr-1" />}
                         {tab === 'timeline' && <Clock size={12} className="inline mr-1" />}
+                        {tab === 'attachments' && <Paperclip size={12} className="inline mr-1" />}
                         {t(`oc.tabs.${tab}`)}
                     </button>
                 ))}
@@ -668,34 +669,7 @@ ${attachmentsHtml}
                         </Section>
                     )}
 
-                    {/* ===== SECTION 5: Attachments (Inside Details tab) ===== */}
-                    {ticket.attachments && ticket.attachments.length > 0 && (
-                        <Section title={t('oc.tabs.attachments')} icon={<Paperclip size={14} />} color="amber">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
-                                {ticket.attachments.map((att: any, idx: number) => {
-                                    const fileUrl = resolveAttachmentUrl(att.url);
-                                    return (
-                                        <a key={idx} href={fileUrl} target="_blank" rel="noreferrer"
-                                            className="block bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden hover:border-amber-500/50 transition-all group">
-                                            {att.type === 'IMAGE' || fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
-                                                <div className="aspect-square bg-slate-800 relative">
-                                                    <img src={fileUrl} alt={att.name} className="w-full h-full object-cover" />
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                        <ExternalLink className="text-white" size={20} />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="aspect-square bg-slate-800 flex flex-col items-center justify-center p-4">
-                                                    <FileText size={32} className="text-slate-500 mb-2 group-hover:text-amber-400 transition-colors" />
-                                                    <p className="text-xs text-center text-slate-400 break-all line-clamp-2">{att.name}</p>
-                                                </div>
-                                            )}
-                                        </a>
-                                    );
-                                })}
-                            </div>
-                        </Section>
-                    )}
+
                 </div>
             )}
 
@@ -724,7 +698,39 @@ ${attachmentsHtml}
                 </div>
             )}
 
-
+            {/* ATTACHMENTS TAB */}
+            {activeTab === 'attachments' && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {ticket.attachments?.map((att: any, idx: number) => {
+                        const fileUrl = resolveAttachmentUrl(att.url);
+                        return (
+                            <a key={idx} href={fileUrl} target="_blank" rel="noreferrer"
+                                className="block bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden hover:border-amber-500/50 transition-all group relative shadow-lg">
+                                {att.type === 'IMAGE' || fileUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                                    <div className="aspect-square bg-slate-800 relative">
+                                        <img src={fileUrl} alt={att.name} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100 transition-all">
+                                            <p className="text-[10px] text-white truncate">{att.name}</p>
+                                            <p className="text-[9px] text-amber-400">{(att.size / 1024).toFixed(1)} KB</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="aspect-square bg-slate-800 flex flex-col items-center justify-center p-4">
+                                        <FileText size={32} className="text-slate-500 mb-2 group-hover:text-amber-400 transition-colors" />
+                                        <p className="text-xs text-center text-slate-400 break-all line-clamp-2 leading-tight">{att.name}</p>
+                                        <p className="text-[9px] text-slate-500 mt-1">{(att.size / 1024).toFixed(1)} KB</p>
+                                    </div>
+                                )}
+                            </a>
+                        );
+                    })}
+                    {(!ticket.attachments || ticket.attachments.length === 0) && (
+                        <div className="col-span-full">
+                            <p className="text-center text-slate-500 py-8 text-sm">{t('oc.attachments.empty')}</p>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
