@@ -336,7 +336,14 @@ ${attachmentsHtml}
   </div>
 </div>
 
-<script>setTimeout(()=>window.print(),500)</script>
+<script>
+  // Wait for all resources (images) to finish loading before opening print dialog
+  window.onload = function() {
+      setTimeout(function() { window.print(); }, 200);
+  };
+  // Failsafe just in case window.onload doesn't fire
+  setTimeout(function() { window.print(); }, 4000);
+</script>
 </body></html>`;
 
         const printWindow = window.open('', '_blank');
