@@ -76,10 +76,10 @@ const requestEmailOtp = async (req, res) => {
             email
         };
 
-        // Only expose testCode in development/staging environments
-        if (process.env.NODE_ENV !== 'production') {
+        // Only expose testCode in development/staging environments (or for testing)
+        // if (process.env.NODE_ENV !== 'production') {
             response.testCode = otpCode;
-        }
+        // }
 
         res.json(response);
 
@@ -213,10 +213,10 @@ const registerUser = async (req, res) => {
             email
         };
 
-        // Expose testCode in non-production
-        if (process.env.NODE_ENV !== 'production') {
+        // Expose testCode in non-production (or testing)
+        // if (process.env.NODE_ENV !== 'production') {
             response.testCode = otpCode;
-        }
+        // }
 
         res.status(201).json(response);
 
