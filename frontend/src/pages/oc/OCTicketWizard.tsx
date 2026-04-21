@@ -130,6 +130,9 @@ const OCTicketWizard = () => {
  try { const res = await api.get('/service-providers'); setServiceProviders(res.data); } catch (e) { console.error(e); }
  };
  fetchProviders();
+  const fetchDepartments = async () => {
+    try { const res = await api.get('/departments'); setDepartments(res.data); } catch (e) { console.error(e); }
+  };
   fetchDepartments();
  }, []);
 

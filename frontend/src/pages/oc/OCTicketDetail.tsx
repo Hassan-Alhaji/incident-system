@@ -401,7 +401,7 @@ ${ticket.serviceProvider ? `
       ${ticket.serviceProvider.representatives?.length > 0 ? `
         <div style="margin-top:8px;padding-top:8px;border-top:1px solid #fed7aa">
           <strong style="color:#ea580c;font-size:11px">${isAr ? 'ممثل الشركة - بيانات التواصل' : 'Company Rep - Contact Info'}</strong>
-          ${ticket.serviceProvider.representatives.map((rep) => `
+          ${ticket.serviceProvider.representatives.map((rep: any) => `
             <div style="font-size:12px;padding:6px 0;border-bottom:1px solid #fef3c7">
               <strong>${rep.name}</strong>
               ${rep.email ? ` — <span style="color:#666">${rep.email}</span>` : ''}
