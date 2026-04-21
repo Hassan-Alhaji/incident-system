@@ -182,7 +182,7 @@ const updateProfile = async (req, res) => {
                 lastName: user.lastName,
                 email: user.email,
                 mobile: user.mobile,
-                marshalId: user.marshalId,
+                
                 role: user.role,
                 isProfileCompleted: user.isProfileCompleted
             }
@@ -294,7 +294,7 @@ const importRegistry = async (req, res) => {
                             mobile: mobile,
                             role: role,
                             userGroup: group,
-                            isMedical: isMedical,
+                            isMedical: 
                             password: '', // OTP only
                             status: 'ACTIVE'
                         }

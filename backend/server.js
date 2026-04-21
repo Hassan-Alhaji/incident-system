@@ -36,23 +36,20 @@ app.get('/api/health', (req, res) => {
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
-const ticketRoutes = require('./routes/ticketRoutes');
-const reportRoutes = require('./routes/reportRoutes');
+const ticketRoutes = require('./routes/ticketRoutes'); // Actually contains tickets, users, analytics
+
 const notificationRoutes = require('./routes/notificationRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const attachmentRoutes = require('./routes/attachmentRoutes');
-const analyticsRoutes = require('./routes/analyticsRoutes');
 
 // Mount Routes
 console.log('[DEBUG] Mounting /api/auth...');
 app.use('/api/auth', authRoutes);
-app.use('/api/tickets', ticketRoutes); // This now points to what used to be ocRoutes
-app.use('/api/verify', reportRoutes);
+app.use('/api', ticketRoutes); // Mount at /api so it maps to /api/tickets, /api/users, /api/analytics
+
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/events', eventRoutes);
 app.use('/api/attachments', attachmentRoutes);
-app.use('/api/analytics', analyticsRoutes);
 app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
