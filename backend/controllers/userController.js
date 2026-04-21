@@ -12,7 +12,7 @@ const getUsers = async (req, res) => {
                 id: true, name: true, email: true, mobile: true, role: true, userGroup: true,
                 isIntakeEnabled: true, createdAt: true, status: true,
                 canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true,
-                canViewAnalytics: true, canEscalate: true, canManageUsers: true,
+                canViewAnalytics: true,  canManageUsers: true,
                 canCloseTickets: true, canPerformRCA: true
             }
         });

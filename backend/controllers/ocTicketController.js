@@ -994,7 +994,7 @@ const getOCUsers = async (req, res) => {
             select: {
                 id: true, name: true, email: true, role: true, userGroup: true,
                 status: true, createdAt: true, mobile: true,
-                canViewAnalytics: true, canEscalate: true, canManageUsers: true,
+                canViewAnalytics: true,  canManageUsers: true,
                 canCloseTickets: true, canPerformRCA: true
             },
             orderBy: { createdAt: 'desc' }
