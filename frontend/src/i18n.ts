@@ -6,17 +6,17 @@ import en from './locales/en.json';
 import ar from './locales/ar.json';
 
 i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources: {
-      en: { translation: en },
-      ar: { translation: ar }
-    },
-    fallbackLng: 'en',
-    interpolation: {
-      escapeValue: false, // not needed for react as it escapes by default
-    }
-  });
+ .use(LanguageDetector)
+ .use(initReactI18next)
+ .init({
+ resources: {
+ en: { translation: en },
+ ar: { translation: ar }
+ },
+ fallbackLng: 'en',
+ interpolation: {
+ escapeValue: false, // not needed for react as it escapes by default
+ }
+ });
 
 export default i18n;

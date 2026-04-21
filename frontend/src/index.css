@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 @layer base {
   /* Force English/Western numerals everywhere */
@@ -6,8 +7,14 @@
     font-variant-numeric: lining-nums tabular-nums;
   }
 
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-[#f0f2f5] text-gray-800;
   }
 
   /* Force LTR for all number/date/time inputs */
@@ -19,5 +26,11 @@
   input[type="email"] {
     direction: ltr !important;
     text-align: left !important;
+  }
+
+  /* Smooth scrolling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
   }
 }

@@ -12,7 +12,8 @@ const getUsers = async (req, res) => {
                 id: true, name: true, email: true, mobile: true, role: true, userGroup: true,
                 isIntakeEnabled: true, createdAt: true, status: true,
                 canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true,
-                canViewAnalytics: true, canEscalate: true, canManageUsers: true
+                canViewAnalytics: true, canEscalate: true, canManageUsers: true,
+                canCloseTickets: true, canPerformRCA: true
             }
         });
         res.json(users);
@@ -46,7 +47,9 @@ const createUser = async (req, res) => {
                 canViewAll: req.body.canViewAll || false,
                 canViewAnalytics: req.body.canViewAnalytics || false,
                 canEscalate: req.body.canEscalate || false,
-                canManageUsers: req.body.canManageUsers || false
+                canManageUsers: req.body.canManageUsers || false,
+                canCloseTickets: req.body.canCloseTickets || false,
+                canPerformRCA: req.body.canPerformRCA || false
             }
         });
 
@@ -100,6 +103,8 @@ const updateUser = async (req, res) => {
         if (typeof req.body.canViewAnalytics === 'boolean') updateData.canViewAnalytics = req.body.canViewAnalytics;
         if (typeof req.body.canEscalate === 'boolean') updateData.canEscalate = req.body.canEscalate;
         if (typeof req.body.canManageUsers === 'boolean') updateData.canManageUsers = req.body.canManageUsers;
+        if (typeof req.body.canCloseTickets === 'boolean') updateData.canCloseTickets = req.body.canCloseTickets;
+        if (typeof req.body.canPerformRCA === 'boolean') updateData.canPerformRCA = req.body.canPerformRCA;
 
         const user = await prisma.user.update({
             where: { id: req.params.id },

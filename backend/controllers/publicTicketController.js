@@ -1,6 +1,24 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Map severity to priority enum
+const priorityMap = { MINOR: 'MINOR', SIGNIFICANT: 'SIGNIFICANT', MAJOR: 'MAJOR', SEVERE: 'SEVERE', RED: 'SEVERE', YELMINOR: 'MAJOR', GREEN: 'SIGNIFICANT' };
+
+// Utility function to calculate SLAs based on SMC HSE rules
+const calculateDueDate = (severity) => {
+    const now = new Date();
+    if (severity === 'RED' || severity === 'SEVERE') {
+        // Red / Serious: 24 hours initial response
+        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    } else if (severity === 'YELMINOR' || severity === 'MAJOR') {
+        // Yellow / Significant: 1 Week
+        return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    } else {
+        // Green / Minor / MINOR: 2 Weeks
+        return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    }
+};
+
 const createTicket = async (req, res, type, reportDataField, reportData) => {
     try {
         const {
@@ -30,7 +48,8 @@ const createTicket = async (req, res, type, reportDataField, reportData) => {
             data: {
                 ticketNo,
                 type: type,
-                status: 'OPEN',
+                status: 'HSE_REVIEW', // Phase 1 Routing: All new tickets go to HSE Controller
+                priority: req.body.severity ? priorityMap[req.body.severity] : 'SIGNIFICANT',
                 marshalId,
                 marshalMobile,
                 postNumber,
@@ -39,6 +58,10 @@ const createTicket = async (req, res, type, reportDataField, reportData) => {
                 description,
                 location: location || `Post ${postNumber}`,
                 eventId,
+                severityLevel: req.body.severity || 'YELMINOR',
+                dueDate: calculateDueDate(req.body.severity),
+                serviceProviderId: req.body.serviceProviderId || null,
+                zoneId: req.body.zoneId || null,
 
                 // Create the specific report nested using the CLEAN reportData passed in
                 [reportDataField]: {
@@ -119,7 +142,7 @@ exports.submitSafety = async (req, res) => {
     // Explicitly construct ONLY the fields valid for SafetyReport
     const reportData = {
         hazardType,
-        trackStatus: isTrackBlocked === 'true' ? 'RED' : 'YELLOW'
+        trackStatus: isTrackBlocked === 'true' ? 'RED' : 'YELMINOR'
     };
 
     return createTicket(req, res, 'SAFETY', 'safetyReport', reportData);

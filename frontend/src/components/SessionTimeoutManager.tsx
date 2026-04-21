@@ -5,16 +5,16 @@ import { LogOut } from 'lucide-react';
 const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const SessionTimeoutManager = () => {
-    const { user, logout } = useAuth();
-    const lastActive = useRef(Date.now());
-    const [showingWarning, setShowingWarning] = useState(false);
+ const { user, logout } = useAuth();
+ const lastActive = useRef(Date.now());
+ const [showingWarning, setShowingWarning] = useState(false);
 
-    // TEMPORARILY DISABLED AS PER REQUEST
-    useEffect(() => {
-        return; 
-    }, []);
+ // TEMPORARILY DISABLED AS PER REQUEST
+ useEffect(() => {
+ return; 
+ }, []);
 
-    return null;
+ return null;
 };
 
 export default SessionTimeoutManager;

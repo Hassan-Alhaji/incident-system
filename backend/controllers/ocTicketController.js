@@ -5,10 +5,13 @@ const { createNotification } = require('./notificationController');
 // Off-Circuit Role Groups
 const OC_ROLES = {
     REPORTER: ['OC_REPORTER'],
-    SUPERVISOR: ['OC_SUPERVISOR'],
+    SUPERVISOR: ['OC_SUPERVISOR'], // HSE_CONTROLLER removed to prevent auth trap
+    DEP_REP: ['DEP_REP'],
+    DEP_MANAGER: ['DEP_MANAGER'],
     INVESTIGATOR: ['OC_SAFETY_INVESTIGATOR'],
     HSE_MANAGER: ['OC_HSE_MANAGER'],
-    ALL: ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER', 'ADMIN']
+    HSE_CONTROLLER: ['HSE_CONTROLLER'],
+    ALL: ['OC_REPORTER', 'OC_SUPERVISOR', 'DEP_REP', 'DEP_MANAGER', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN', 'SERVICE_PROVIDER_REP']
 };
 
 // ---------- CREATE TICKET (Reporter only) ----------
@@ -23,7 +26,7 @@ const createOCTicket = async (req, res) => {
             incidentType, incidentDate, incidentTime,
             locationLat, locationLng, locationAddress,
             whatHappened, hasInjury, severity,
-            injuredPersons, witnesses, description
+            injuredPersons, witnesses, description, serviceProviderId
         } = req.body;
 
         // Validation
@@ -47,7 +50,7 @@ const createOCTicket = async (req, res) => {
         }
 
         // Map severity to priority enum
-        const priorityMap = { LOW: 'LOW', MEDIUM: 'MEDIUM', HIGH: 'HIGH', CRITICAL: 'CRITICAL' };
+        const priorityMap = { MINOR: 'MINOR', MEDIUM: 'MEDIUM', HIGH: 'HIGH', CRITICAL: 'CRITICAL' };
 
         // Map incidentType to TicketType enum
         const typeMap = {
@@ -56,13 +59,23 @@ const createOCTicket = async (req, res) => {
             SECURITY_BREACH: 'SECURITY_BREACH', ACCIDENT: 'ACCIDENT', OTHER: 'SAFETY'
         };
 
+        const calculateDueDate = (sev) => {
+            const now = new Date();
+            if (sev === 'RED' || sev === 'CRITICAL') return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            if (sev === 'YELMINOR' || sev === 'HIGH') return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        };
+
         const ticket = await prisma.ticket.create({
             data: {
                 ticketNo,
                 type: typeMap[incidentType] || 'SAFETY',
-                status: 'OPEN',
+                status: 'HSE_REVIEW', // Dynamic Routing Phase 1 Default
                 priority: priorityMap[severity] || 'MEDIUM',
+                severityLevel: severity,
+                dueDate: calculateDueDate(severity),
                 userGroup: 'OFF_CIRCUIT',
+                zoneId: req.body.zoneId || null,
                 incidentDate: new Date(incidentDate),
                 incidentTime,
                 location: locationAddress || `${locationLat},${locationLng}`,
@@ -70,6 +83,7 @@ const createOCTicket = async (req, res) => {
                 reporterName: req.user.name,
                 createdById: req.user.id,
                 hasInjury: hasInjury || false,
+                serviceProviderId: (serviceProviderId && serviceProviderId !== 'OTHER') ? serviceProviderId : null,
                 offCircuitReport: {
                     create: {
                         incidentType,
@@ -135,9 +149,18 @@ const getOCTickets = async (req, res) => {
             // Reporters see only their own tickets
             where.createdById = userId;
         } else if (OC_ROLES.SUPERVISOR.includes(role)) {
-            // Supervisors see tickets in OPEN, SUPERVISOR_REVIEW, RETURNED_FOR_EDIT (+ assigned to them)
             where.OR = [
                 { status: { in: ['OPEN', 'SUPERVISOR_REVIEW'] } },
+                { assignedToId: userId }
+            ];
+        } else if (OC_ROLES.DEP_REP.includes(role)) {
+            where.OR = [
+                { status: 'PENDING_DEP_REP' },
+                { assignedToId: userId }
+            ];
+        } else if (OC_ROLES.DEP_MANAGER.includes(role)) {
+            where.OR = [
+                { status: 'ESCALATED_TO_DEP_MANAGER' },
                 { assignedToId: userId }
             ];
         } else if (OC_ROLES.INVESTIGATOR.includes(role)) {
@@ -154,9 +177,14 @@ const getOCTickets = async (req, res) => {
                 { status: 'CLOSED_REJECTED' },
                 { assignedToId: userId }
             ];
-        } else if (role === 'ADMIN') {
-            // Admin sees all
+        } else if (role === 'ADMIN' || role === 'HSE_CONTROLLER') {
+            // Admin and HSE Controller see all
             // keep where as is (just userGroup filter)
+        } else if (role === 'SERVICE_PROVIDER_REP') {
+            where.OR = [
+                { assignedToId: userId },
+                { serviceProviderId: req.user.serviceProviderId }
+            ].filter(Boolean);
         } else {
             return res.status(403).json({ message: 'Not authorized for off-circuit tickets' });
         }
@@ -188,6 +216,13 @@ const getOCTicketById = async (req, res) => {
                 createdBy: { select: { id: true, name: true, role: true } },
                 assignedTo: { select: { id: true, name: true, role: true } },
                 offCircuitReport: true,
+                zone: true,
+                serviceProvider: {
+                    include: {
+                        department: true,
+                        representatives: { select: { id: true, name: true, email: true, mobile: true, role: true } }
+                    }
+                },
                 attachments: true,
                 activityLogs: {
                     include: { actor: { select: { name: true, role: true } } },
@@ -404,6 +439,223 @@ const supervisorAction = async (req, res) => {
     }
 };
 
+// ---------- HSE CONTROLLER ROUTING ACTION ----------
+const hseControllerAction = async (req, res) => {
+    try {
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: req.params.id },
+            include: { offCircuitReport: true, serviceProvider: true }
+        });
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+        const { role } = req.user;
+        if (!['HSE_CONTROLLER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role)) {
+            return res.status(403).json({ message: 'Only HSE Controllers can route tickets' });
+        }
+
+        const { 
+            action, notes, targetId, serviceProviderId, priority, severityLevel,
+            isLTI, isMaterialDamage, isRegulatoryReportable, isNearMiss,
+            riskLikelihood, riskConsequence, riskScore, riskLevel,
+            targetDepartmentId
+        } = req.body;
+
+        const baseUpdateData = {};
+        if (priority) baseUpdateData.priority = priority;
+        if (severityLevel) baseUpdateData.severityLevel = severityLevel;
+        
+        const controllerAssessmentData = {
+            isLTI: isLTI || false,
+            isMaterialDamage: isMaterialDamage || false,
+            isRegulatoryReportable: isRegulatoryReportable || false,
+            isNearMiss: isNearMiss || false,
+            riskLikelihood: riskLikelihood || null,
+            riskConsequence: riskConsequence || null,
+            riskScore: riskScore || null,
+            riskLevel: riskLevel || null,
+            controllerFilledBy: req.user.name,
+            controllerFilledAt: new Date()
+        };
+
+        if (action === 'RETURN_REPORTER') {
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    ...baseUpdateData,
+                    offCircuitReport: { update: controllerAssessmentData },
+                    status: 'RETURNED_TO_REPORTER',
+                    activityLogs: { create: { actorId: req.user.id, action: 'RETURNED_TO_REPORTER', details: `Need more details: ${notes}` } }
+                }
+            });
+            return res.json({ message: 'Returned to reporter' });
+        }
+
+        if (action === 'ROUTE_HR') {
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    ...baseUpdateData,
+                    offCircuitReport: { update: controllerAssessmentData },
+                    status: 'PENDING_HR',
+                    activityLogs: { create: { actorId: req.user.id, action: 'ROUTED_TO_HR', details: `GOSI & Policy Actions required: ${notes}` } }
+                }
+            });
+            return res.json({ message: 'Routed to HR' });
+        }
+
+        if (action === 'ROUTE_DEP_REP') {
+            if (targetDepartmentId === 'HSE_MANAGER') {
+                await prisma.ticket.update({
+                    where: { id: ticket.id },
+                    data: {
+                        ...baseUpdateData,
+                        offCircuitReport: { update: controllerAssessmentData },
+                        status: 'FINAL_REVIEW',
+                        escalatedToRole: 'OC_HSE_MANAGER',
+                        activityLogs: { create: { actorId: req.user.id, action: 'ROUTED_TO_HSE_MANAGER', details: `Passed to HSE Manager: ${notes}` } }
+                    }
+                });
+                return res.json({ message: 'Routed to HSE Manager successfully' });
+            }
+
+            // Normal Department Routing
+            const extraData = {};
+            if (targetDepartmentId && targetDepartmentId !== 'HSE_MANAGER') {
+                extraData.departmentId = targetDepartmentId;
+            } else if (serviceProviderId) {
+                extraData.serviceProviderId = serviceProviderId;
+            }
+
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    ...baseUpdateData,
+                    ...extraData,
+                    offCircuitReport: { update: controllerAssessmentData },
+                    status: 'PENDING_DEP_REP',
+                    escalatedToRole: 'DEP_REP',
+                    activityLogs: { create: { actorId: req.user.id, action: 'ROUTED_TO_DEP_REP', details: `Corrective Action Plan required: ${notes}` } }
+                }
+            });
+            return res.json({ message: 'Routed to Department Rep' });
+        }
+
+        if (action === 'ROUTE_TO_USER') {
+            if (!targetId) return res.status(400).json({ message: 'Target user ID is required.' });
+            
+            const targetUser = await prisma.user.findUnique({ where: { id: targetId } });
+            if (!targetUser) return res.status(404).json({ message: 'Target user not found.' });
+
+            // In our custom workflow, routing from HSE Controller always goes to the Department Rep phase first.
+            let newStatus = 'PENDING_DEP_REP';
+
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    ...baseUpdateData,
+                    offCircuitReport: { update: controllerAssessmentData },
+                    status: newStatus,
+                    assignedToId: targetId,
+                    escalatedToRole: targetUser.role,
+                    activityLogs: { create: { actorId: req.user.id, action: 'ROUTED_TICKET', details: `Routed to ${targetUser.name} (${targetUser.role}): ${notes}` } }
+                }
+            });
+            try {
+                await createNotification(targetId, 'Ticket Routed', `Ticket ${ticket.ticketNo} routed to you.`, 'TICKET_ROUTED', `/oc/tickets/${ticket.id}`);
+            } catch (e) { console.error('Notif error', e); }
+
+            return res.json({ message: `Routed successfully to ${targetUser.name}` });
+        }
+
+        if (action === 'ROUTE_HSE_MANAGER') {
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    ...baseUpdateData,
+                    offCircuitReport: { update: controllerAssessmentData },
+                    status: 'FINAL_REVIEW',
+                    escalatedToRole: 'OC_HSE_MANAGER',
+                    activityLogs: { create: { actorId: req.user.id, action: 'ROUTED_TO_HSE_MANAGER', details: `Passed to HSE Manager for final review/closure: ${notes}` } }
+                }
+            });
+            return res.json({ message: 'Ticket routed to HSE Manager successfully' });
+        }
+
+        res.status(400).json({ message: 'Invalid routing action' });
+    } catch (error) {
+        console.error('HSE Action Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ---------- DEPARTMENT REP SECTION ----------
+const departmentRepAction = async (req, res) => {
+    try {
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: req.params.id },
+            include: { offCircuitReport: true }
+        });
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+        const { role } = req.user;
+        if (role !== 'DEP_REP' && role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Only Department Representatives can perform this action' });
+        }
+        if (ticket.status !== 'PENDING_DEP_REP') {
+            return res.status(400).json({ message: 'Ticket is not awaiting department response' });
+        }
+
+        const { immediateCauses, preventiveActions } = req.body;
+
+        if (ticket.offCircuitReport) {
+            await prisma.offCircuitReport.update({
+                where: { ticketId: ticket.id },
+                data: {
+                    immediateCauses,
+                    preventiveActions,
+                    depRepFilledBy: req.user.name,
+                    depRepFilledAt: new Date()
+                }
+            });
+        }
+
+        await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                status: 'DEP_REP_RESPONDED',
+                escalatedToRole: 'HSE_CONTROLLER',
+                activityLogs: {
+                    create: {
+                        actorId: req.user.id,
+                        action: 'DEP_REP_SUBMITTED',
+                        details: 'Department Representative submitted corrective actions. Returned to HSE Controller for review.'
+                    }
+                }
+            }
+        });
+
+        // Notify HSE Controllers
+        const controllers = await prisma.user.findMany({
+            where: { role: 'HSE_CONTROLLER', status: 'ACTIVE' },
+            select: { id: true }
+        });
+        for (const ctrl of controllers) {
+            await createNotification(
+                ctrl.id,
+                'Dep Rep Response Received',
+                `Ticket ${ticket.ticketNo}: Department Representative has submitted corrective actions for your review.`,
+                'DEP_REP_RESPONSE',
+                `/oc/tickets/${ticket.id}`
+            ).catch(console.error);
+        }
+
+        res.json({ message: 'Response submitted successfully. Sent back to HSE Controller for review.', status: 'DEP_REP_RESPONDED' });
+    } catch (error) {
+        console.error('Dep Rep Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ---------- INVESTIGATOR SECTION ----------
 const submitInvestigation = async (req, res) => {
     try {
@@ -414,24 +666,57 @@ const submitInvestigation = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
-        if (!OC_ROLES.INVESTIGATOR.includes(role) && role !== 'ADMIN') {
-            return res.status(403).json({ message: 'Only investigators can perform this action' });
+        if (!OC_ROLES.INVESTIGATOR.includes(role) && !OC_ROLES.HSE_CONTROLLER.includes(role) && role !== 'ADMIN' && !req.user.canPerformRCA) {
+            return res.status(403).json({ message: 'Only investigators or HSE Controllers can perform this action' });
         }
-        if (ticket.status !== 'UNDER_INVESTIGATION') {
+        if (ticket.status !== 'UNDER_INVESTIGATION' && ticket.status !== 'DEP_REP_RESPONDED') {
             return res.status(400).json({ message: 'Ticket is not in investigation stage' });
         }
 
-        const { immediateCauses, underlyingCauses, rootCauses, analysisMethod, preventiveActions, investigatorSignature } = req.body;
+        const { immediateCauses, preventiveActions, underlyingCauses, rootCauses, analysisMethod, investigatorSignature, targetDepManagerId, returnReason, action } = req.body;
+
+        // 1. Action: RETURN_TO_DEPARTMENT
+        if (action === 'RETURN_TO_DEPARTMENT') {
+            if (!returnReason) return res.status(400).json({ message: 'Return reason is strictly required.' });
+            
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    status: 'PENDING_DEP_REP',
+                    escalatedToRole: 'DEP_REP',
+                    activityLogs: {
+                        create: {
+                            actorId: req.user.id,
+                            action: 'RETURNED_TO_DEP_REP',
+                            details: `Returned to Department Rep: ${returnReason}`
+                        }
+                    }
+                }
+            });
+            return res.json({ message: 'Returned to Department Representative' });
+        }
+
+        // 2. Action: RCA based routes
+        const missingFields = [];
+        if (!immediateCauses?.trim()) missingFields.push('Immediate Causes');
+        if (!preventiveActions?.trim()) missingFields.push('Preventive Actions');
+        if (!analysisMethod?.trim()) missingFields.push('Analysis Method');
+        if (!rootCauses?.trim()) missingFields.push('Root Causes');
+        if (!underlyingCauses?.trim()) missingFields.push('Underlying Causes');
+
+        if (missingFields.length > 0) { 
+            return res.status(400).json({ message: `Missing required Analysis fields: ${missingFields.join(', ')}` }); 
+        }
 
         if (ticket.offCircuitReport) {
             await prisma.offCircuitReport.update({
                 where: { ticketId: ticket.id },
                 data: {
                     immediateCauses,
+                    preventiveActions,
                     underlyingCauses,
                     rootCauses,
                     analysisMethod,
-                    preventiveActions,
                     investigatorSignature,
                     investigatorFilledBy: req.user.name,
                     investigatorFilledAt: new Date()
@@ -439,15 +724,99 @@ const submitInvestigation = async (req, res) => {
             });
         }
 
+        if (action === 'CLOSE_TICKET') {
+            if (!req.user.canCloseTickets && role !== 'ADMIN') {
+                return res.status(403).json({ message: 'You do not have permission to close tickets' });
+            }
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    status: 'CLOSED',
+                    escalatedToRole: 'CLOSED',
+                    activityLogs: {
+                        create: { actorId: req.user.id, action: 'CLOSED_AFTER_RCA', details: 'Ticket strictly closed after formal RCA' }
+                    }
+                }
+            });
+            return res.json({ message: 'Ticket has been completely closed.' });
+        }
+
+        if (action === 'ROUTE_HSE_MANAGER') {
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: {
+                    status: 'FINAL_REVIEW',
+                    escalatedToRole: 'OC_HSE_MANAGER',
+                    activityLogs: {
+                        create: { actorId: req.user.id, action: 'RCA_COMPLETED', details: 'Formal RCA completed and routed to HSE Manager' }
+                    }
+                }
+            });
+            return res.json({ message: 'Ticket routed to HSE Manager.' });
+        }
+
+        // Default or ROUTE_DEP_MANAGER
+        if (!targetDepManagerId) {
+            return res.status(400).json({ message: 'Target Department Manager is required for this route.' });
+        }
+
+        await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                status: 'ESCALATED_TO_DEP_MANAGER',
+                assignedToId: targetDepManagerId,
+                escalatedToRole: 'DEP_MANAGER',
+                activityLogs: {
+                    create: { actorId: req.user.id, action: 'RCA_COMPLETED', details: 'Formal RCA completed and sent to Department Manager' }
+                }
+            }
+        });
+
+        const mgr = await prisma.user.findUnique({ where: { id: targetDepManagerId } });
+        if (mgr) {
+            await createNotification(
+                mgr.id,
+                'CAPA Approval Required',
+                `Ticket ${ticket.ticketNo} RCA complete. Please review and approve preventive actions.`,
+                'DEP_MANAGER_APPROVAL',
+                `/oc/tickets/${ticket.id}`
+            ).catch(console.error);
+        }
+
+        res.json({ message: 'Investigation submitted, ticket sent to Department Manager for final approval', status: 'ESCALATED_TO_DEP_MANAGER' });
+    } catch (error) {
+        console.error('Submit Investigation Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ---------- DEPARTMENT MANAGER SECTION ----------
+const departmentManagerApprove = async (req, res) => {
+    try {
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: req.params.id },
+            include: { offCircuitReport: true }
+        });
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+        const { role } = req.user;
+        if (role !== 'DEP_MANAGER' && role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Only Department Managers can perform this action' });
+        }
+        if (ticket.status !== 'ESCALATED_TO_DEP_MANAGER') {
+            return res.status(400).json({ message: 'Ticket is not awaiting department manager approval' });
+        }
+
         await prisma.ticket.update({
             where: { id: ticket.id },
             data: {
                 status: 'FINAL_REVIEW',
+                escalatedToRole: 'OC_HSE_MANAGER',
                 activityLogs: {
                     create: {
                         actorId: req.user.id,
-                        action: 'INVESTIGATION_COMPLETED',
-                        details: 'Investigation completed and sent to final review'
+                        action: 'CAPA_APPROVED',
+                        details: 'Department Manager approved the preventive actions.'
                     }
                 }
             }
@@ -462,15 +831,15 @@ const submitInvestigation = async (req, res) => {
             await createNotification(
                 mgr.id,
                 'Final Review Required',
-                `Ticket ${ticket.ticketNo} investigation is complete and awaiting final review.`,
+                `Ticket ${ticket.ticketNo} RCA & CAPA approved and awaiting final closure.`,
                 'OC_FINAL_REVIEW',
                 `/oc/tickets/${ticket.id}`
             ).catch(console.error);
         }
 
-        res.json({ message: 'Investigation submitted, ticket sent to final review', status: 'FINAL_REVIEW' });
+        res.json({ message: 'CAPA approved, ticket sent to HSE Manager', status: 'FINAL_REVIEW' });
     } catch (error) {
-        console.error('Submit Investigation Error:', error);
+        console.error('Department Manager Approve Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -485,7 +854,7 @@ const finalDecision = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
-        if (!OC_ROLES.HSE_MANAGER.includes(role) && role !== 'ADMIN') {
+        if (!OC_ROLES.HSE_MANAGER.includes(role) && role !== 'ADMIN' && !req.user.canCloseTickets) {
             return res.status(403).json({ message: 'Only HSE Managers can perform this action' });
         }
         if (ticket.status !== 'FINAL_REVIEW') {
@@ -612,8 +981,8 @@ const uploadOCAttachments = async (req, res) => {
 // ===   OC USER MANAGEMENT (HSE/Admin)   ===
 // ==========================================
 
-const OC_ADMIN_ROLES = ['OC_HSE_MANAGER', 'ADMIN'];
-const OC_USER_ROLES = ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER'];
+const OC_ADMIN_ROLES = ['OC_HSE_MANAGER', 'ADMIN', 'HSE_CONTROLLER'];
+const OC_USER_ROLES = ['OC_REPORTER', 'HSE_CONTROLLER', 'OC_HSE_MANAGER', 'HR_REP', 'PROCUREMENT_REP', 'DEP_REP', 'DEP_MANAGER', 'SAFETY_MANAGER', 'SERVICE_PROVIDER_REP'];
 
 const getOCUsers = async (req, res) => {
     try {
@@ -625,8 +994,8 @@ const getOCUsers = async (req, res) => {
             select: {
                 id: true, name: true, email: true, role: true, userGroup: true,
                 status: true, createdAt: true, mobile: true,
-                canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true,
-                canViewAnalytics: true, canEscalate: true
+                canViewAnalytics: true, canEscalate: true, canManageUsers: true,
+                canCloseTickets: true, canPerformRCA: true
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -642,7 +1011,7 @@ const createOCUser = async (req, res) => {
         if (!OC_ADMIN_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        const { name, email, role, mobile } = req.body;
+        const { name, email, role, mobile, canManageUsers, canCloseTickets, canPerformRCA } = req.body;
         if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
         if (!OC_USER_ROLES.includes(role)) return res.status(400).json({ message: 'Invalid OC role' });
 
@@ -654,7 +1023,10 @@ const createOCUser = async (req, res) => {
                 name, email, password: '', role,
                 userGroup: 'OFF_CIRCUIT',
                 mobile: mobile || null,
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                canManageUsers: canManageUsers || false,
+                canCloseTickets: canCloseTickets || false,
+                canPerformRCA: canPerformRCA || false
             }
         });
         res.status(201).json({ message: 'User created', user: { id: user.id, name: user.name, email: user.email, role: user.role } });
@@ -669,12 +1041,15 @@ const updateOCUser = async (req, res) => {
         if (!OC_ADMIN_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        const { name, email, role, mobile } = req.body;
+        const { name, email, role, mobile, canManageUsers, canCloseTickets, canPerformRCA } = req.body;
         const updateData = {};
         if (name) updateData.name = name;
         if (email) updateData.email = email;
         if (role && OC_USER_ROLES.includes(role)) updateData.role = role;
         if (mobile !== undefined) updateData.mobile = mobile;
+        if (typeof canManageUsers === 'boolean') updateData.canManageUsers = canManageUsers;
+        if (typeof canCloseTickets === 'boolean') updateData.canCloseTickets = canCloseTickets;
+        if (typeof canPerformRCA === 'boolean') updateData.canPerformRCA = canPerformRCA;
         updateData.userGroup = 'OFF_CIRCUIT';
 
         const user = await prisma.user.update({ where: { id: req.params.id }, data: updateData });
@@ -768,6 +1143,20 @@ const getOCAnalytics = async (req, res) => {
             if (t.hasInjury) monthlyTrend[key].injuries++;
         });
 
+        // Top locations
+        const reportsWithLocation = await prisma.offCircuitReport.findMany({
+            where: { locationAddress: { not: null, not: '' } },
+            select: { locationAddress: true }
+        });
+        const locMap = {};
+        reportsWithLocation.forEach(r => {
+            locMap[r.locationAddress] = (locMap[r.locationAddress] || 0) + 1;
+        });
+        const topLocations = Object.keys(locMap)
+            .map(k => ({ name: k.substring(0, 25), count: locMap[k] }))
+            .sort((a,b) => b.count - a.count)
+            .slice(0, 5);
+
         // Top reporters
         const topReportersData = await prisma.ticket.groupBy({
             by: ['createdById'], _count: { id: true },
@@ -813,6 +1202,7 @@ const getOCAnalytics = async (req, res) => {
             typeDistribution: ticketsByType.reduce((acc, c) => ({ ...acc, [c.type]: c._count.id }), {}),
             priorityDistribution: ticketsByPriority.reduce((acc, c) => ({ ...acc, [c.priority]: c._count.id }), {}),
             monthlyTrend,
+            topLocations,
             topReporters,
             avgClosureHours: Math.round(avgClosureMs / (1000 * 60 * 60)),
             avgClosureText,
@@ -982,7 +1372,9 @@ module.exports = {
     getOCTickets,
     getOCTicketById,
     updateReporterSection,
-    supervisorAction,
+    departmentRepAction,
+    departmentManagerApprove,
+    hseControllerAction,
     submitInvestigation,
     finalDecision,
     uploadOCAttachments,

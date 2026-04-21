@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -32,6 +31,10 @@ model User {
   canViewAnalytics Boolean              @default(false)
   canEscalate     Boolean               @default(false)
   canManageUsers  Boolean               @default(false)
+  
+  // New Granular Permissions
+  canCloseTickets Boolean               @default(false)
+  canPerformRCA   Boolean               @default(false)
 
   otpCode         String?
   otpExpires      DateTime?
@@ -43,6 +46,15 @@ model User {
   notifications   Notification[]
   assignedTickets Ticket[]              @relation("AssignedTickets")
   createdTickets  Ticket[]              @relation("CreatedTickets")
+
+  // Department Relations
+  managedDepartment  Department? @relation("DepartmentManager")
+  repDepartmentId    String?
+  repDepartment      Department? @relation("DepartmentReps", fields: [repDepartmentId], references: [id])
+
+  // Service Provider Relation
+  serviceProviderId  String?
+  serviceProvider    ServiceProvider? @relation("ServiceProviderReps", fields: [serviceProviderId], references: [id])
 }
 
 model Notification {
@@ -86,6 +98,11 @@ model Ticket {
   closedByRole        String?
   closedAt            DateTime?
   hasInjury           Boolean              @default(false)
+  dueDate             DateTime?            // SLA Deadline
+  severityLevel       String?              // RED, YELLOW, GREEN
+  serviceProviderId   String?              // Null if internal SMC
+  departmentId        String?              // Internal Assigned Department
+  department          Department?          @relation("TicketDepartment", fields: [departmentId], references: [id])
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   activityLogs        ActivityLog[]
@@ -99,6 +116,21 @@ model Ticket {
   assignedTo          User?                @relation("AssignedTickets", fields: [assignedToId], references: [id])
   createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
   ticketExports       TicketExport[]
+  riskAssessment      RiskAssessment?
+  serviceProvider     ServiceProvider?     @relation(fields: [serviceProviderId], references: [id])
+  zoneId              String?
+  zone                Zone?                @relation(fields: [zoneId], references: [id])
+}
+
+model Zone {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  coordinates Json?    // Array of {lat, lng} for polygon boundaries
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tickets     Ticket[]
 }
 
 model Attachment {
@@ -295,6 +327,15 @@ enum Role {
   OC_SUPERVISOR
   OC_SAFETY_INVESTIGATOR
   OC_HSE_MANAGER
+
+  // Dynamic Routing Roles Phase 1
+  HSE_CONTROLLER
+  HR_REP
+  PROCUREMENT_REP
+  DEP_REP
+  DEP_MANAGER
+  SAFETY_MANAGER
+  SERVICE_PROVIDER_REP
 }
 
 enum TicketType {
@@ -334,6 +375,17 @@ enum TicketStatus {
   UNDER_INVESTIGATION
   PENDING_ACTIONS
   FINAL_REVIEW
+
+  // Dynamic Routing Phase 1 Statuses
+  HSE_REVIEW
+  RETURNED_TO_REPORTER
+  PENDING_HR
+  PENDING_PROCUREMENT
+  PENDING_DEP_REP
+  ESCALATED_TO_SAFETY_MANAGER
+  ESCALATED_TO_DEP_MANAGER
+  DEP_REP_RESPONDED
+  OVERDUE
 }
 
 enum Priority {
@@ -385,12 +437,31 @@ model OffCircuitReport {
   supervisorFilledAt      DateTime?
   supervisorSignature     String?
 
-  // === Investigation Section (Stage 3) ===
+  // === HSE Controller Assessment (Stage 1.5) ===
+  isLTI                   Boolean?   @default(false)
+  isMaterialDamage        Boolean?   @default(false)
+  isRegulatoryReportable  Boolean?   @default(false)
+  isNearMiss              Boolean?   @default(false)
+  
+  controllerFilledBy      String?
+  controllerFilledAt      DateTime?
+
+  // === Department Rep Section (Stage 2) ===
+  depRepFilledBy          String?
+  depRepFilledAt          DateTime?
   immediateCauses         String?
+  preventiveActions       String?
+
+  // === Investigation/RCA Section (Stage 3) ===
   underlyingCauses        String?
   rootCauses              String?
   analysisMethod          String?
-  preventiveActions       String?
+
+  // Risk Assessment (L x C)
+  riskLikelihood          Int?
+  riskConsequence         Int?
+  riskScore               Int?
+  riskLevel               String?
 
   investigatorFilledBy    String?
   investigatorFilledAt    DateTime?
@@ -407,4 +478,54 @@ model OffCircuitReport {
   createdAt               DateTime   @default(now())
   updatedAt               DateTime   @updatedAt
   ticket                  Ticket     @relation(fields: [ticketId], references: [id])
+}
+
+model Department {
+  id              String             @id @default(uuid())
+  name            String             @unique
+  nameAr          String?            
+  managerId       String?            @unique
+  manager         User?              @relation("DepartmentManager", fields: [managerId], references: [id])
+  representatives User[]             @relation("DepartmentReps")
+  serviceProviders ServiceProvider[]
+  tickets         Ticket[]           @relation("TicketDepartment")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model ServiceProvider {
+  id                           String     @id @default(uuid())
+  name                         String
+  commercialRegistrationNumber String     @unique
+  status                       String     @default("ACTIVE") // ACTIVE, BLACKLISTED
+  responsibleDepartmentId      String
+  department                   Department @relation(fields: [responsibleDepartmentId], references: [id])
+  representatives              User[]     @relation("ServiceProviderReps")
+  tickets                      Ticket[]
+  createdAt                    DateTime   @default(now())
+  updatedAt                    DateTime   @updatedAt
+}
+
+model RiskAssessment {
+  id                  String   @id @default(uuid())
+  ticketId            String   @unique
+  impactType          String?  // People, Environment, Services, Assets
+  
+  // Pre-Control
+  preLikelihood       Int?
+  preConsequence      Int?
+  preRiskScore        Int?
+  
+  // Post-Control
+  postLikelihood      Int?
+  postConsequence     Int?
+  postRiskScore       Int?
+  
+  preventiveAction    String?
+  controlHierarchy    String?  // Elimination, Substitution, Engineering, Administrative, PPE
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  ticket              Ticket   @relation(fields: [ticketId], references: [id])
 }

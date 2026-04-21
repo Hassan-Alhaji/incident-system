@@ -130,6 +130,8 @@ const verifyEmailOtp = async (req, res) => {
             canEscalate: updatedUser.canEscalate,
             canViewAnalytics: updatedUser.canViewAnalytics,
             canManageUsers: updatedUser.canManageUsers,
+            canCloseTickets: updatedUser.canCloseTickets,
+            canPerformRCA: updatedUser.canPerformRCA,
             token: generateToken(updatedUser.id, updatedUser.role),
         });
 

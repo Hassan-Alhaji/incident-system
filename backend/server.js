@@ -57,6 +57,9 @@ app.use('/api/events', eventRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/oc', require('./routes/ocRoutes'));
+app.use('/api/zones', require('./routes/zoneRoutes'));
+app.use('/api/departments', require('./routes/departmentRoutes'));
+app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
 
 // Mount medical routes under /api/tickets/:id
 app.use('/api/tickets/:id', medicalRoutes);

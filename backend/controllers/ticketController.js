@@ -325,9 +325,9 @@ const updateTicket = async (req, res) => {
         }
 
         // Whitelist allowed fields to prevent mass assignment attacks
-        const ALLOWED_FIELDS = ["description","priority","location","eventName","venue","postNumber","drivers","witnesses","reporterName","reporterSignature","marshalMobile"];
+        const ALMINORED_FIELDS = ["description","priority","location","eventName","venue","postNumber","drivers","witnesses","reporterName","reporterSignature","marshalMobile"];
         const filteredData = {};
-        ALLOWED_FIELDS.forEach(f => { if (req.body[f] !== undefined) filteredData[f] = req.body[f]; });
+        ALMINORED_FIELDS.forEach(f => { if (req.body[f] !== undefined) filteredData[f] = req.body[f]; });
 
         const updated = await prisma.ticket.update({
             where: { id: req.params.id },
@@ -358,14 +358,14 @@ const closeTicket = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
-        const ALLOWED_CLOSERS = [
+        const ALMINORED_CLOSERS = [
             'DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER',
             'DEPUTY_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF',
             'DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_OF_CONTROL',
             'SCRUTINEERS', 'JUDGEMENT', 'ADMIN'
         ];
 
-        if (!ALLOWED_CLOSERS.includes(role)) {
+        if (!ALMINORED_CLOSERS.includes(role) && !req.user.canCloseTickets) {
             return res.status(403).json({ message: 'Not authorized to close tickets' });
         }
 
@@ -513,7 +513,11 @@ const updateOffCircuitReport = async (req, res) => {
                 underlyingCauses: data.underlyingCauses,
                 rootCauses: data.rootCauses,
                 immediateActions: data.immediateActions,
-                preventiveActions: data.preventiveActions
+                preventiveActions: data.preventiveActions,
+                riskLikelihood: data.riskLikelihood ? parseInt(data.riskLikelihood) : null,
+                riskConsequence: data.riskConsequence ? parseInt(data.riskConsequence) : null,
+                riskScore: data.riskScore ? parseInt(data.riskScore) : null,
+                riskLevel: data.riskLevel
             }
         });
 

@@ -216,15 +216,27 @@ const generatePdf = async (ticket, res, verifyToken, reqHost) => {
         }
 
         drawLongText('What Happened', oc.whatHappened);
-        drawLongText('Immediate Actions', oc.immediateActions);
+
+        if (oc.depRepFilledBy) {
+            drawSection('Department Response');
+            drawLongText('Immediate Causes', oc.immediateCauses);
+            drawLongText('Preventive Actions / CAPA', oc.preventiveActions);
+            drawField('Filled By', oc.depRepFilledBy);
+        }
 
         if (oc.investigatorFilledBy) {
             drawSection('Investigation Findings');
             drawField('Analysis Method', oc.analysisMethod);
-            drawLongText('Immediate Causes', oc.immediateCauses);
             drawLongText('Underlying Causes', oc.underlyingCauses);
             drawLongText('Root Causes', oc.rootCauses);
-            drawLongText('Preventive Actions', oc.preventiveActions);
+            drawField('Investigator / Assessor', oc.investigatorFilledBy);
+
+            if (oc.riskScore) {
+                drawSection('Risk Assessment (L x C)');
+                drawField('Likelihood (L)', `${oc.riskLikelihood} / 5`);
+                drawField('Consequence (C)', `${oc.riskConsequence} / 5`);
+                drawField('Risk Score', `${oc.riskScore} (Level: ${oc.riskLevel})`);
+            }
         }
     }
 

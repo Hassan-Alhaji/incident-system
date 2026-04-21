@@ -8,21 +8,21 @@ import { vi, describe, it, expect, afterEach } from 'vitest';
 // Mock the nested Context or minimal setup if needed
 // For now, we test if it mounts without crashing
 afterEach(() => {
-  cleanup();
-  vi.restoreAllMocks();
+ cleanup();
+ vi.restoreAllMocks();
 });
 
 describe('SessionTimeoutManager', () => {
-  it('Should not crash on initial render', () => {
-    // Standard mount test
-    render(
-      <BrowserRouter>
-        <AuthProvider>
-          <SessionTimeoutManager />
-        </AuthProvider>
-      </BrowserRouter>
-    );
-    // Since user is null initially (no auth token), it should return null
-    expect(document.body.textContent).toBe('');
-  });
+ it('Should not crash on initial render', () => {
+ // Standard mount test
+ render(
+ <BrowserRouter>
+ <AuthProvider>
+ <SessionTimeoutManager />
+ </AuthProvider>
+ </BrowserRouter>
+ );
+ // Since user is null initially (no auth token), it should return null
+ expect(document.body.textContent).toBe('');
+ });
 });

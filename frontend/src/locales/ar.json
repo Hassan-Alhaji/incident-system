@@ -151,19 +151,8 @@
     "englishOnly": "أحرف إنجليزية فقط"
   },
   "common": {
-    "save": "حفظ",
     "cancel": "إلغاء",
-    "submit": "إرسال",
-    "delete": "حذف",
-    "edit": "تعديل",
-    "back": "رجوع",
-    "loading": "جاري التحميل...",
-    "confirm": "تأكيد",
-    "search": "بحث",
-    "filter": "فلتر",
-    "noData": "لا توجد بيانات",
-    "error": "خطأ",
-    "success": "تم بنجاح"
+    "save": "حفظ التغييرات"
   },
   "notifications": {
     "title": "الإشعارات",
@@ -180,10 +169,13 @@
     "DRAFT": "مسودة"
   },
   "priority": {
-    "CRITICAL": "حرجة",
-    "HIGH": "عالية",
-    "MEDIUM": "متوسطة",
-    "LOW": "منخفضة"
+    "LOW": "منخفض",
+    "MEDIUM": "متوسط",
+    "HIGH": "عالي",
+    "CRITICAL": "حرج",
+    "YELLOW": "أصفر (متوسط)",
+    "RED": "أحمر (عالي)",
+    "GREEN": "أخضر (منخفض)"
   },
   "types": {
     "MEDICAL": "طبي",
@@ -240,24 +232,39 @@
       "all": "الكل",
       "noTickets": "لا توجد تذاكر",
       "noTicketsHint": "ابدأ بإنشاء أول بلاغ حادث",
-      "createFirst": "أنشئ أول بلاغ"
+      "createFirst": "أنشئ أول بلاغ",
+      "assigned": "موجهة لي",
+      "responded": "تم الرد"
     },
     "status": {
       "DRAFT": "مسودة",
       "OPEN": "مُرسلة",
+      "HSE_REVIEW": "مراجعة Controller",
+      "PENDING_HR": "بانتظار الموارد البشرية",
+      "PENDING_PROCUREMENT": "بانتظار المشتريات",
+      "PENDING_DEP_REP": "بانتظار رد القسم",
+      "ESCALATED_TO_SAFETY_MANAGER": "تصعيد لمدير السلامة",
+      "ESCALATED_TO_DEP_MANAGER": "تصعيد لمدير القسم",
+      "OVERDUE": "متأخرة",
+      "RETURNED_TO_REPORTER": "مرتجعة للمُبلغ",
       "SUPERVISOR_REVIEW": "مراجعة المشرف",
       "RETURNED_FOR_EDIT": "مرتجعة للتعديل",
       "UNDER_INVESTIGATION": "قيد التحقيق",
       "PENDING_ACTIONS": "بانتظار الإجراءات",
       "FINAL_REVIEW": "المراجعة النهائية",
       "CLOSED": "مغلقة",
-      "CLOSED_REJECTED": "مرفوضة"
+      "CLOSED_REJECTED": "مرفوضة",
+      "DEP_REP_RESPONDED": "رد ممثل القسم"
     },
     "statusShort": {
       "OPEN": "مفتوحة",
+      "HSE_REVIEW": "مراجعة HSE",
       "SUPERVISOR_REVIEW": "مراجعة",
+      "PENDING_DEP_REP": "ممثل القسم",
+      "DEP_REP_RESPONDED": "رد القسم",
       "UNDER_INVESTIGATION": "تحقيق",
-      "FINAL_REVIEW": "اعتماد",
+      "ESCALATED_TO_DEP_MANAGER": "اعتماد المدير",
+      "FINAL_REVIEW": "المراجعة النهائية",
       "CLOSED": "مغلقة"
     },
     "incidentTypes": {
@@ -310,7 +317,9 @@
       "submitting": "جاري الإرسال...",
       "submitSuccess": "تم إرسال البلاغ بنجاح!",
       "redirecting": "جاري التوجيه لتفاصيل التذكرة...",
-      "requiredFields": "يرجى تعبئة الحقول المطلوبة:"
+      "requiredFields": "يرجى تعبئة الحقول المطلوبة:",
+      "likelihood": "الاحتمالية (1 - 5)",
+      "consequence": "الشدة / العواقب (1 - 5)"
     },
     "sections": {
       "reporterInfo": "تقرير الحادث",
@@ -319,7 +328,15 @@
       "finalReview": "القرار النهائي للـ HSE",
       "pendingSupervisor": "بانتظار مراجعة المشرف...",
       "pendingInvestigation": "بانتظار التحقيق...",
-      "pendingFinalReview": "بانتظار المراجعة النهائية..."
+      "pendingFinalReview": "بانتظار المراجعة النهائية...",
+      "departmentResponse": "رد ممثل القسم",
+      "depManagerApprove": "اعتماد مدير القسم",
+      "pendingDepRep": "بانتظار رد ممثل القسم...",
+      "action": "الإجراء المطلوب",
+      "notes": "الملاحظات والتوجيهات",
+      "notesPlaceholder": "اكتب تعليماتك أو أسباب قرارك هنا...",
+      "riskAssessment": "تقييم وتصنيف الخطورة",
+      "submitDecision": "إرسال القرار"
     },
     "supervisor": {
       "gosiDate": "تاريخ بلاغ التأمينات",
@@ -426,6 +443,11 @@
     },
     "report": {
       "download": "تحميل التقرير (PDF)"
+    },
+    "actions": {
+      "routeDepRep": "توجيه للقسم المسؤول (Representative)",
+      "returnToReporter": "إعادة للتذكرة لمرسلها (نقص معلومات)",
+      "routeHSEManager": "تصعيد لمدير السلامة (HSE Manager)"
     }
   },
   "map": {
@@ -437,9 +459,5 @@
     "locateMe": "موقعي الحالي",
     "locationFailed": "لم نتمكن من تحديد موقعك. يرجى الاختيار يدوياً على الخريطة.",
     "notSupported": "المتصفح لا يدعم تحديد الموقع الجغرافي"
-  },
-  "common": {
-    "cancel": "إلغاء",
-    "save": "حفظ التغييرات"
   }
 }

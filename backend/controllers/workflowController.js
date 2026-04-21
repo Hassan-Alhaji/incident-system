@@ -1,7 +1,7 @@
 const prisma = require('../prismaClient');
 const { createNotification } = require('./notificationController');
 
-const ALLOWED_ESCALATIONS = {
+const ALMINORED_ESCALATIONS = {
     // Medical
     'MEDICAL_OP_TEAM': ['DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM'],
     'OPERATION_MEDICAL_TEAM': ['DEPUTY_MEDICAL_OFFICER', 'DEPUTY_CHIEF_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER', 'SAFETY_OP_TEAM', 'CONTROL_OP_TEAM'],
@@ -50,7 +50,7 @@ const escalateTicket = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         // Validate Escalation Path
-        const allowedTargets = ALLOWED_ESCALATIONS[userRole] || [];
+        const allowedTargets = ALMINORED_ESCALATIONS[userRole] || [];
 
         // Admin override and canEscalate permission check
         if (userRole !== 'ADMIN' && req.user.canEscalate !== true && !allowedTargets.includes(toRole)) {

@@ -2,78 +2,80 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import api from '../utils/api';
 
 interface User {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    marshalId?: string;
-    status?: string;
-    isMedical?: boolean;
-    mobile?: string;
-    firstName?: string;
-    lastName?: string;
-    isProfileCompleted?: boolean;
-    userGroup?: string;
-    canViewMedical?: boolean;
-    canViewSafety?: boolean;
-    canViewSport?: boolean;
-    canViewAll?: boolean;
-    canViewAnalytics?: boolean;
-    canEscalate?: boolean;
-    canManageUsers?: boolean;
+ id: string;
+ name: string;
+ email: string;
+ role: string;
+ marshalId?: string;
+ status?: string;
+ isMedical?: boolean;
+ mobile?: string;
+ firstName?: string;
+ lastName?: string;
+ isProfileCompleted?: boolean;
+ userGroup?: string;
+ canViewMedical?: boolean;
+ canViewSafety?: boolean;
+ canViewSport?: boolean;
+ canViewAll?: boolean;
+ canViewAnalytics?: boolean;
+ canEscalate?: boolean;
+ canManageUsers?: boolean;
+ canCloseTickets?: boolean;
+ canPerformRCA?: boolean;
 }
 
 interface AuthContextType {
-    user: User | null;
-    token: string | null;
-    login: (token: string, userData: User) => void;
-    logout: () => void;
-    isLoading: boolean;
+ user: User | null;
+ token: string | null;
+ login: (token: string, userData: User) => void;
+ logout: () => void;
+ isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-    const [isLoading, setIsLoading] = useState(true);
+ const [user, setUser] = useState<User | null>(null);
+ const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+ const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        if (token) {
-            // In a real app, verify token with backend here
-            const savedUser = localStorage.getItem('user');
-            if (savedUser) {
-                setUser(JSON.parse(savedUser));
-            }
-        }
-        setIsLoading(false);
-    }, [token]);
+ useEffect(() => {
+ if (token) {
+ // In a real app, verify token with backend here
+ const savedUser = localStorage.getItem('user');
+ if (savedUser) {
+ setUser(JSON.parse(savedUser));
+ }
+ }
+ setIsLoading(false);
+ }, [token]);
 
-    const login = (newToken: string, userData: User) => {
-        localStorage.setItem('token', newToken);
-        localStorage.setItem('user', JSON.stringify(userData));
-        setToken(newToken);
-        setUser(userData);
-    };
+ const login = (newToken: string, userData: User) => {
+ localStorage.setItem('token', newToken);
+ localStorage.setItem('user', JSON.stringify(userData));
+ setToken(newToken);
+ setUser(userData);
+ };
 
-    const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setToken(null);
-        setUser(null);
-    };
+ const logout = () => {
+ localStorage.removeItem('token');
+ localStorage.removeItem('user');
+ setToken(null);
+ setUser(null);
+ };
 
-    return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
-            {children}
-        </AuthContext.Provider>
-    );
+ return (
+ <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+ {children}
+ </AuthContext.Provider>
+ );
 };
 
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+ const context = useContext(AuthContext);
+ if (context === undefined) {
+ throw new Error('useAuth must be used within an AuthProvider');
+ }
+ return context;
 };

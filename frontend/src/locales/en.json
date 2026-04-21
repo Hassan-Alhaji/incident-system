@@ -151,19 +151,8 @@
     "englishOnly": "English characters only"
   },
   "common": {
-    "save": "Save",
     "cancel": "Cancel",
-    "submit": "Submit",
-    "delete": "Delete",
-    "edit": "Edit",
-    "back": "Back",
-    "loading": "Loading...",
-    "confirm": "Confirm",
-    "search": "Search",
-    "filter": "Filter",
-    "noData": "No data available",
-    "error": "Error",
-    "success": "Success"
+    "save": "Save Changes"
   },
   "notifications": {
     "title": "Notifications",
@@ -180,10 +169,13 @@
     "DRAFT": "Draft"
   },
   "priority": {
-    "CRITICAL": "Critical",
-    "HIGH": "High",
+    "LOW": "Low",
     "MEDIUM": "Medium",
-    "LOW": "Low"
+    "HIGH": "High",
+    "CRITICAL": "Critical",
+    "YELLOW": "Yellow (Medium)",
+    "RED": "Red (High)",
+    "GREEN": "Green (Low)"
   },
   "types": {
     "MEDICAL": "Medical",
@@ -240,14 +232,20 @@
       "all": "All",
       "noTickets": "No tickets found",
       "noTicketsHint": "Start by creating your first incident report",
-      "createFirst": "Create First Report"
+      "createFirst": "Create First Report",
+      "assigned": "Assigned",
+      "responded": "Responded"
     },
     "status": {
       "DRAFT": "Draft",
       "OPEN": "Submitted",
+      "HSE_REVIEW": "HSE Review",
       "SUPERVISOR_REVIEW": "Supervisor Review",
       "RETURNED_FOR_EDIT": "Returned for Edit",
+      "PENDING_DEP_REP": "Pending Dept. Rep",
+      "DEP_REP_RESPONDED": "Rep Responded",
       "UNDER_INVESTIGATION": "Under Investigation",
+      "ESCALATED_TO_DEP_MANAGER": "Manager Approval",
       "PENDING_ACTIONS": "Pending Actions",
       "FINAL_REVIEW": "Final Review",
       "CLOSED": "Closed",
@@ -256,8 +254,12 @@
     "statusShort": {
       "OPEN": "Open",
       "SUPERVISOR_REVIEW": "Review",
+      "HSE_REVIEW": "HSE Review",
+      "PENDING_DEP_REP": "Dept. Rep",
+      "DEP_REP_RESPONDED": "Rep Responded",
       "UNDER_INVESTIGATION": "Investigate",
-      "FINAL_REVIEW": "Approve",
+      "ESCALATED_TO_DEP_MANAGER": "Manager Approve",
+      "FINAL_REVIEW": "Final Review",
       "CLOSED": "Closed"
     },
     "incidentTypes": {
@@ -310,7 +312,9 @@
       "submitting": "Submitting...",
       "submitSuccess": "Report Submitted Successfully!",
       "redirecting": "Redirecting to ticket details...",
-      "requiredFields": "Please fill the required fields:"
+      "requiredFields": "Please fill the required fields:",
+      "likelihood": "Likelihood (1-5)",
+      "consequence": "Consequence / Severity (1-5)"
     },
     "sections": {
       "reporterInfo": "Incident Report",
@@ -319,7 +323,16 @@
       "finalReview": "HSE Final Decision",
       "pendingSupervisor": "Awaiting supervisor review...",
       "pendingInvestigation": "Awaiting investigation...",
-      "pendingFinalReview": "Awaiting final review..."
+      "pendingFinalReview": "Awaiting final review...",
+      "departmentResponse": "Department Response",
+      "depManagerApprove": "Department Manager Endorsement",
+      "pendingDepRep": "Awaiting Department Representative response...",
+      "sendToSafetyContext": "Submit Department Response",
+      "action": "Action",
+      "notes": "Notes",
+      "notesPlaceholder": "Enter instructions or reasons...",
+      "riskAssessment": "Risk Assessment & Classification",
+      "submitDecision": "Submit Decision"
     },
     "supervisor": {
       "gosiDate": "GOSI Report Date",
@@ -426,6 +439,11 @@
     },
     "report": {
       "download": "Download Report (PDF)"
+    },
+    "actions": {
+      "routeDepRep": "Route to Department Representative",
+      "returnToReporter": "Return to Sender (Need Info)",
+      "routeHSEManager": "Escalate to HSE Manager"
     }
   },
   "map": {
@@ -437,9 +455,5 @@
     "locateMe": "My Location",
     "locationFailed": "Could not get your location. Please select manually on the map.",
     "notSupported": "Geolocation is not supported by your browser"
-  },
-  "common": {
-    "cancel": "Cancel",
-    "save": "Save Changes"
   }
 }

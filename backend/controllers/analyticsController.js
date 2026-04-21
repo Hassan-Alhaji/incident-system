@@ -99,6 +99,50 @@ const getDashboardStats = async (req, res) => {
             take: 5
         });
 
+        // 7. Top Service Providers
+        const topServiceProvidersData = await prisma.ticket.groupBy({
+            by: ['serviceProviderId'],
+            where: { serviceProviderId: { not: null } },
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 5
+        });
+
+        const spIds = topServiceProvidersData.map(sp => sp.serviceProviderId);
+        const serviceProviders = await prisma.serviceProvider.findMany({
+            where: { id: { in: spIds } },
+            select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { id: true, name: true } } }
+        });
+
+        const topServiceProviders = topServiceProvidersData.map(sp => {
+            const match = serviceProviders.find(p => p.id === sp.serviceProviderId);
+            return {
+                id: sp.serviceProviderId,
+                name: match ? match.name : 'Unknown SP',
+                commercialRegistrationNumber: match ? match.commercialRegistrationNumber : 'N/A',
+                status: match ? match.status : 'UNKNOWN',
+                departmentName: match?.department ? match.department.name : 'N/A',
+                count: sp._count.id
+            };
+        });
+
+        // 8. Top Departments (aggregated by serviceProvider's department or Ticket's direct department if we had one)
+        // Currently, incidents are grouped by the responsible department of the service provider.
+        const topDepartments = {};
+        for(const sp of topServiceProvidersData) {
+             const match = serviceProviders.find(p => p.id === sp.serviceProviderId);
+             if (match && match.department) {
+                const depName = match.department.name;
+                if (!topDepartments[depName]) topDepartments[depName] = 0;
+                topDepartments[depName] += sp._count.id;
+             }
+        }
+        
+        const topDepartmentsArray = Object.keys(topDepartments).map(name => ({
+            name,
+            count: topDepartments[name]
+        })).sort((a,b) => b.count - a.count).slice(0, 5);
+
         // Compile Response Payload
         const analyticsData = {
             totalTickets,
@@ -107,7 +151,9 @@ const getDashboardStats = async (req, res) => {
             priorityDistribution: ticketsByPriority.reduce((acc, curr) => ({ ...acc, [curr.priority || 'NORMAL']: curr._count.id }), {}),
             averageClosureTimeMsByType,
             topReporters,
-            topLocations: topLocations.filter(l => l.location).map(l => ({ name: l.location, count: l._count.id }))
+            topLocations: topLocations.filter(l => l.location).map(l => ({ name: l.location, count: l._count.id })),
+            topServiceProviders,
+            topDepartments: topDepartmentsArray
         };
 
         res.json(analyticsData);

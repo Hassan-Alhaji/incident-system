@@ -9,9 +9,11 @@ const {
     getOCTickets,
     getOCTicketById,
     updateReporterSection,
-    supervisorAction,
     submitInvestigation,
+    departmentRepAction,
+    departmentManagerApprove,
     finalDecision,
+    hseControllerAction,
     uploadOCAttachments,
     getOCUsers,
     createOCUser,
@@ -39,11 +41,19 @@ router.route('/tickets/:id')
 router.route('/tickets/:id/reporter')
     .put(protect, updateReporterSection);
 
-router.route('/tickets/:id/supervisor')
-    .put(protect, supervisorAction);
+
+
+router.route('/tickets/:id/hse-action')
+    .put(protect, hseControllerAction);
+
+router.route('/tickets/:id/dep-rep')
+    .put(protect, departmentRepAction);
 
 router.route('/tickets/:id/investigation')
     .put(protect, submitInvestigation);
+
+router.route('/tickets/:id/dep-manager-approve')
+    .put(protect, departmentManagerApprove);
 
 router.route('/tickets/:id/final-review')
     .put(protect, finalDecision);
