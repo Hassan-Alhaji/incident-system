@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import api from '../../utils/api';
+import api from '../utils/api';
 import {
     BarChart3, TrendingUp, AlertTriangle, Clock, CheckCircle,
     Loader2, Activity, Users, ShieldAlert, Flame, Download, FileSpreadsheet, MapPin, FileText
@@ -11,7 +11,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 
-const OCAnalytics = () => {
+const Analytics = () => {
     const { t } = useTranslation();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ const OCAnalytics = () => {
     useEffect(() => {
         (async () => {
             try {
-                const res = await api.get('/oc/analytics');
+                const res = await api.get('/analytics');
                 setData(res.data);
             } catch (err: any) {
                 setError(err.response?.data?.message || 'Failed to load analytics');
@@ -70,7 +70,7 @@ const OCAnalytics = () => {
     const handleExport = async () => {
         setExporting(true);
         try {
-            const res = await api.get('/oc/tickets/export', { 
+            const res = await api.get('/tickets/export', { 
                 params: { startDate, endDate },
                 responseType: 'blob' 
             });
@@ -341,4 +341,4 @@ const KPICard = ({ icon, color, label, value }: { icon: React.ReactNode; color: 
     );
 };
 
-export default OCAnalytics;
+export default Analytics;

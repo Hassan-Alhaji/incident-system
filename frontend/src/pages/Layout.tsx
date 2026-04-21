@@ -1,13 +1,13 @@
 import React from 'react';
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { LogOut, LayoutDashboard, PlusCircle, Globe, AlertTriangle, Settings, BarChart3 } from 'lucide-react';
-import NotificationBell from '../../components/NotificationBell';
+import NotificationBell from '../components/NotificationBell';
 
 const OC_ROLES = ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN', 'DEP_REP', 'DEP_MANAGER', 'SERVICE_PROVIDER_REP'];
 
-const OCLayout = () => {
+const Layout = () => {
  const { user, logout, isLoading } = useAuth();
  const navigate = useNavigate();
  const location = useLocation();
@@ -19,7 +19,7 @@ const OCLayout = () => {
  </div>
  );
 
- if (!user) return <Navigate to="/oc/login" />;
+ if (!user) return <Navigate to="/login" />;
 
  if (!OC_ROLES.includes(user.role)) {
  return (
@@ -28,7 +28,7 @@ const OCLayout = () => {
  <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
  <h2 className="text-xl font-bold text-red-600 mb-2">{t('oc.accessDenied')}</h2>
  <p className="text-gray-600 text-sm mb-6">{t('oc.noPermission')}</p>
- <button onClick={() => { logout(); navigate('/oc/login'); }}
+ <button onClick={() => { logout(); navigate('/login'); }}
  className="text-blue-600 hover:text-blue-700 underline text-sm font-medium">{t('menu.logout')}</button>
  </div>
  </div>
@@ -80,7 +80,7 @@ const OCLayout = () => {
  <span>{i18n.language.startsWith('ar') ? 'AR' : 'EN'}</span>
  </button>
  <NotificationBell portal="OC" />
- <button onClick={() => { logout(); navigate('/oc/login'); }}
+ <button onClick={() => { logout(); navigate('/login'); }}
  className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
  <LogOut size={16} />
  </button>
@@ -97,10 +97,10 @@ const OCLayout = () => {
  <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 safe-area-bottom shadow-[0_-2px_10px_-3px_rgba(0,0,0,0.08)]">
  <div className="max-w-3xl lg:max-w-5xl mx-auto flex">
  {[
-   { path: '/oc/dashboard', icon: <LayoutDashboard size={20} />, label: t('oc.nav.dashboard'), show: true },
-   { path: '/oc/tickets/new', icon: <PlusCircle size={20} />, label: t('oc.nav.newTicket'), show: canCreateTicket },
-   { path: '/oc/analytics', icon: <BarChart3 size={20} />, label: t('oc.nav.analytics'), show: canSeeAnalytics },
-   { path: '/oc/settings', icon: <Settings size={20} />, label: t('oc.nav.settings'), show: canManageSettings },
+   { path: '/dashboard', icon: <LayoutDashboard size={20} />, label: t('oc.nav.dashboard'), show: true },
+   { path: '/tickets/new', icon: <PlusCircle size={20} />, label: t('oc.nav.newTicket'), show: canCreateTicket },
+   { path: '/analytics', icon: <BarChart3 size={20} />, label: t('oc.nav.analytics'), show: canSeeAnalytics },
+   { path: '/settings', icon: <Settings size={20} />, label: t('oc.nav.settings'), show: canManageSettings },
  ].filter(item => item.show).map(item => (
  <button
    key={item.path}
@@ -121,4 +121,4 @@ const OCLayout = () => {
  );
 };
 
-export default OCLayout;
+export default Layout;

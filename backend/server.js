@@ -38,9 +38,7 @@ app.get('/api/health', (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-const medicalRoutes = require('./routes/medicalRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-const publicRoutes = require('./routes/publicTicketRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const attachmentRoutes = require('./routes/attachmentRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
@@ -48,21 +46,16 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 // Mount Routes
 console.log('[DEBUG] Mounting /api/auth...');
 app.use('/api/auth', authRoutes);
-app.use('/api/tickets', ticketRoutes);
+app.use('/api/tickets', ticketRoutes); // This now points to what used to be ocRoutes
 app.use('/api/verify', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/public', publicRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/oc', require('./routes/ocRoutes'));
 app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
-
-// Mount medical routes under /api/tickets/:id
-app.use('/api/tickets/:id', medicalRoutes);
 
 app.get('/', (req, res) => {
     res.json({

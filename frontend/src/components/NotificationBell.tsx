@@ -93,7 +93,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
 
  const fetchTickets = async () => {
  try {
- const endpoint = portal === 'OC' ? '/oc/tickets' : '/tickets';
+ const endpoint = portal === 'OC' ? '/tickets' : '/tickets';
  const res = await api.get(endpoint);
  const pt = filterPendingTickets(res.data || []);
  const count = pt.length;
@@ -219,7 +219,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  key={t.id}
  onClick={() => {
  setShowDropdown(false);
- navigate(portal === 'OC' ? `/oc/tickets/${t.id}` : `/tickets/${t.id}`);
+ navigate(portal === 'OC' ? `/tickets/${t.id}` : `/tickets/${t.id}`);
  }}
  className="w-full text-left p-3 hover:bg-slate-200 rounded-lg transition-all border border-gray-200 hover:border-blue-600/30 group"
  >
@@ -233,7 +233,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  </div>
  {pendingCount > 10 && (
  <button 
- onClick={() => { setShowDropdown(false); navigate(portal === 'OC' ? '/oc/dashboard' : '/dashboard'); }}
+ onClick={() => { setShowDropdown(false); navigate(portal === 'OC' ? '/dashboard' : '/dashboard'); }}
  className="text-center text-base text-gray-800 mt-2 py-2 hover:text-gray-600 w-full"
  >
  View all in dashboard...

@@ -1,61 +1,84 @@
 const express = require('express');
 const router = express.Router();
-const {
-    createTicket,
-    getTickets,
-    getTicketById,
-    updateTicket,
-    submitTicket,
-    closeTicket,
-    uploadAttachments,
-    addComment,
-    updateOffCircuitReport
-} = require('../controllers/ticketController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/dbUploadMiddleware');
+const multer = require('multer');
+const fileUpload = multer({ dest: 'uploads/' });
 const {
-    escalateTicket,
-    transferTicket,
-    returnTicket,
-    reopenTicket
-} = require('../controllers/workflowController');
+    createOCTicket,
+    getOCTickets,
+    getOCTicketById,
+    updateReporterSection,
+    submitInvestigation,
+    departmentRepAction,
+    departmentManagerApprove,
+    finalDecision,
+    hseControllerAction,
+    uploadOCAttachments,
+    getOCUsers,
+    createOCUser,
+    updateOCUser,
+    deleteOCUser,
+    toggleOCUserStatus,
+    getOCAnalytics,
+    downloadOCUserTemplate,
+    importOCUsers,
+    exportOCTickets
+} = require('../controllers/ocTicketController');
 
-const { submitMedicalReport, getMedicalReport } = require('../controllers/medicalController');
+// All routes require authentication
 
-const { exportPdf, exportExcel } = require('../controllers/reportController');
+// Ticket routes
+router.route('/tickets')
+    .post(protect, createOCTicket)
+    .get(protect, getOCTickets);
 
-router.route('/export-excel').get(protect, exportExcel);
+router.get('/tickets/export', protect, exportOCTickets);
 
-router.route('/')
-    .post(protect, createTicket)
-    .get(protect, getTickets);
+router.route('/tickets/:id')
+    .get(protect, getOCTicketById);
 
-router.route('/:id')
-    .get(protect, getTicketById)
-    .put(protect, updateTicket);
+router.route('/tickets/:id/reporter')
+    .put(protect, updateReporterSection);
 
-router.route('/:id/submit').post(protect, submitTicket);
-router.route('/:id/close').post(protect, closeTicket);
-router.route('/:id/reopen').post(protect, reopenTicket);
 
-router.route('/:id/escalate').post(protect, escalateTicket);
-router.route('/:id/transfer').post(protect, transferTicket);
-router.route('/:id/return').post(protect, returnTicket);
 
-router.route('/:id/attachments')
-    .post(protect, upload.array('files'), uploadAttachments);
+router.route('/tickets/:id/hse-action')
+    .put(protect, hseControllerAction);
 
-router.route('/:id/export-pdf')
-    .post(protect, exportPdf);
+router.route('/tickets/:id/dep-rep')
+    .put(protect, departmentRepAction);
 
-router.route('/:id/comments')
-    .post(protect, addComment);
+router.route('/tickets/:id/investigation')
+    .put(protect, submitInvestigation);
 
-router.route('/:id/medical-report')
-    .post(protect, submitMedicalReport)
-    .get(protect, getMedicalReport);
+router.route('/tickets/:id/dep-manager-approve')
+    .put(protect, departmentManagerApprove);
 
-router.route('/:id/off-circuit-report')
-    .put(protect, updateOffCircuitReport);
+router.route('/tickets/:id/final-review')
+    .put(protect, finalDecision);
+
+router.route('/tickets/:id/attachments')
+    .post(protect, upload.array('files'), uploadOCAttachments);
+
+// User Management routes (HSE Manager / Admin only)
+router.route('/users')
+    .get(protect, getOCUsers)
+    .post(protect, createOCUser);
+
+// Excel Import/Export routes (MUST be before /users/:id)
+router.get('/users/template', protect, downloadOCUserTemplate);
+router.post('/users/import', protect, fileUpload.single('file'), importOCUsers);
+
+router.route('/users/:id')
+    .put(protect, updateOCUser)
+    .delete(protect, deleteOCUser);
+
+router.route('/users/:id/status')
+    .patch(protect, toggleOCUserStatus);
+
+// Analytics route
+router.route('/analytics')
+    .get(protect, getOCAnalytics);
 
 module.exports = router;

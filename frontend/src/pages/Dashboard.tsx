@@ -1,10 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
-import { useAuth } from '../context/AuthContext';
-import { Plus, Filter, Search, Clock, CheckCircle2, AlertCircle, MoreHorizontal, TrendingUp, PieChart as PieIcon, Download, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
-import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
+import api from '../utils/api';
+import { formatDate, formatDateTime } from '../utils/formatDate';
+import {
+ AlertTriangle, Clock, CheckCircle, Search, Filter, Eye,
+ FileWarning, ShieldAlert, Flame, Zap, Activity, ChevronRight,
+ XCircle, Loader2, RefreshCw, Paperclip, Plus, ClipboardList, Timer
+} from 'lucide-react';
+import {
+ ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip
+} from 'recharts';
+
+// Fix #24: Relative time helper
+const getRelativeTime = (date: Date, t: any): string => {
+ const now = new Date();
+ const diffMs = now.getTime() - date.getTime();
+ const mins = Math.floor(diffMs / 60000);
+ const hrs = Math.floor(mins / 60);
+ const days = Math.floor(hrs / 24);
+ if (mins < 1) return t('oc.time.justNow');
+ if (mins < 60) return t('oc.time.minsAgo', { count: mins });
+ if (hrs < 24) return t('oc.time.hoursAgo', { count: hrs });
+ if (days < 7) return t('oc.time.daysAgo', { count: days });
+ return formatDate(date);
+};
 
 interface Ticket {
  id: string;
@@ -12,530 +33,355 @@ interface Ticket {
  type: string;
  status: string;
  priority: string;
- eventName: string;
- createdAt: string;
- createdBy: { name: string };
  description: string;
- closedAt?: string;
+ hasInjury: boolean;
+ createdAt: string;
  updatedAt: string;
+ closedAt?: string;
+ incidentDate: string;
+ createdBy?: { name: string; role: string };
+ assignedTo?: { name: string; role: string };
+ offCircuitReport?: any;
+ _count?: { attachments: number };
 }
 
-const COLORS = ['#3B82F6', '#EF4444', '#F59E0B', '#10B981'];
+const statusColors: Record<string, string> = {
+ OPEN: 'bg-blue-50 text-blue-600 border-blue-200',
+ SUPERVISOR_REVIEW: 'bg-amber-50 text-amber-600 border-amber-200',
+ RETURNED_FOR_EDIT: 'bg-orange-50 text-orange-600 border-orange-200',
+ UNDER_INVESTIGATION: 'bg-purple-50 text-purple-600 border-purple-200',
+ FINAL_REVIEW: 'bg-cyan-50 text-cyan-600 border-cyan-200',
+ CLOSED: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+ CLOSED_REJECTED: 'bg-red-50 text-red-600 border-red-200',
+};
 
-const ExportSection = () => {
- const [startDate, setStartDate] = useState('');
- const [endDate, setEndDate] = useState('');
- const [downloading, setDownloading] = useState(false);
+const priorityColors: Record<string, string> = {
+ MINOR: 'bg-blue-50 text-blue-700 border border-blue-200',
+ SIGNIFICANT: 'bg-amber-50 text-amber-700 border border-amber-200',
+ MAJOR: 'bg-orange-50 text-orange-700 border border-orange-200 font-semibold',
+ SEVERE: 'bg-red-50 text-red-700 border border-red-200 font-bold',
+};
 
- const handleDownload = async () => {
- if (!startDate || !endDate) return alert('Please select a date range.');
-
- setDownloading(true);
- try {
- const response = await api.get(`/tickets/export-excel`, {
- params: { startDate, endDate },
- responseType: 'blob' // Important: Expect binary data
- });
-
- // Create blob link to download
- const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
- const link = document.createElement('a');
- link.href = url;
- const contentDisposition = response.headers['content-disposition'];
- let fileName = `tickets_export.xlsx`;
- if (contentDisposition) {
- const fileNameMatch = contentDisposition.match(/filename=(.+)/);
- if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
- }
- link.setAttribute('download', fileName);
- document.body.appendChild(link);
- link.click();
- link.parentNode?.removeChild(link);
- } catch (err: any) {
- console.error(err);
- let message = 'Export failed.';
- if (err?.response && err.response.data instanceof Blob) {
- try {
- const errorText = await err.response.data.text();
- const errorJson = JSON.parse(errorText);
- if (errorJson.message) message = `Export Failed: ${errorJson.message}`;
- } catch (e) { /* Blob was not JSON text */ }
- } else if (err?.message) {
- message = `Export Failed: ${err.message}`;
- }
- alert(message);
- } finally {
- setDownloading(false);
- }
- };
-
- return (
- <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 shadow-sm mb-8 flex flex-wrap items-center justify-between gap-4">
- <div className="flex items-center gap-3">
- <div className="bg-green-100 p-2 rounded-lg text-green-700">
- <FileSpreadsheet size={20} />
- </div>
- <div>
- <h3 className="font-bold text-gray-900 text-base">Export Data</h3>
- <p className="text-base text-gray-500">Download Excel report</p>
- </div>
- </div>
-
- <div className="flex items-center gap-3">
- <div>
- <input
- type="date"
- className="border border-gray-300 rounded-lg px-3 py-1.5 text-base focus:ring-2 focus:ring-blue-400 outline-none"
- value={startDate}
- onChange={e => setStartDate(e.target.value)}
- />
- </div>
- <span className="text-gray-400 text-base">-</span>
- <div>
- <input
- type="date"
- className="border border-gray-300 rounded-lg px-3 py-1.5 text-base focus:ring-2 focus:ring-blue-400 outline-none"
- value={endDate}
- onChange={e => setEndDate(e.target.value)}
- />
- </div>
- <button
- onClick={handleDownload}
- disabled={downloading}
- className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg text-base font-bold flex items-center gap-2 hover:bg-emerald-700 disabled:bg-gray-400 transition-colors shadow-sm shadow-emerald-200"
- >
- {downloading ? '...' : <><Download size={14} /> Export</>}
- </button>
- </div>
- </div>
- );
+const typeIcons: Record<string, React.ReactNode> = {
+ VIOLATION: <ShieldAlert size={14} />,
+ INJURY: <AlertTriangle size={14} />,
+ FIRE: <Flame size={14} />,
+ NEAR_MISS: <Zap size={14} />,
+ HEALTH: <Activity size={14} />,
+ PROPERTY_DAMAGE: <FileWarning size={14} />,
+ SECURITY_BREACH: <ShieldAlert size={14} />,
 };
 
 const Dashboard = () => {
+ const { user } = useAuth();
+ const { t } = useTranslation();
+ const navigate = useNavigate();
  const [tickets, setTickets] = useState<Ticket[]>([]);
  const [loading, setLoading] = useState(true);
- const [trendData, setTrendData] = useState<any[]>([]);
- const [typeData, setTypeData] = useState<any[]>([]);
+ const [search, setSearch] = useState('');
+ const [statusFilter, setStatusFilter] = useState('ALL');
+ const [showFilters, setShowFilters] = useState(false);
 
- const [searchQuery, setSearchQuery] = useState('');
- const [filterDate, setFilterDate] = useState('');
- const [filterEvent, setFilterEvent] = useState('');
- const [filterDept, setFilterDept] = useState('');
- const [filterStatus, setFilterStatus] = useState('');
+ const getTicketDuration = (ticket: any) => {
+ const start = new Date(ticket.createdAt).getTime();
+ const end = (ticket.status === 'CLOSED' || ticket.status === 'CLOSED_REJECTED') && ticket.closedAt 
+ ? new Date(ticket.closedAt).getTime() 
+ : new Date().getTime();
+ 
+ const diffMs = end - start;
+ if (diffMs <= 0) return '0m';
 
- const { user } = useAuth();
- const navigate = useNavigate();
+ const totalMins = Math.floor(diffMs / 60000);
+ const hours = Math.floor(totalMins / 60);
+ const mins = totalMins % 60;
+ 
+ if (hours > 24) {
+ const days = Math.floor(hours / 24);
+ return `${days}d ${hours % 24}h`;
+ }
+ if (hours > 0) return `${hours}h ${mins}m`;
+ return `${mins}m`;
+ };
 
- useEffect(() => {
+ // Fix #10: Pull-to-Refresh
+ const [pullDistance, setPullDistance] = useState(0);
+ const [isPulling, setIsPulling] = useState(false);
+ const [isRefreshing, setIsRefreshing] = useState(false);
+ const touchStartY = React.useRef(0);
+ const containerRef = React.useRef<HTMLDivElement>(null);
+
+ const handleTouchStart = (e: React.TouchEvent) => {
+ if (containerRef.current && containerRef.current.scrollTop === 0) {
+ touchStartY.current = e.touches[0].clientY;
+ setIsPulling(true);
+ }
+ };
+
+ const handleTouchMove = (e: React.TouchEvent) => {
+ if (!isPulling) return;
+ const y = e.touches[0].clientY - touchStartY.current;
+ if (y > 0 && y < 150) {
+ setPullDistance(y);
+ }
+ };
+
+ const handleTouchEnd = async () => {
+ if (pullDistance > 60) {
+ setIsRefreshing(true);
+ setPullDistance(0);
+ await fetchTickets();
+ setIsRefreshing(false);
+ } else {
+ setPullDistance(0);
+ }
+ setIsPulling(false);
+ };
+
  const fetchTickets = async () => {
+ setLoading(true);
  try {
- const response = await api.get('/tickets');
- const fetchedTickets = response.data;
- setTickets(fetchedTickets);
-
- // Process Trend Data (Last 7 Days)
- const last7Days = [...Array(7)].map((_, i) => {
- const d = new Date();
- d.setDate(d.getDate() - i);
- return d.toISOString().split('T')[0];
- }).reverse();
-
- const trend = last7Days.map(date => ({
- date: date.substring(5),
- count: fetchedTickets.filter((t: Ticket) => t.createdAt.startsWith(date)).length
- }));
- setTrendData(trend);
-
- // Process Type Data
- const types = ['MEDICAL', 'SAFETY', 'SPORT'];
- const typeStats = types.map(type => ({
- name: type,
- value: fetchedTickets.filter((t: Ticket) => t.type === type).length
- })).filter(item => item.value > 0);
- setTypeData(typeStats);
-
- } catch (error) {
- console.error('Error fetching tickets:', error);
+ const res = await api.get('/tickets');
+ setTickets(res.data);
+ } catch (err) {
+ console.error('Failed to fetch tickets:', err);
  } finally {
  setLoading(false);
  }
  };
- fetchTickets();
- }, []);
 
- const getStatusColor = (status: string) => {
- switch (status) {
- case 'OPEN': return 'bg-emerald-100 text-emerald-700';
- case 'UNDER_REVIEW': return 'bg-yellow-100 text-yellow-700';
- case 'ESCALATED': return 'bg-orange-100 text-orange-700';
- case 'RESOLVED': return 'bg-emerald-100 text-emerald-700'; // Resolved can be blue or gray
- case 'CLOSED': return 'bg-gray-100 text-gray-700';
- default: return 'bg-gray-100 text-gray-700';
+ useEffect(() => { fetchTickets(); }, []);
+
+ // Fix #8: expanded search — includes reporter name, incident type, date
+ const filtered = tickets.filter(t => {
+ if (search) {
+ const q = search.toLowerCase();
+ const matchTicketNo = t.ticketNo.toLowerCase().includes(q);
+ const matchDesc = t.description?.toLowerCase().includes(q);
+ const matchReporter = t.createdBy?.name?.toLowerCase().includes(q);
+ const matchType = t.offCircuitReport?.incidentType?.toLowerCase().includes(q) || t.type?.toLowerCase().includes(q);
+ const matchDate = t.offCircuitReport?.incidentDate?.includes(q);
+ if (!matchTicketNo && !matchDesc && !matchReporter && !matchType && !matchDate) return false;
  }
- };
+ if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+ return true;
+ });
 
- const getPriorityColor = (priority: string) => {
- switch (priority) {
- case 'CRITICAL': return 'text-red-600';
- case 'HIGH': return 'text-orange-600';
- case 'MEDIUM': return 'text-yellow-600';
- default: return 'text-emerald-600';
- }
- };
+  // Stats - role-aware
+  const role = user?.role;
+  const isDepRepOrManager = role === 'DEP_REP' || role === 'DEP_MANAGER';
+  const statsAssigned = tickets.filter(t => !['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
+  const statsResponded = tickets.filter(t => t.status === 'DEP_REP_RESPONDED').length;
+  const statsOpen = tickets.filter(t => ['OPEN', 'SUPERVISOR_REVIEW', 'HSE_REVIEW', 'DEP_REP_RESPONDED'].includes(t.status)).length;
+  const statsInvestigation = tickets.filter(t => t.status === 'UNDER_INVESTIGATION').length;
+  const statsClosed = tickets.filter(t => ['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
+  const statsInjuries = tickets.filter(t => t.hasInjury).length;
+  const statuses = ['ALL', 'OPEN', 'HSE_REVIEW', 'PENDING_DEP_REP', 'DEP_REP_RESPONDED', 'UNDER_INVESTIGATION', 'ESCALATED_TO_DEP_MANAGER', 'FINAL_REVIEW', 'CLOSED', 'CLOSED_REJECTED'];
 
- // Role based visibility
- const isMarshal = user?.role?.includes('MARSHAL'); // Simple check, or list specific roles
+  return (
+  <div ref={containerRef} className="space-y-4"
+  onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+  {(pullDistance > 0 || isRefreshing) && (
+  <div className="flex justify-center items-center transition-all duration-200" style={{ height: isRefreshing ? 40 : pullDistance * 0.5 }}>
+  <div className={`flex items-center gap-2 text-base font-medium ${pullDistance > 60 ? 'text-blue-500' : 'text-slate-900'}`}>
+  <RefreshCw size={14} className={isRefreshing ? 'animate-spin text-blue-500' : ''} style={{ transform: `rotate(${pullDistance * 3}deg)` }} />
+  {isRefreshing ? t('oc.dashboard.refreshing') || 'Refreshing...' : pullDistance > 60 ? (t('oc.dashboard.releaseToRefresh') || 'Release') : (t('oc.dashboard.pullToRefresh') || 'Pull to refresh')}
+  </div>
+  </div>
+  )}
+  <div className="flex items-center justify-between mb-1">
+  <div>
+  <h1 className="text-lg font-bold text-gray-900">{t('oc.dashboard.title')}</h1>
+  <p className="text-gray-500 text-xs mt-0.5">{t('oc.dashboard.subtitle')}</p>
+  </div>
+  <button onClick={fetchTickets} className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
+  <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+  </button>
+  </div>
 
- // Only ADMIN and COC see full statistics
- const canViewStats = user?.role === 'ADMIN' || user?.role === 'CHIEF_OF_CONTROL';
- const canViewAnalytics = user?.role === 'ADMIN' || user?.canViewAnalytics;
+  {/* Stats Chart */}
+  {(() => {
+  const statusData = isDepRepOrManager ? [
+    { name: t('oc.dashboard.assigned') || 'Assigned', value: statsAssigned, color: '#f59e0b', icon: <ClipboardList size={14} /> },
+    { name: t('oc.dashboard.responded') || 'Responded', value: statsResponded, color: '#3b82f6', icon: <CheckCircle size={14} /> },
+    { name: t('oc.dashboard.closed'), value: statsClosed, color: '#10b981', icon: <CheckCircle size={14} /> },
+  ] : [
+    { name: t('oc.dashboard.open'), value: statsOpen, color: '#3b82f6', icon: <Clock size={14} /> },
+    { name: t('oc.dashboard.investigating'), value: statsInvestigation, color: '#8b5cf6', icon: <Search size={14} /> },
+    { name: t('oc.dashboard.closed'), value: statsClosed, color: '#10b981', icon: <CheckCircle size={14} /> },
+  ];
+  const total = tickets.length;
+  const ChartTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+  return (<div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl"><p className="font-semibold">{payload[0].name}</p><p className="text-gray-300 mt-0.5">{payload[0].value} Tickets</p></div>);
+  }
+  return null;
+  };
+  return (
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+  <div className="flex flex-col sm:flex-row items-center gap-5">
+  <div className="relative w-[160px] h-[160px] flex-shrink-0">
+  <ResponsiveContainer width="100%" height="100%">
+  <PieChart>
+  <Pie data={statusData.filter(d => d.value > 0)} cx="50%" cy="50%" innerRadius={55} outerRadius={72} paddingAngle={5} dataKey="value" stroke="none">
+  {statusData.filter(d => d.value > 0).map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
+  </Pie>
+  <RechartsTooltip content={<ChartTooltip />} />
+  </PieChart>
+  </ResponsiveContainer>
+  <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col">
+  <span className="text-2xl font-black text-gray-900 leading-none">{total}</span>
+  <span className="text-[9px] font-bold text-gray-400 tracking-widest mt-1">TOTAL</span>
+  </div>
+  </div>
+  <div className="grid grid-cols-2 gap-2.5 flex-1 w-full">
+  {statusData.map((item, i) => (
+  <div key={i} className="bg-gray-50/80 rounded-xl px-3.5 py-3 border border-gray-100 hover:shadow-sm transition-all">
+  <div className="flex items-center justify-between">
+  <div>
+  <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: item.color }}>{item.name}</p>
+  <p className="text-xl font-extrabold leading-none" style={{ color: item.color }}>{item.value}</p>
+  </div>
+  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: item.color + '15' }}>
+  <span style={{ color: item.color }}>{item.icon}</span>
+  </div>
+  </div>
+  </div>
+  ))}
+  <div className="bg-red-50/60 rounded-xl px-3.5 py-3 border border-red-100 hover:shadow-sm transition-all">
+  <div className="flex items-center justify-between">
+  <div>
+  <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider mb-1">{t('oc.dashboard.injuries')}</p>
+  <p className="text-xl font-extrabold text-red-600 leading-none">{statsInjuries}</p>
+  </div>
+  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-100">
+  <AlertTriangle size={14} className="text-red-500" />
+  </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  </div>
+  );
+  })()}
 
- return (
- <div className="space-y-8 max-w-7xl mx-auto">
- {/* Header */}
- <div className="flex justify-between items-center">
- <div>
- <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Incident Dashboard</h1>
- <p className="text-gray-500 mt-1">Overview of event incidents and reports</p>
- </div>
- <div className="flex gap-4">
- {!isMarshal && (
- <button
- onClick={() => navigate('/tickets/new')}
- className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-sm font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:scale-105 transition-all flex items-center gap-2"
- >
- <Plus size={20} /> New Incident
- </button>
- )}
- </div>
- </div>
-
- {/* Premium Analytics Dashboard */}
- {canViewAnalytics && <AnalyticsDashboard />}
-
- {/* Stats Cards - Restrict Visibility */}
- {canViewStats && (
- <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
- {[
- { label: 'Open', count: tickets.filter(t => t.status === 'OPEN').length, icon: Clock, color: 'text-emerald-600', bg: 'bg-emerald-50' },
- { label: 'Reviewing', count: tickets.filter(t => t.status === 'ESCALATED').length, icon: AlertCircle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
- { label: 'Closed', count: tickets.filter(t => t.status === 'CLOSED').length, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
- { label: 'Total', count: tickets.length, icon: MoreHorizontal, color: 'text-purple-600', bg: 'bg-purple-50' }
- ].map((stat, i) => (
- <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-md transition-shadow">
- <div className={`${stat.bg} p-4 rounded-xl shadow-sm ${stat.color} shadow-sm`}>
- <stat.icon size={28} />
- </div>
- <div>
- <p className="text-base font-medium text-gray-500">{stat.label}</p>
- <p className="text-3xl font-bold text-gray-900">{stat.count}</p>
- </div>
- </div>
- ))}
- </div>
- )}
-
- {/* Charts Section - Restrict Visibility */}
- {canViewStats && (
- <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
- {/* Trend Chart */}
- <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
- <div className="flex items-center gap-2 mb-6">
- <TrendingUp className="text-gray-400" size={20} />
- <h3 className="font-bold text-gray-900">Incident Trend (7 Days)</h3>
- </div>
- <div className="h-64 pl-0">
- <ResponsiveContainer width="100%" height="100%">
- <BarChart data={trendData}>
- <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
- <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
- <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
- <Tooltip
- contentStyle={{ borderRadius: '0.75rem', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
- cursor={{ fill: '#F3F4F6' }}
- />
- <Bar dataKey="count" fill="#3B82F6" radius={[6, 6, 0, 0]} maxBarSize={50} />
- </BarChart>
- </ResponsiveContainer>
- </div>
- </div>
-
- {/* Distribution Chart */}
- <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
- <div className="flex items-center gap-2 mb-6">
- <PieIcon className="text-gray-400" size={20} />
- <h3 className="font-bold text-gray-900">Type Distribution</h3>
- </div>
- <div className="h-64 relative">
- <ResponsiveContainer width="100%" height="100%">
- <PieChart>
- <Pie
- data={typeData}
- innerRadius={60}
- outerRadius={80}
- paddingAngle={5}
- dataKey="value"
- >
- {typeData.map((entry, index) => (
- <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
- ))}
- </Pie>
- <Tooltip contentStyle={{ borderRadius: '0.5rem' }} />
- </PieChart>
- </ResponsiveContainer>
- <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
- <div className="text-center">
- <span className="block text-3xl font-bold text-gray-900">{tickets.length}</span>
- <span className="text-base text-gray-500 uppercase font-bold tracking-wider">Total</span>
- </div>
- </div>
- </div>
- <div className="flex justify-center gap-4 flex-wrap mt-4">
- {typeData.map((entry, index) => (
- <div key={index} className="flex items-center gap-2">
- <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
- <span className="text-base text-gray-600 font-medium">{entry.name}</span>
- </div>
- ))}
- </div>
- </div>
- </div>
- )}
-
- {/* Admin Export Section (Compact) */}
- {(user?.role === 'ADMIN' || user?.role === 'CHIEF_OF_CONTROL') && <ExportSection />}
-
- {/* Filters & Search */}
- <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
- <div className="relative flex-1 w-full md:w-auto min-w-[200px]">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+ {/* Search + Filter */}
+ <div className="flex gap-2">
+ <div className="flex-1 relative">
+ <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
  <input
  type="text"
- placeholder="Search Ticket No..."
- value={searchQuery}
- onChange={(e) => setSearchQuery(e.target.value)}
- className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 font-medium text-base"
+ value={search}
+ onChange={(e) => setSearch(e.target.value)}
+ placeholder={t('oc.dashboard.searchPlaceholder')}
+ className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all shadow-sm"
+ dir="ltr"
  />
  </div>
- 
- <input 
- type="date" 
- value={filterDate}
- onChange={(e) => setFilterDate(e.target.value)}
- className="border border-gray-200 bg-gray-50 rounded-xl shadow-sm px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
- />
-
- <select 
- value={filterEvent}
- onChange={(e) => setFilterEvent(e.target.value)}
- className="border border-gray-200 bg-gray-50 rounded-xl shadow-sm px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
- >
- <option value="">All Events</option>
- {Array.from(new Set(tickets.map(t => t.eventName))).map((event: any) => (
- <option key={event} value={event}>{event}</option>
- ))}
- </select>
-
- <select 
- value={filterDept}
- onChange={(e) => setFilterDept(e.target.value)}
- className="border border-gray-200 bg-gray-50 rounded-xl shadow-sm px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium capitalize"
- >
- <option value="">All Departments</option>
- <option value="MEDICAL">Medical</option>
- <option value="SAFETY">Safety</option>
- <option value="SPORT">Sport</option>
- <option value="OFF_CIRCUIT">Off-Circuit</option>
- </select>
-
- <select 
- value={filterStatus}
- onChange={(e) => setFilterStatus(e.target.value)}
- className="border border-gray-200 bg-gray-50 rounded-xl shadow-sm px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 outline-none text-gray-600 font-medium"
- >
- <option value="">All Status</option>
- <option value="OPEN">Open</option>
- <option value="ESCALATED">Escalated</option>
- <option value="UNDER_REVIEW">Under Review</option>
- <option value="CLOSED">Closed</option>
- <option value="RESOLVED">Resolved</option>
- <option value="REOPENED">Reopened</option>
- </select>
-
- <button 
- onClick={() => {
- setSearchQuery('');
- setFilterDate('');
- setFilterEvent('');
- setFilterDept('');
- setFilterStatus('');
- }}
- className="flex items-center gap-2 text-gray-500 border border-gray-200 px-5 py-3 rounded-xl shadow-sm hover:bg-gray-50 transition-colors font-medium text-base"
- >
- <Filter size={18} />
- Clear Filters
+ <button onClick={() => setShowFilters(!showFilters)}
+ className={`p-2.5 rounded-xl border transition-all shadow-sm ${showFilters ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-400 hover:text-gray-600'}`}>
+ <Filter size={15} />
  </button>
  </div>
 
- {/* Tickets Table & Mobile List */}
- <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
- {/* Desktop Table View */}
- <div className="hidden md:block overflow-x-auto">
- <table className="w-full text-left">
- <thead className="bg-gray-50/50 border-b border-gray-100">
- <tr>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider">Ticket Info</th>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider">Type</th>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider">Status</th>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider">Subject / Detail</th>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider">Priority</th>
- <th className="px-6 py-4 text-base font-bold text-gray-400 uppercase tracking-wider text-right">Action</th>
- </tr>
- </thead>
- <tbody className="divide-y divide-gray-100 text-base">
- {loading ? (
- <tr><td colSpan={6} className="text-center py-12 text-gray-500">Loading tickets...</td></tr>
- ) : tickets.length === 0 ? (
- <tr><td colSpan={6} className="text-center py-12 text-gray-500">No tickets found</td></tr>
- ) : (
- tickets.filter(t => {
- if (searchQuery && !t.ticketNo.toLowerCase().includes(searchQuery.toLowerCase())) return false;
- if (filterDate && !t.createdAt.startsWith(filterDate)) return false;
- if (filterEvent && t.eventName !== filterEvent) return false;
- if (filterDept && t.type !== filterDept) return false;
- if (filterStatus && t.status !== filterStatus) return false;
- return true;
- }).map((ticket: any) => {
- // Calculate Time Elapsed
- let elapsedTimeStr = '-';
- if (ticket.status === 'CLOSED' && ticket.closedAt) {
- const created = new Date(ticket.createdAt).getTime();
- const closed = new Date(ticket.closedAt).getTime();
- const diffMins = Math.round((closed - created) / 60000);
- if (diffMins < 60) elapsedTimeStr = `${diffMins} mins`;
- else if (diffMins < 1440) elapsedTimeStr = `${(diffMins/60).toFixed(1)} hrs`;
- else elapsedTimeStr = `${(diffMins/1440).toFixed(1)} days`;
- }
+ {showFilters && (
+ <div className="flex flex-wrap gap-1.5">
+ {statuses.map(s => (
+ <button key={s} onClick={() => setStatusFilter(s)}
+ className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all
+ ${statusFilter === s ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+ {s === 'ALL' ? t('oc.dashboard.all') : t(`oc.status.${s}`)}
+ </button>
+ ))}
+ </div>
+ )}
 
- return (
- <tr
+ {/* Ticket List */}
+ {loading ? (
+ <div className="flex justify-center py-12">
+ <Loader2 className="animate-spin text-blue-600" size={28} />
+ </div>
+ ) : filtered.length === 0 ? (
+ <div className="text-center py-16 space-y-4">
+ {/* Fix #18: Enhanced empty state */}
+ <div className="relative mx-auto w-24 h-24 mb-2">
+ <div className="absolute inset-0 bg-blue-600/10 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+ <div className="relative w-24 h-24 bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-dashed border-slate-600 rounded-full flex items-center justify-center">
+ <ClipboardList size={36} className="text-slate-900" />
+ </div>
+ </div>
+ <div>
+ <p className="text-slate-900 text-base font-bold">{t('oc.dashboard.noTickets')}</p>
+ <p className="text-slate-900 text-base mt-1 max-w-xs mx-auto leading-relaxed">
+ {t('oc.dashboard.noTicketsHint')}
+ </p>
+ </div>
+ <button onClick={() => navigate('/tickets/new')}
+ className="mt-3 bg-blue-600 text-white px-6 py-3 rounded-xl shadow-sm transition-shadow duration-200 text-base font-bold shadow-md hover:bg-blue-700 transition-all flex items-center gap-2 mx-auto">
+ <Plus size={16} />
+ {t('oc.dashboard.createFirst')}
+ </button>
+ <p className="text-slate-900 text-[10px] mt-2">{t('oc.dashboard.pullHint') || 'Pull down to refresh'}</p>
+ </div>
+ ) : (
+ <div className="space-y-2.5">
+ {filtered.map(ticket => (
+ <button
  key={ticket.id}
- className="hover:bg-blue-50/30 transition-colors cursor-pointer group"
  onClick={() => navigate(`/tickets/${ticket.id}`)}
+ className={`w-full text-left bg-white rounded-xl p-4 hover:shadow-md transition-all group relative overflow-hidden
+ border border-gray-100 border-l-[4px] shadow-sm
+ ${ticket.priority === 'SEVERE' ? 'border-l-red-500' : 
+   ticket.priority === 'MAJOR' ? 'border-l-orange-500' :
+   ticket.priority === 'SIGNIFICANT' ? 'border-l-amber-400' :
+   ticket.priority === 'MINOR' ? 'border-l-blue-400' :
+   'border-l-gray-300'}`}
  >
- <td className="px-6 py-4">
- <div className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{ticket.ticketNo}</div>
- <div className="text-gray-500 text-base mt-0.5">{new Date(ticket.createdAt).toLocaleDateString('en-US')} • {ticket.eventName}</div>
- </td>
- <td className="px-6 py-4">
- <span className="font-medium bg-gray-100 px-2 py-1 rounded text-base text-gray-600 border border-gray-200">{ticket.type}</span>
- </td>
- <td className="px-6 py-4">
- <span className={`px-2.5 py-1 rounded-full text-base font-bold border ${getStatusColor(ticket.status).replace('bg-', 'border-').replace('text-', 'text-').replace('100', '200') + ' ' + getStatusColor(ticket.status)} whitespace-nowrap`}>
- {ticket.status.replace('_', ' ')}
+ <div className="flex items-start justify-between gap-3">
+ <div className="flex-1 min-w-0">
+ <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+ <span className="text-xs font-mono text-gray-500 font-medium" dir="ltr">{ticket.ticketNo}</span>
+ <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColors[ticket.status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+ {t(`oc.status.${ticket.status}`)}
  </span>
- </td>
- <td className="px-6 py-4">
- {/* Dynamic Content based on Type */}
- {ticket.type === 'SPORT' && ticket.controlReport ? (
- <div>
- <div className="font-bold text-gray-900">Car #{ticket.controlReport.competitorNumber || 'N/A'}</div>
- <div className="text-base text-red-500 font-medium">{ticket.controlReport.violationType}</div>
- </div>
- ) : ticket.type === 'MEDICAL' && ticket.medicalReport ? (
- <div>
- <div className="font-bold text-gray-900">{ticket.medicalReport.patientName || 'Unknown Patient'}</div>
- <div className="text-base text-red-500 font-medium">{ticket.medicalReport.injuryType}</div>
- </div>
- ) : ticket.type === 'SAFETY' && ticket.safetyReport ? (
- <div>
- <div className="font-bold text-gray-900">{ticket.safetyReport.hazardType}</div>
- <div className="text-base text-gray-500">{ticket.safetyReport.locationDetail || ticket.location}</div>
- </div>
- ) : (
- <div className="text-gray-400 text-base italic">No specific details</div>
+ {ticket.hasInjury && (
+ <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200 flex items-center gap-1">
+ <AlertTriangle size={9} />
+ {t('oc.injury')}
+ </span>
  )}
- </td>
- <td className="px-6 py-4 font-bold">
- <span className={getPriorityColor(ticket.priority)}>{ticket.priority}</span>
- </td>
- <td className="px-6 py-4 text-right text-gray-400 group-hover:text-blue-600 font-medium transition-colors">
- View Details &rarr;
- {elapsedTimeStr !== '-' && (
- <div className="text-[10px] text-gray-400 mt-1 flex items-center justify-end gap-1">
- <Clock size={10} /> Time: {elapsedTimeStr}
- </div>
- )}
- </td>
- </tr>
- )})
- )}
- </tbody>
- </table>
- </div>
-
- {/* Mobile Card View */}
- <div className="md:hidden divide-y divide-gray-100">
- {loading ? (
- <div className="p-12 text-center text-gray-500">Loading tickets...</div>
- ) : tickets.length === 0 ? (
- <div className="p-12 text-center text-gray-500">No tickets found</div>
- ) : (
- tickets.filter(t => {
- if (searchQuery && !t.ticketNo.toLowerCase().includes(searchQuery.toLowerCase())) return false;
- if (filterDate && !t.createdAt.startsWith(filterDate)) return false;
- if (filterEvent && t.eventName !== filterEvent) return false;
- if (filterDept && t.type !== filterDept) return false;
- if (filterStatus && t.status !== filterStatus) return false;
- return true;
- }).map((ticket: any) => {
- return (
- <div
- key={ticket.id}
- className="p-5 hover:bg-blue-50/30 transition-colors active:bg-blue-100 cursor-pointer flex flex-col gap-4"
- onClick={() => navigate(`/tickets/${ticket.id}`)}
- >
- <div className="flex justify-between items-start gap-2">
- <div>
- <div className="font-bold text-gray-900 text-lg">{ticket.ticketNo}</div>
- <div className="text-gray-500 text-sm mt-1">{new Date(ticket.createdAt).toLocaleDateString('en-US')} • {ticket.eventName}</div>
- </div>
- <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(ticket.status).replace('bg-', 'border-').replace('text-', 'text-').replace('100', '200') + ' ' + getStatusColor(ticket.status)} whitespace-nowrap`}>
- {ticket.status.replace('_', ' ')}
+ <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border flex items-center gap-1 
+ ${(ticket.status === 'CLOSED' || ticket.status === 'CLOSED_REJECTED') ? 'bg-gray-50 text-gray-500 border-gray-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+ <Timer size={9} />
+ {getTicketDuration(ticket)}
  </span>
  </div>
- 
- <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
- {ticket.type === 'SPORT' && ticket.controlReport ? (
- <div>
- <div className="font-bold text-gray-900 text-sm">Car #{ticket.controlReport.competitorNumber || 'N/A'}</div>
- <div className="text-sm text-red-500 font-medium mt-1">{ticket.controlReport.violationType}</div>
- </div>
- ) : ticket.type === 'MEDICAL' && ticket.medicalReport ? (
- <div>
- <div className="font-bold text-gray-900 text-sm">{ticket.medicalReport.patientName || 'Unknown Patient'}</div>
- <div className="text-sm text-red-500 font-medium mt-1">{ticket.medicalReport.injuryType}</div>
- </div>
- ) : ticket.type === 'SAFETY' && ticket.safetyReport ? (
- <div>
- <div className="font-bold text-gray-900 text-sm">{ticket.safetyReport.hazardType}</div>
- <div className="text-sm text-gray-500 mt-1">{ticket.safetyReport.locationDetail || ticket.location}</div>
- </div>
- ) : (
- <div className="text-gray-400 text-sm italic">No specific details</div>
+ <p className="text-sm text-gray-700 truncate leading-relaxed">{ticket.description || t('oc.noDescription')}</p>
+ <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+ <span className="flex items-center gap-1">
+ {typeIcons[ticket.type] || <FileWarning size={11} />}
+ {t(`oc.incidentTypes.${ticket.offCircuitReport?.incidentType || ticket.type}`)}
+ </span>
+ <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${priorityColors[ticket.priority] || ''}`}>
+ {t(`priority.${ticket.priority}`)}
+ </span>
+ {(ticket._count?.attachments ?? 0) > 0 && (
+ <span className="flex items-center gap-1">
+ <Paperclip size={10} />
+ {ticket._count?.attachments}
+ </span>
  )}
+ <span className="flex items-center gap-1" title={formatDateTime(ticket.createdAt)}>
+ <Clock size={10} />
+ {getRelativeTime(new Date(ticket.createdAt), t)}
+ </span>
  </div>
- 
- <div className="flex justify-between items-center mt-1">
- <span className="font-bold bg-gray-100 px-3 py-1.5 rounded-lg text-sm text-gray-600 border border-gray-200">{ticket.type}</span>
- <span className={`text-base font-bold ${getPriorityColor(ticket.priority)}`}>{ticket.priority}</span>
  </div>
+ <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-500 transition-colors flex-shrink-0 mt-1" />
  </div>
- );
- })
+ </button>
+ ))}
+ </div>
  )}
- </div>
- </div>
  </div>
  );
 };

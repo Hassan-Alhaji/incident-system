@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import api from '../../utils/api';
-import LocationPickerMap from '../../components/LocationPickerMap';
-import { isPointInPolygon } from '../../utils/geoUtils';
+import api from '../utils/api';
+import LocationPickerMap from '../components/LocationPickerMap';
+import { isPointInPolygon } from '../utils/geoUtils';
 import {
  AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, ChevronDown,
  Clock, FileImage, Flame, Loader2, MapPin, Plus, Send, ShieldAlert,
@@ -59,7 +59,7 @@ const severityColorMap: Record<string, string> = {
  CRITICAL: 'border-red-500 bg-red-500/10 text-red-400',
 };
 
-const OCTicketWizard = () => {
+const TicketWizard = () => {
  const { user } = useAuth();
  const { t, i18n } = useTranslation();
  const navigate = useNavigate();
@@ -269,13 +269,13 @@ const OCTicketWizard = () => {
  hasInjury, injuredPersons: hasInjury ? injuredPersons : [], witnesses,
  };
 
- const res = await api.post('/oc/tickets', payload);
+ const res = await api.post('/tickets', payload);
  const ticketId = res.data.id;
 
  if (files.length > 0) {
  const formData = new FormData();
  files.forEach(f => formData.append('files', f));
- await api.post(`/oc/tickets/${ticketId}/attachments`, formData, {
+ await api.post(`/tickets/${ticketId}/attachments`, formData, {
  headers: { 'Content-Type': 'multipart/form-data' }
  });
  }
@@ -284,7 +284,7 @@ const OCTicketWizard = () => {
  localStorage.removeItem('oc_draft');
  setSubmittedId(ticketId);
  setSubmitted(true);
- setTimeout(() => navigate(`/oc/tickets/${ticketId}`), 3000);
+ setTimeout(() => navigate(`/tickets/${ticketId}`), 3000);
  } catch (err: any) {
  setError(err.response?.data?.message || 'Failed to submit ticket');
  console.error('Submit error:', err);
@@ -315,7 +315,7 @@ const OCTicketWizard = () => {
  <div className="space-y-4 pb-8">
  {/* Header */}
  <div className="flex items-center gap-3">
- <button onClick={() => step > 1 ? setStep(step - 1) : navigate('/oc/dashboard')}
+ <button onClick={() => step > 1 ? setStep(step - 1) : navigate('/dashboard')}
  className="p-2 bg-white rounded-lg border border-gray-200 text-gray-800 hover:text-gray-800 transition-all">
  <ArrowLeft size={18} />
  </button>
@@ -652,4 +652,4 @@ const OCTicketWizard = () => {
  );
 };
 
-export default OCTicketWizard;
+export default TicketWizard;
