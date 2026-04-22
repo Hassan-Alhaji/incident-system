@@ -64,8 +64,8 @@ const Analytics = () => {
     };
 
     // Build monthly trend bars
-    const monthKeys = Object.keys(data.monthlyTrend).sort();
-    const maxMonthly = Math.max(...monthKeys.map(k => data.monthlyTrend[k].total), 1);
+    const monthKeys = Object.keys(data.monthlyTrend || {}).sort();
+    const maxMonthly = Math.max(...monthKeys.map(k => (data.monthlyTrend || {})[k]?.total || 0), 1);
 
     const handleExport = async () => {
         setExporting(true);
@@ -194,7 +194,7 @@ const Analytics = () => {
                         <FileText size={14} className="text-blue-500" /> Category Distribution
                     </h3>
                     <div className="flex-1 min-h-[220px] relative">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <PieChart>
                                 <Pie
                                     data={Object.entries(data.typeDistribution).map(([name, value]) => ({ name, value }))}

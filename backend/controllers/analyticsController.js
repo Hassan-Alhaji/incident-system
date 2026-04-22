@@ -13,6 +13,7 @@ const getDashboardStats = async (req, res) => {
 
         // 1. Overall volume
         const totalTickets = await prisma.ticket.count();
+        const totalInjuries = await prisma.ticket.count({ where: { hasInjury: true } });
         const ticketsByStatus = await prisma.ticket.groupBy({
             by: ['status'],
             _count: {
@@ -56,9 +57,36 @@ const getDashboardStats = async (req, res) => {
         });
 
         const averageClosureTimeMsByType = {};
+        let totalClosureTimeMs = 0;
+        let globalClosedCount = 0;
+        
         for (const type in durationsByType) {
             averageClosureTimeMsByType[type] = durationsByType[type].sum / durationsByType[type].count;
+            totalClosureTimeMs += durationsByType[type].sum;
+            globalClosedCount += durationsByType[type].count;
         }
+        
+        let avgClosureText = '0h';
+        if (globalClosedCount > 0) {
+            const avgMs = totalClosureTimeMs / globalClosedCount;
+            const avgHours = (avgMs / (1000 * 60 * 60)).toFixed(1);
+            avgClosureText = `${avgHours}h`;
+        }
+
+        // Monthly Trend
+        const ticketsForTrend = await prisma.ticket.findMany({
+            select: { createdAt: true, hasInjury: true }
+        });
+        const monthlyTrend = {};
+        ticketsForTrend.forEach(t => {
+            const date = new Date(t.createdAt);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const key = `${year}-${month}`;
+            if (!monthlyTrend[key]) monthlyTrend[key] = { total: 0, injuries: 0 };
+            monthlyTrend[key].total += 1;
+            if (t.hasInjury) monthlyTrend[key].injuries += 1;
+        });
 
         // 4. Top Reporters (Marshals)
         const topReportersData = await prisma.ticket.groupBy({
@@ -146,6 +174,10 @@ const getDashboardStats = async (req, res) => {
         // Compile Response Payload
         const analyticsData = {
             totalTickets,
+            totalInjuries,
+            closedCount: globalClosedCount,
+            avgClosureText,
+            monthlyTrend,
             statusDistribution: ticketsByStatus.reduce((acc, curr) => ({ ...acc, [curr.status]: curr._count.id }), {}),
             typeDistribution: ticketsByType.reduce((acc, curr) => ({ ...acc, [curr.type]: curr._count.id }), {}),
             priorityDistribution: ticketsByPriority.reduce((acc, curr) => ({ ...acc, [curr.priority || 'NORMAL']: curr._count.id }), {}),
