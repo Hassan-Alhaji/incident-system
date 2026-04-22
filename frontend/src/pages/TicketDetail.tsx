@@ -8,7 +8,8 @@ import {
     ArrowLeft, MapPin, Clock, AlertTriangle, CheckCircle, Send, Loader2,
     User, ShieldCheck, FileText, XCircle, ChevronDown, ExternalLink,
     Search, Paperclip, MessageSquare, CornerDownRight, Save, Download
-, ShieldAlert, Check } from 'lucide-react';
+    , ShieldAlert, Check
+} from 'lucide-react';
 
 const resolveAttachmentUrl = (url: string) => {
     if (!url) return '';
@@ -49,10 +50,10 @@ const TicketDetail = () => {
     const [isRegulatoryReportable, setIsRegulatoryReportable] = useState(false);
     const [isNearMiss, setIsNearMiss] = useState(false);
     const [isNoneOfTheAbove, setIsNoneOfTheAbove] = useState(false);
-    
+
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'attachments'>('details');
-    const [confirmAction, setConfirmAction] = useState<{action: string, handler: () => void} | null>(null); // Fix #6
+    const [confirmAction, setConfirmAction] = useState<{ action: string, handler: () => void } | null>(null); // Fix #6
 
     // Target fields
     const [targetDepManagerId, setTargetDepManagerId] = useState('');
@@ -71,6 +72,16 @@ const TicketDetail = () => {
 
     // HSE Manager fields
     const [finalNotes, setFinalNotes] = useState('');
+
+    // Reporter Reply fields
+    const [replyText, setReplyText] = useState('');
+    const [replyLoading, setReplyLoading] = useState(false);
+
+    // HR GOSI fields
+    const [gosiDate, setGosiDate] = useState('');
+    const [gosiReference, setGosiReference] = useState('');
+    const [hrNotes, setHrNotes] = useState('');
+    const [hrLoading, setHrLoading] = useState(false);
 
     const fetchTicket = async () => {
         try {
@@ -92,8 +103,8 @@ const TicketDetail = () => {
         }
     };
 
-    useEffect(() => { 
-        fetchTicket(); 
+    useEffect(() => {
+        fetchTicket();
         api.get('/users').then(res => setRouteUsers(res.data.users || res.data)).catch(console.error);
         api.get('/departments').then(res => setDepartments(res.data)).catch(console.error);
     }, [id]);
@@ -119,7 +130,7 @@ const TicketDetail = () => {
         }
     };
 
-    
+
     const handleInitializeRouteAction = (actionParam: string) => {
         if (!controllerNotes) {
             setError(t('oc.errors.reqNotes', 'Please enter your notes before proceeding. (يجب إدخال الملاحظات)'));
@@ -178,7 +189,8 @@ const TicketDetail = () => {
         setError('');
         try {
             await api.put(`/tickets/${id}/dep-rep`, {
-                immediateCauses, preventiveActions
+                immediateCauses, preventiveActions,
+                ...(ticket?.hasInjury ? { gosiNotificationDate: gosiDate || undefined, gosiReferenceNumber: gosiReference || undefined, hrNotes: hrNotes || undefined } : {})
             });
             await fetchTicket();
         } catch (err: any) {
@@ -228,7 +240,7 @@ const TicketDetail = () => {
                 if (data.underlyingCauses && !underlyingCauses) setUnderlyingCauses(data.underlyingCauses);
                 if (data.preventiveActions && !preventiveActions) setPreventiveActions(data.preventiveActions);
                 if (data.analysisMethod && !analysisMethod) setAnalysisMethod(data.analysisMethod);
-            } catch {}
+            } catch { }
         }
     }, []);
 
@@ -276,8 +288,46 @@ const TicketDetail = () => {
     const canHSEControllerEdit = isHSEController && (ticket.status === 'OPEN' || ticket.status === 'HSE_REVIEW');
     const canDepRepEdit = isDepRep && ticket.status === 'PENDING_DEP_REP';
     const canDepManagerEdit = isDepManager && ticket.status === 'ESCALATED_TO_DEP_MANAGER';
+    const canReporterReply = (isReporter || user?.id === ticket.createdById) && ticket.status === 'RETURNED_TO_REPORTER';
 
-    
+    const handleReporterReply = async () => {
+        if (!replyText.trim()) return;
+        setReplyLoading(true);
+        setError('');
+        try {
+            await api.put(`/tickets/${id}/reporter-reply`, { replyText });
+            setReplyText('');
+            await fetchTicket();
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to submit reply');
+        } finally {
+            setReplyLoading(false);
+        }
+    };
+
+    // HR GOSI checks
+    const isHR = role === 'HR_REP' || role === 'ADMIN';
+    const canHREdit = isHR && ticket.status === 'PENDING_HR';
+
+    const handleHRSubmit = async () => {
+        if (!gosiDate || !gosiReference.trim()) return;
+        setHrLoading(true);
+        setError('');
+        try {
+            await api.put(`/tickets/${id}/hr-action`, {
+                gosiNotificationDate: gosiDate,
+                gosiReferenceNumber: gosiReference,
+                hrNotes
+            });
+            await fetchTicket();
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to submit HR action');
+        } finally {
+            setHrLoading(false);
+        }
+    };
+
+
     const computedScore = Number(riskLikelihood) * Number(riskConsequence) || 0;
     let computedSeverity = 'LOW';
     if (computedScore >= 5) computedSeverity = 'MEDIUM';
@@ -308,9 +358,9 @@ const TicketDetail = () => {
                         <div style="background:#64748b;color:white;padding:10px 16px;border-radius:8px;font-weight:700;font-size:14px;margin-top:24px;margin-bottom:12px;">${isAr ? '⑤ المرفقات والصور' : '⑤ Incident Images & Attachments'}</div>
                         <div style="display:flex; flex-wrap:wrap; gap:16px;">
                             ${images.map((att: any) => {
-                                const fileUrl = resolveAttachmentUrl(att.url);
-                                return `<img src="${fileUrl}" style="max-width:300px; height:auto; max-height:250px; object-fit:cover; border-radius:8px; border:2px solid #e2e8f0; padding:4px;" />`;
-                            }).join('')}
+                    const fileUrl = resolveAttachmentUrl(att.url);
+                    return `<img src="${fileUrl}" style="max-width:300px; height:auto; max-height:250px; object-fit:cover; border-radius:8px; border:2px solid #e2e8f0; padding:4px;" />`;
+                }).join('')}
                         </div>
                     </div>
                 `;
@@ -362,7 +412,7 @@ const TicketDetail = () => {
   <div class="meta">
     <div><strong>${isAr ? 'SMC - قسم السلامة' : 'SMC HSE Department'}</strong></div>
     <div>${isAr ? 'تقرير حوادث خارج المضمار' : 'Off-Circuit Incident Report'}</div>
-    <div style="margin-top:4px">${new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
+    <div style="margin-top:4px">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
   </div>
 </div>
 
@@ -432,6 +482,15 @@ ${oc.investigatorFilledBy ? `
     ${row(t('oc.investigation.underlyingCauses'), `<div class="multiline">${oc.underlyingCauses || '-'}</div>`)}
     ${row(t('oc.investigation.rootCauses'), `<div class="multiline">${oc.rootCauses || '-'}</div>`)}
     ${row(t('oc.investigation.preventiveActions'), `<div class="multiline">${oc.preventiveActions || '-'}</div>`)}
+  </table></div>` : ''}
+
+${oc.hrGosiReferenceNumber ? `
+  ${sectionTitle(isAr ? 'إبلاغ التأمينات الاجتماعية (GOSI)' : 'GOSI Notification (التأمينات الاجتماعية)', '#7c3aed')}
+  <div class="section-table"><table>
+    ${row(isAr ? 'تاريخ إبلاغ التأمينات' : 'GOSI Notification Date', oc.hrGosiNotificationDate ? formatDate(oc.hrGosiNotificationDate) : '-')}
+    ${row(isAr ? 'رقم البلاغ' : 'GOSI Reference Number', `<strong style="font-family:monospace">${oc.hrGosiReferenceNumber}</strong>`)}
+    ${oc.hrNotes ? row(isAr ? 'ملاحظات الموارد البشرية' : 'HR Notes', `<div class="multiline">${oc.hrNotes}</div>`) : ''}
+    ${row(isAr ? 'تم الإبلاغ بواسطة' : 'Submitted By', oc.hrFilledBy || '-')}
   </table></div>` : ''}
 
 ${oc.hseManagerFilledBy ? `
@@ -543,6 +602,164 @@ ${attachmentsHtml}
                 </div>
             )}
 
+            {/* Reporter Reply Section - when ticket is returned to reporter */}
+            {ticket.status === 'RETURNED_TO_REPORTER' && (
+                <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <CornerDownRight size={20} className="text-orange-500" />
+                        <h3 className="text-sm font-bold text-orange-700">
+                            Ticket Returned - Response Required (تم إرجاع التذكرة - يرجى الرد)
+                        </h3>
+                    </div>
+
+                    {/* Show previous return reasons from activity log */}
+                    {ticket.activityLogs?.filter((log: any) => log.action === 'RETURN_TO_REPORTER' || log.action === 'STATUS_CHANGE' && log.details?.includes('Returned')).length > 0 && (
+                        <div className="bg-white/60 border border-orange-200 rounded-lg p-3 mb-3 text-xs text-orange-800">
+                            <p className="font-bold mb-1">Return Reason (سبب الإرجاع):</p>
+                            {ticket.activityLogs.filter((log: any) => log.action === 'RETURN_TO_REPORTER' || (log.action === 'STATUS_CHANGE' && log.details?.includes('Return'))).slice(0, 1).map((log: any, i: number) => (
+                                <p key={i} className="text-gray-700">{log.details}</p>
+                            ))}
+                        </div>
+                    )}
+
+                    {canReporterReply ? (
+                        <div className="space-y-3">
+                            <textarea
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                placeholder="Write your reply here... (اكتب ردك هنا...)"
+                                className="w-full p-3 border-2 border-orange-200 rounded-xl text-sm bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition-all resize-y min-h-[100px]"
+                                rows={4}
+                            />
+                            <button
+                                onClick={handleReporterReply}
+                                disabled={replyLoading || !replyText.trim()}
+                                className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold rounded-xl text-sm shadow-lg hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {replyLoading ? (
+                                    <><Loader2 className="animate-spin" size={16} /> Sending...</>
+                                ) : (
+                                    <>Send Reply & Return to HSE Review (إرسال الرد وإعادة للمراجعة)</>
+                                )}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white/60 border border-orange-200 rounded-lg p-3 text-xs text-orange-600 text-center font-medium">
+                            Waiting for reporter to respond... (في انتظار رد المبلّغ...)
+                        </div>
+                    )}
+
+                    {/* Show previous replies from activity log */}
+                    {ticket.activityLogs?.filter((log: any) => log.action === 'REPORTER_REPLY').length > 0 && (
+                        <div className="mt-3 space-y-2">
+                            <p className="text-xs font-bold text-orange-700">Previous Replies (الردود السابقة):</p>
+                            {ticket.activityLogs.filter((log: any) => log.action === 'REPORTER_REPLY').map((log: any, i: number) => (
+                                <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 text-xs">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold text-gray-700">{log.actor?.name || 'Reporter'}</span>
+                                        <span className="text-gray-400">{new Date(log.createdAt).toLocaleString('en-GB')}</span>
+                                    </div>
+                                    <p className="text-gray-600 whitespace-pre-wrap">{log.details}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* HR GOSI Section - shows when has injury & GOSI data, or when PENDING_HR */}
+            {(ticket.status === 'PENDING_HR' || (ticket.hasInjury && oc?.hrGosiReferenceNumber)) && (
+                <div className={`border-2 rounded-xl p-4 ${canHREdit ? 'bg-purple-50 border-purple-300' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="p-1.5 rounded-lg bg-purple-100">
+                            <FileText size={16} className="text-purple-600" />
+                        </div>
+                        <h3 className="text-sm font-bold text-purple-800">
+                            GOSI Notification (إبلاغ التأمينات الاجتماعية)
+                        </h3>
+                    </div>
+
+                    {canHREdit ? (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                                        GOSI Notification Date (تاريخ إبلاغ التأمينات) *
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={gosiDate}
+                                        onChange={(e) => setGosiDate(e.target.value)}
+                                        className="w-full p-2.5 border-2 border-purple-200 rounded-xl text-sm bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                                        GOSI Reference Number (رقم البلاغ) *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={gosiReference}
+                                        onChange={(e) => setGosiReference(e.target.value)}
+                                        placeholder="Enter GOSI reference..."
+                                        className="w-full p-2.5 border-2 border-purple-200 rounded-xl text-sm bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1">
+                                    HR Notes (ملاحظات الموارد البشرية)
+                                </label>
+                                <textarea
+                                    value={hrNotes}
+                                    onChange={(e) => setHrNotes(e.target.value)}
+                                    placeholder="Optional notes... (ملاحظات اختيارية...)"
+                                    className="w-full p-2.5 border-2 border-purple-200 rounded-xl text-sm bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none transition-all resize-y"
+                                    rows={2}
+                                />
+                            </div>
+                            <button
+                                onClick={handleHRSubmit}
+                                disabled={hrLoading || !gosiDate || !gosiReference.trim()}
+                                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold rounded-xl text-sm shadow-lg hover:from-purple-700 hover:to-purple-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {hrLoading ? (
+                                    <><Loader2 className="animate-spin" size={16} /> Submitting...</>
+                                ) : (
+                                    <>Submit GOSI Details & Continue (إرسال بيانات التأمينات)</>
+                                )}
+                            </button>
+                        </div>
+                    ) : oc?.hrGosiReferenceNumber ? (
+                        <div className="space-y-2 text-sm">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-white rounded-lg p-2.5 border border-gray-200">
+                                    <p className="text-[10px] text-gray-500 font-medium">GOSI Date (تاريخ الإبلاغ)</p>
+                                    <p className="font-bold text-gray-800">{oc.hrGosiNotificationDate ? new Date(oc.hrGosiNotificationDate).toLocaleDateString('en-GB') : '-'}</p>
+                                </div>
+                                <div className="bg-white rounded-lg p-2.5 border border-gray-200">
+                                    <p className="text-[10px] text-gray-500 font-medium">Reference (رقم البلاغ)</p>
+                                    <p className="font-bold text-gray-800 font-mono">{oc.hrGosiReferenceNumber}</p>
+                                </div>
+                            </div>
+                            {oc.hrNotes && (
+                                <div className="bg-white rounded-lg p-2.5 border border-gray-200">
+                                    <p className="text-[10px] text-gray-500 font-medium">HR Notes (ملاحظات)</p>
+                                    <p className="text-gray-700">{oc.hrNotes}</p>
+                                </div>
+                            )}
+                            <div className="text-[10px] text-gray-400 text-right">
+                                Submitted by {oc.hrFilledBy} • {oc.hrFilledAt ? new Date(oc.hrFilledAt).toLocaleString('en-GB') : ''}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white/60 border border-purple-200 rounded-lg p-3 text-xs text-purple-600 text-center font-medium">
+                            Waiting for HR to submit GOSI details... (في انتظار إبلاغ التأمينات...)
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
                 {(['details', 'timeline', 'attachments'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)}
@@ -563,7 +780,7 @@ ${attachmentsHtml}
                         <AlertTriangle className="mx-auto text-amber-400 mb-3" size={36} />
                         <h3 className="text-center text-gray-900 font-bold mb-1">{t('oc.confirm.title')}</h3>
                         <p className="text-center text-gray-600 font-medium text-sm mb-4">
-                            {confirmAction.action === 'ROUTE_DEP_REP' 
+                            {confirmAction.action === 'ROUTE_DEP_REP'
                                 ? 'Are you sure you want to route this ticket to the selected destination? (هل أنت متأكد من توجيه التذكرة للجهة المحددة؟)'
                                 : ['RETURN_REPORTER', 'RETURN_TO_DEPARTMENT'].includes(confirmAction.action)
                                     ? 'Are you sure you want to return this ticket? (هل أنت متأكد من الإرجاع؟)'
@@ -591,20 +808,81 @@ ${attachmentsHtml}
                     {/* ===== SECTION 1: Reporter Data (Read-Only except for RETURNED_FOR_EDIT) ===== */}
                     <Section title={t('oc.sections.reporterInfo')} icon={<User size={14} />} color="amber"
                         filledBy={oc?.reporterFilledBy} filledAt={oc?.reporterFilledAt}>
-                        <InfoRow label={t('oc.wizard.incidentType')} value={t(`oc.incidentTypes.${oc?.incidentType}`)} />
-                        <InfoRow label={t('oc.wizard.severity')} value={t(`priority.${oc?.severity}`)}
-                            valueClass={oc?.severity === 'CRITICAL' ? 'text-red-400 font-bold' : oc?.severity === 'HIGH' ? 'text-orange-400' : ''} />
-                        <InfoRow label={t('oc.wizard.dateTime')} value={`${oc?.incidentDate ? formatDate(oc.incidentDate) : ''} ${oc?.incidentTime || ''}`} dir="ltr" />
-                        <InfoRow label={t('oc.wizard.location')} value={
-                            oc?.locationLat ? (
-                                <a href={`https://www.google.com/maps?q=${oc.locationLat},${oc.locationLng}`} target="_blank" rel="noreferrer"
-                                    className="text-blue-400 underline flex items-center gap-1" dir="ltr">
-                                    <MapPin size={12} /> {oc.locationLat.toFixed(4)}, {oc.locationLng.toFixed(4)}
-                                    <ExternalLink size={10} />
-                                </a>
-                            ) : '-'
-                        } />
+
+                        {/* Quick Info Cards */}
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            {/* Incident Type Card */}
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3">
+                                <p className="text-[10px] uppercase tracking-wider text-blue-500 font-bold mb-1">{t('oc.wizard.incidentType')}</p>
+                                <p className="text-sm font-bold text-gray-900">{t(`oc.incidentTypes.${oc?.incidentType}`)}</p>
+                            </div>
+
+                            {/* Severity Card with Visual Indicator */}
+                            {(() => {
+                                const sev = oc?.severity?.toUpperCase() || '';
+                                const isLow = ['LOW', 'MINOR', 'GREEN'].includes(sev);
+                                const isMed = ['MEDIUM', 'YELLOW'].includes(sev);
+                                const isHigh = ['HIGH', 'RED'].includes(sev);
+                                const isCrit = sev === 'CRITICAL';
+                                const sevLevel = isCrit ? 4 : isHigh ? 3 : isMed ? 2 : 1;
+                                const sevColor = isCrit ? 'red' : isHigh ? 'orange' : isMed ? 'yellow' : 'green';
+                                const bgClass = isCrit ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-300' :
+                                    isHigh ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-300' :
+                                    isMed ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-300' :
+                                    'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300';
+                                const labelColor = isCrit ? '#dc2626' : isHigh ? '#ea580c' : isMed ? '#ca8a04' : '#16a34a';
+                                const barColors = ['bg-green-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500'];
+                                const textColor = isCrit ? 'text-red-600' : isHigh ? 'text-orange-600' : isMed ? 'text-yellow-600' : 'text-green-600';
+                                return (
+                                    <div className={`rounded-xl p-3 border ${bgClass}`}>
+                                        <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: labelColor }}>{t('oc.wizard.severity')}</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex gap-0.5">
+                                                {[1,2,3,4].map(level => (
+                                                    <div key={level} className={`w-3 h-5 rounded-sm ${level <= sevLevel ? barColors[sevLevel - 1] : 'bg-gray-200'}`} />
+                                                ))}
+                                            </div>
+                                            <span className={`text-sm font-bold ${textColor}`}>{t(`priority.${oc?.severity}`)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Date & Time Card */}
+                            <div className="bg-gradient-to-br from-slate-50 to-gray-50 border border-gray-200 rounded-xl p-3">
+                                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">{t('oc.wizard.dateTime')}</p>
+                                <p className="text-sm font-bold text-gray-900" dir="ltr">{oc?.incidentDate ? formatDate(oc.incidentDate) : '-'}</p>
+                                {oc?.incidentTime && <p className="text-xs text-gray-500 mt-0.5" dir="ltr">{oc.incidentTime}</p>}
+                            </div>
+
+                            {/* Location Card */}
+                            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-3">
+                                <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-1">{t('oc.wizard.location')}</p>
+                                {oc?.locationAddress ? (
+                                    <>
+                                        <p className="text-sm font-bold text-gray-900">{oc.locationAddress}</p>
+                                        {oc?.locationLat && (
+                                            <a href={`https://www.google.com/maps?q=${oc.locationLat},${oc.locationLng}`} target="_blank" rel="noreferrer"
+                                                className="text-[10px] text-emerald-500 underline flex items-center gap-0.5 mt-0.5" dir="ltr">
+                                                <MapPin size={9} /> {oc.locationLat.toFixed(4)}, {oc.locationLng.toFixed(4)} <ExternalLink size={8} />
+                                            </a>
+                                        )}
+                                    </>
+                                ) : oc?.locationLat ? (
+                                    <a href={`https://www.google.com/maps?q=${oc.locationLat},${oc.locationLng}`} target="_blank" rel="noreferrer"
+                                        className="text-sm text-emerald-600 font-bold underline flex items-center gap-1" dir="ltr">
+                                        <MapPin size={12} /> {oc.locationLat.toFixed(4)}, {oc.locationLng.toFixed(4)} <ExternalLink size={10} />
+                                    </a>
+                                ) : (
+                                    <p className="text-sm text-gray-400">-</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* What Happened */}
                         <InfoRow label={t('oc.wizard.whatHappened')} value={oc?.whatHappened} multiline />
+
+                        {/* Injury Badge */}
                         <InfoRow label={t('oc.wizard.hasInjury')} value={
                             ticket.hasInjury ?
                                 <span className="text-red-400 font-bold flex items-center gap-1"><AlertTriangle size={12} /> {t('oc.yes')}</span> :
@@ -671,8 +949,8 @@ ${attachmentsHtml}
                         </div>
                     )}
 
-                    
-                    
+
+
                     {/* ===== SECTION 2A: HSE Controller Action ===== */}
                     {(isHSEController || oc?.controllerFilledBy || isHSEManager || isInvestigator) && statusOrder.indexOf(ticket.status) >= statusOrder.indexOf('OPEN') && (
                         <Section title={t('oc.sections.supervisorReview') || 'HSE Controller Review'} icon={<ShieldAlert size={14} />} color="amber"
@@ -685,14 +963,14 @@ ${attachmentsHtml}
                                             placeholder={t('oc.sections.notesPlaceholder') || 'Enter instructions or reasons...'}
                                             className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 min-h-[80px] resize-y focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400" />
                                     </div>
-                                    
+
                                     <div className="bg-amber-50/50 rounded-lg p-4 border border-amber-200/60 mt-4 mb-4">
                                         <h4 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
                                             <ShieldAlert size={14} />
                                             {t('oc.sections.riskAssessment') || 'Risk Assessment & Classification'}
                                         </h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            
+
                                             <div className="space-y-4">
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-700 mb-1">
@@ -720,7 +998,7 @@ ${attachmentsHtml}
                                                         <option value={5}>5 - Catastrophic / كارثي</option>
                                                     </select>
                                                 </div>
-                                                
+
                                                 {/* Calculated Fields */}
                                                 <div className="bg-amber-100/50 p-3 rounded-lg border border-amber-200">
                                                     <div className="flex justify-between items-center mb-1">
@@ -729,19 +1007,18 @@ ${attachmentsHtml}
                                                     </div>
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-xs font-semibold text-amber-800">Computed Level:</span>
-                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded shadow-sm ${
-                                                            computedSeverity === 'CRITICAL' ? 'bg-red-500 text-white' :
-                                                            computedSeverity === 'HIGH' ? 'bg-orange-500 text-white' :
-                                                            computedSeverity === 'MEDIUM' ? 'bg-amber-400 text-white' :
-                                                            'bg-emerald-500 text-white'
-                                                        }`}>
+                                                        <span className={`text-xs font-bold px-2 py-0.5 rounded shadow-sm ${computedSeverity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                                                computedSeverity === 'HIGH' ? 'bg-orange-500 text-white' :
+                                                                    computedSeverity === 'MEDIUM' ? 'bg-amber-400 text-white' :
+                                                                        'bg-emerald-500 text-white'
+                                                            }`}>
                                                             {t('priority.' + computedSeverity, computedSeverity)}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            
+
                                             <div className="flex flex-col gap-2 mt-1">
                                                 <div className="text-xs font-bold text-gray-500 mb-1">Select Classification (يجب اختيار تصنيف) *</div>
                                                 <label className="flex items-center gap-2 cursor-pointer group">
@@ -779,19 +1056,19 @@ ${attachmentsHtml}
                                     </div>
 
                                     <div className="mt-4 mb-2">
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">Route Destination (الجهة الموجه إليها) <span className="text-gray-400 font-normal ml-1">(if routing)</span></label>
-                                                <select value={targetDepartmentId} onChange={(e) => setTargetDepartmentId(e.target.value)}
-                                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400">
-                                                    <option value="">-- Not Routing (لن يتم التوجيه) --</option>
-                                                    <option value="HSE_MANAGER">⭐ HSE Manager (مدير السلامة)</option>
-                                                    {departments.map((dep: any) => (
-                                                        <option key={dep.id} value={dep.id}>
-                                                            🏢 {dep.name} {dep.nameAr ? `/ ${dep.nameAr}` : ''}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="flex flex-col md:flex-row gap-3">
+                                        <label className="block text-xs font-semibold text-gray-700 mb-1">Route Destination (الجهة الموجه إليها) <span className="text-gray-400 font-normal ml-1">(if routing)</span></label>
+                                        <select value={targetDepartmentId} onChange={(e) => setTargetDepartmentId(e.target.value)}
+                                            className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400">
+                                            <option value="">-- Not Routing (لن يتم التوجيه) --</option>
+                                            <option value="HSE_MANAGER">⭐ HSE Manager (مدير السلامة)</option>
+                                            {departments.map((dep: any) => (
+                                                <option key={dep.id} value={dep.id}>
+                                                    🏢 {dep.name} {dep.nameAr ? `/ ${dep.nameAr}` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="flex flex-col md:flex-row gap-3">
                                         <button onClick={() => handleInitializeRouteAction('RETURN_REPORTER')} disabled={actionLoading || !controllerNotes}
                                             className="w-full md:w-1/3 bg-white border-2 border-red-200 text-red-600 font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-red-50 disabled:opacity-50 text-sm">
                                             {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <ArrowLeft size={14} />}
@@ -832,10 +1109,59 @@ ${attachmentsHtml}
                                             placeholder={t('oc.investigation.preventiveActionsPlaceholder')}
                                             className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 min-h-[120px] resize-y focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
                                     </div>
-                                    <button onClick={handleDepRepAction} disabled={actionLoading || !immediateCauses || !preventiveActions}
+
+                                    {/* GOSI Section for injury tickets */}
+                                    {ticket.hasInjury && (
+                                        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1 rounded bg-purple-100">
+                                                    <FileText size={12} className="text-purple-600" />
+                                                </div>
+                                                <h4 className="text-xs font-bold text-purple-800">
+                                                    GOSI Notification (إبلاغ التأمينات الاجتماعية) *
+                                                </h4>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                                        GOSI Date (تاريخ الإبلاغ) *
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        value={gosiDate}
+                                                        onChange={(e) => setGosiDate(e.target.value)}
+                                                        className="w-full bg-white border border-purple-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                                        GOSI Reference (رقم البلاغ) *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={gosiReference}
+                                                        onChange={(e) => setGosiReference(e.target.value)}
+                                                        placeholder="Enter GOSI reference number..."
+                                                        className="w-full bg-white border border-purple-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                                    HR Notes (ملاحظات)
+                                                </label>
+                                                <textarea value={hrNotes} onChange={(e) => setHrNotes(e.target.value)}
+                                                    placeholder="Optional notes... (ملاحظات اختيارية...)"
+                                                    className="w-full bg-white border border-purple-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 resize-y focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                                                    rows={2} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button onClick={handleDepRepAction} disabled={actionLoading || !immediateCauses || !preventiveActions || (ticket.hasInjury && (!gosiDate || !gosiReference))}
                                         className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg disabled:opacity-50 text-sm">
                                         {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                                        {t('oc.sections.sendToSafetyContext') || 'Submit Department Response'}
+                                        {t('oc.sections.sendToSafetyContext') || 'Submit it to HSE'}
                                     </button>
                                 </div>
                             ) : (
@@ -843,6 +1169,38 @@ ${attachmentsHtml}
                                     <>
                                         <InfoRow label={t('oc.investigation.immediateCauses')} value={oc.immediateCauses} multiline />
                                         <InfoRow label={t('oc.investigation.preventiveActions')} value={oc.preventiveActions} multiline />
+                                        {/* GOSI Data Read-Only */}
+                                        {oc.hrGosiReferenceNumber && (
+                                            <div className="mt-3 bg-purple-50 border-2 border-purple-200 rounded-xl p-3 space-y-2">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <div className="p-1 rounded bg-purple-100">
+                                                        <FileText size={12} className="text-purple-600" />
+                                                    </div>
+                                                    <h4 className="text-xs font-bold text-purple-800">
+                                                        GOSI Notification (إبلاغ التأمينات الاجتماعية)
+                                                    </h4>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                                                        <p className="text-[10px] text-purple-500 font-medium">GOSI Date (تاريخ الإبلاغ)</p>
+                                                        <p className="font-bold text-gray-800 text-sm">{oc.hrGosiNotificationDate ? new Date(oc.hrGosiNotificationDate).toLocaleDateString('en-GB') : '-'}</p>
+                                                    </div>
+                                                    <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                                                        <p className="text-[10px] text-purple-500 font-medium">Reference (رقم البلاغ)</p>
+                                                        <p className="font-bold text-gray-800 font-mono text-sm">{oc.hrGosiReferenceNumber}</p>
+                                                    </div>
+                                                </div>
+                                                {oc.hrNotes && (
+                                                    <div className="bg-white rounded-lg p-2.5 border border-purple-100">
+                                                        <p className="text-[10px] text-purple-500 font-medium">HR Notes (ملاحظات)</p>
+                                                        <p className="text-gray-700 text-sm">{oc.hrNotes}</p>
+                                                    </div>
+                                                )}
+                                                <div className="text-[10px] text-purple-400 text-right">
+                                                    Submitted by {oc.hrFilledBy} • {oc.hrFilledAt ? new Date(oc.hrFilledAt).toLocaleString('en-GB') : ''}
+                                                </div>
+                                            </div>
+                                        )}
                                         <InfoRow label={t('oc.ownership.reviewedBy')} value={oc.depRepFilledBy} />
                                     </>
                                 ) : (
@@ -861,7 +1219,7 @@ ${attachmentsHtml}
                                     {ticket.status === 'DEP_REP_RESPONDED' && (
                                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
                                             <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center gap-2">
-                                                <ShieldAlert size={16} /> 
+                                                <ShieldAlert size={16} />
                                                 Is the department's response clear and complete? (هل الرد/البيانات الواردة من القسم واضحة ومكتملة للبدء بالتحليل؟)
                                             </h4>
                                             <div className="flex gap-4 mt-3">
@@ -878,88 +1236,88 @@ ${attachmentsHtml}
                                     )}
 
                                     {isRepResponseClear !== false && (
-                                    <>
-                                        <div className="grid grid-cols-1 gap-4 mb-4">
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.wizard.analysisMethod', 'Analysis Method (طريقة التحليل)')} <span className="text-red-500">*</span></label>
-                                                <select value={analysisMethod} onChange={(e) => setAnalysisMethod(e.target.value)} disabled={!canInvestigatorEdit}
+                                        <>
+                                            <div className="grid grid-cols-1 gap-4 mb-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.wizard.analysisMethod', 'Analysis Method (طريقة التحليل)')} <span className="text-red-500">*</span></label>
+                                                    <select value={analysisMethod} onChange={(e) => setAnalysisMethod(e.target.value)} disabled={!canInvestigatorEdit}
+                                                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 disabled:bg-gray-50 disabled:text-gray-500">
+                                                        <option value="">{t('oc.investigation.selectMethod')}</option>
+                                                        <option value="Fish Bone">Fish Bone</option>
+                                                        <option value="Tree Analysis">Tree Analysis</option>
+                                                        <option value="5 Whys">5 Whys</option>
+                                                        <option value="Root Cause Analysis">Root Cause Analysis</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Immediate Causes (الأسباب المباشرة) <span className="text-red-500">*</span></label>
+                                                    <textarea value={immediateCauses} onChange={(e) => setImmediateCauses(e.target.value)} rows={3} disabled={!canInvestigatorEdit}
+                                                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.underlyingCauses', 'Underlying Causes (الأسباب الكامنة)')} <span className="text-red-500">*</span></label>
+                                                    <textarea value={underlyingCauses} onChange={(e) => setUnderlyingCauses(e.target.value)} rows={4} disabled={!canInvestigatorEdit}
+                                                        placeholder={t('oc.investigation.underlyingCausesPlaceholder')}
+                                                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 min-h-[120px] resize-y focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.rootCauses', 'Root Causes (الأسباب الجذرية)')} <span className="text-red-500">*</span></label>
+                                                    <textarea value={rootCauses} onChange={(e) => setRootCauses(e.target.value)} rows={4} disabled={!canInvestigatorEdit}
+                                                        placeholder={t('oc.investigation.rootCausesPlaceholder')}
+                                                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 min-h-[120px] resize-y focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Preventive Actions (الإجراءات الوقائية) <span className="text-red-500">*</span></label>
+                                                    <textarea value={preventiveActions} onChange={(e) => setPreventiveActions(e.target.value)} rows={3} disabled={!canInvestigatorEdit}
+                                                        className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
+                                                </div>
+                                            </div>                                        <div>
+                                                <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.targetDepManager', 'Select Department Manager for CAPA Approval (تحديد مدير القسم)')} <span className="text-red-500">*</span></label>
+                                                <select value={targetDepManagerId} onChange={(e) => setTargetDepManagerId(e.target.value)} disabled={!canInvestigatorEdit}
                                                     className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 disabled:bg-gray-50 disabled:text-gray-500">
-                                                    <option value="">{t('oc.investigation.selectMethod')}</option>
-                                                    <option value="Fish Bone">Fish Bone</option>
-                                                    <option value="Tree Analysis">Tree Analysis</option>
-                                                    <option value="5 Whys">5 Whys</option>
-                                                    <option value="Root Cause Analysis">Root Cause Analysis</option>
+                                                    <option value="">{t('oc.investigation.targetDepManagerPlaceholder', 'Select Manager...')} </option>
+                                                    {routeUsers.filter(u => ['DEP_MANAGER', 'ADMIN'].includes(u.role)).map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                                    ))}
                                                 </select>
                                             </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">Immediate Causes (الأسباب المباشرة) <span className="text-red-500">*</span></label>
-                                                <textarea value={immediateCauses} onChange={(e) => setImmediateCauses(e.target.value)} rows={3} disabled={!canInvestigatorEdit}
-                                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.underlyingCauses', 'Underlying Causes (الأسباب الكامنة)')} <span className="text-red-500">*</span></label>
-                                                <textarea value={underlyingCauses} onChange={(e) => setUnderlyingCauses(e.target.value)} rows={4} disabled={!canInvestigatorEdit}
-                                                    placeholder={t('oc.investigation.underlyingCausesPlaceholder')}
-                                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 min-h-[120px] resize-y focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.rootCauses', 'Root Causes (الأسباب الجذرية)')} <span className="text-red-500">*</span></label>
-                                                <textarea value={rootCauses} onChange={(e) => setRootCauses(e.target.value)} rows={4} disabled={!canInvestigatorEdit}
-                                                    placeholder={t('oc.investigation.rootCausesPlaceholder')}
-                                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 min-h-[120px] resize-y focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-700 mb-1">Preventive Actions (الإجراءات الوقائية) <span className="text-red-500">*</span></label>
-                                                <textarea value={preventiveActions} onChange={(e) => setPreventiveActions(e.target.value)} rows={3} disabled={!canInvestigatorEdit}
-                                                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                                            </div>
-                                        </div>                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-700 mb-1">{t('oc.investigation.targetDepManager', 'Select Department Manager for CAPA Approval (تحديد مدير القسم)')} <span className="text-red-500">*</span></label>
-                                            <select value={targetDepManagerId} onChange={(e) => setTargetDepManagerId(e.target.value)} disabled={!canInvestigatorEdit}
-                                                className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-purple-500/20 disabled:bg-gray-50 disabled:text-gray-500">
-                                                <option value="">{t('oc.investigation.targetDepManagerPlaceholder', 'Select Manager...')} </option>
-                                                {routeUsers.filter(u => ['DEP_MANAGER', 'ADMIN'].includes(u.role)).map(u => (
-                                                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        
-                                        {canInvestigatorEdit && (
-                                        <div className="mt-6 pt-4 border-t border-gray-100">
-                                            {error && (
-                                                <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg text-sm font-bold shadow-sm">
-                                                    {error}
+
+                                            {canInvestigatorEdit && (
+                                                <div className="mt-6 pt-4 border-t border-gray-100">
+                                                    {error && (
+                                                        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-lg text-sm font-bold shadow-sm">
+                                                            {error}
+                                                        </div>
+                                                    )}
+                                                    <h4 className="text-sm font-bold text-gray-800 mb-3">Investigation Actions (الإجراءات)</h4>
+
+                                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                                                        <p className="text-xs text-amber-700 mb-3"><span className="font-bold">Note:</span> The 5 Incident Analysis fields above MUST be thoroughly completed before attempting to route or close the ticket below.</p>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                            <button onClick={() => setConfirmAction({ action: 'ROUTE_DEP_MANAGER', handler: () => handleSubmitInvestigation('ROUTE_DEP_MANAGER') })}
+                                                                disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod || !targetDepManagerId}
+                                                                className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                                                                {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <User size={14} />} Route to Dept Mgr
+                                                            </button>
+
+                                                            <button onClick={() => setConfirmAction({ action: 'ROUTE_HSE_MANAGER', handler: () => handleSubmitInvestigation('ROUTE_HSE_MANAGER') })}
+                                                                disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod}
+                                                                className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                                                                {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <ShieldCheck size={14} />} Route to HSE Mgr
+                                                            </button>
+
+                                                            {user?.canCloseTickets && (
+                                                                <button onClick={() => setConfirmAction({ action: 'CLOSE_TICKET', handler: () => handleSubmitInvestigation('CLOSE_TICKET') })}
+                                                                    disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod}
+                                                                    className="w-full bg-red-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                                                                    {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <XCircle size={14} />} Submit & Close
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
-                                            <h4 className="text-sm font-bold text-gray-800 mb-3">Investigation Actions (الإجراءات)</h4>
-                                            
-                                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                                                <p className="text-xs text-amber-700 mb-3"><span className="font-bold">Note:</span> The 5 Incident Analysis fields above MUST be thoroughly completed before attempting to route or close the ticket below.</p>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                    <button onClick={() => setConfirmAction({ action: 'ROUTE_DEP_MANAGER', handler: () => handleSubmitInvestigation('ROUTE_DEP_MANAGER') })} 
-                                                        disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod || !targetDepManagerId}
-                                                        className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                                                        {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <User size={14} />} Route to Dept Mgr
-                                                    </button>
-                                                    
-                                                    <button onClick={() => setConfirmAction({ action: 'ROUTE_HSE_MANAGER', handler: () => handleSubmitInvestigation('ROUTE_HSE_MANAGER') })} 
-                                                        disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod}
-                                                        className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                                                        {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <ShieldCheck size={14} />} Route to HSE Mgr
-                                                    </button>
-                                                    
-                                                    {user?.canCloseTickets && (
-                                                        <button onClick={() => setConfirmAction({ action: 'CLOSE_TICKET', handler: () => handleSubmitInvestigation('CLOSE_TICKET') })} 
-                                                            disabled={actionLoading || !immediateCauses || !preventiveActions || !underlyingCauses || !rootCauses || !analysisMethod}
-                                                            className="w-full bg-red-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-md transition-all hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <XCircle size={14} />} Submit & Close
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        )}
-                                    </>
+                                        </>
                                     )}
 
                                     {/* The Return Reason Block */}
@@ -970,7 +1328,7 @@ ${attachmentsHtml}
                                             <textarea value={investigatorReturnReason} onChange={(e) => setInvestigatorReturnReason(e.target.value)} rows={3}
                                                 placeholder="Enter reason for returning to the department rep..."
                                                 className="w-full bg-white border border-red-200 rounded-lg px-3 py-2 text-sm text-gray-900 mb-3 shadow-inner focus:ring-2 focus:ring-red-500/20 focus:border-red-400" />
-                                            <button onClick={() => setConfirmAction({ action: 'RETURN_TO_DEPARTMENT', handler: () => handleSubmitInvestigation('RETURN_TO_DEPARTMENT') })} 
+                                            <button onClick={() => setConfirmAction({ action: 'RETURN_TO_DEPARTMENT', handler: () => handleSubmitInvestigation('RETURN_TO_DEPARTMENT') })}
                                                 disabled={actionLoading || !investigatorReturnReason}
                                                 className="w-full bg-white border-2 border-red-200 text-red-700 font-bold py-3 rounded-xl shadow-sm hover:shadow-md transition-all hover:bg-red-50 disabled:opacity-50 flex justify-center items-center gap-2">
                                                 {actionLoading ? <Loader2 className="animate-spin inline mr-2" size={16} /> : <CornerDownRight size={16} />}

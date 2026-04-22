@@ -23,7 +23,9 @@ const {
     getOCAnalytics,
     downloadOCUserTemplate,
     importOCUsers,
-    exportOCTickets
+    exportOCTickets,
+    reporterReply,
+    submitHRAction
 } = require('../controllers/ocTicketController');
 
 // All routes require authentication
@@ -41,6 +43,9 @@ router.route('/tickets/:id')
 router.route('/tickets/:id/reporter')
     .put(protect, updateReporterSection);
 
+router.route('/tickets/:id/reporter-reply')
+    .put(protect, reporterReply);
+
 
 
 router.route('/tickets/:id/hse-action')
@@ -57,6 +62,9 @@ router.route('/tickets/:id/dep-manager-approve')
 
 router.route('/tickets/:id/final-review')
     .put(protect, finalDecision);
+
+router.route('/tickets/:id/hr-action')
+    .put(protect, submitHRAction);
 
 router.route('/tickets/:id/attachments')
     .post(protect, upload.array('files'), uploadOCAttachments);

@@ -11,7 +11,7 @@ const OC_ROLES = {
     INVESTIGATOR: ['OC_SAFETY_INVESTIGATOR'],
     HSE_MANAGER: ['OC_HSE_MANAGER'],
     HSE_CONTROLLER: ['HSE_CONTROLLER'],
-    ALL: ['OC_REPORTER', 'OC_SUPERVISOR', 'DEP_REP', 'DEP_MANAGER', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN', 'SERVICE_PROVIDER_REP']
+    ALL: ['OC_REPORTER', 'OC_SUPERVISOR', 'DEP_REP', 'DEP_MANAGER', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN', 'SERVICE_PROVIDER_REP', 'HR_REP']
 };
 
 // ---------- CREATE TICKET (Reporter only) ----------
@@ -43,14 +43,14 @@ const createOCTicket = async (req, res) => {
         // Generate Ticket Number
         const ticketCount = await prisma.ticket.count();
         let seqOffset = 1;
-        let ticketNo = `OC-${new Date().getFullYear()}-${String(ticketCount + seqOffset).padStart(5, '0')}`;
+        let ticketNo = `IC-${new Date().getFullYear()}-${String(ticketCount + seqOffset).padStart(5, '0')}`;
         while (await prisma.ticket.findUnique({ where: { ticketNo } })) {
             seqOffset++;
-            ticketNo = `OC-${new Date().getFullYear()}-${String(ticketCount + seqOffset).padStart(5, '0')}`;
+            ticketNo = `IC-${new Date().getFullYear()}-${String(ticketCount + seqOffset).padStart(5, '0')}`;
         }
 
         // Map severity to priority enum
-        const priorityMap = { MINOR: 'MINOR', MEDIUM: 'MEDIUM', HIGH: 'HIGH', CRITICAL: 'CRITICAL' };
+        const priorityMap = { MINOR: 'LOW', LOW: 'LOW', GREEN: 'LOW', MEDIUM: 'MEDIUM', YELLOW: 'MEDIUM', HIGH: 'HIGH', RED: 'HIGH', CRITICAL: 'CRITICAL' };
 
         // Map incidentType to TicketType enum
         const typeMap = {
@@ -62,7 +62,7 @@ const createOCTicket = async (req, res) => {
         const calculateDueDate = (sev) => {
             const now = new Date();
             if (sev === 'RED' || sev === 'CRITICAL') return new Date(now.getTime() + 24 * 60 * 60 * 1000);
-            if (sev === 'YELMINOR' || sev === 'HIGH') return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            if (sev === 'YELLOW' || sev === 'MINOR' || sev === 'HIGH') return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
             return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
         };
 
@@ -185,22 +185,47 @@ const getOCTickets = async (req, res) => {
                 { assignedToId: userId },
                 { serviceProviderId: req.user.serviceProviderId }
             ].filter(Boolean);
+        } else if (role === 'HR_REP') {
+            where.OR = [
+                { status: 'PENDING_HR' },
+                { assignedToId: userId }
+            ];
         } else {
             return res.status(403).json({ message: 'Not authorized for off-circuit tickets' });
         }
 
-        const tickets = await prisma.ticket.findMany({
-            where,
-            include: {
-                createdBy: { select: { name: true, role: true } },
-                assignedTo: { select: { name: true, role: true } },
-                offCircuitReport: true,
-                _count: { select: { attachments: true } }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        // Pagination — Point #17
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
 
-        res.json(tickets);
+        const [tickets, total] = await Promise.all([
+            prisma.ticket.findMany({
+                where,
+                include: {
+                    createdBy: { select: { name: true, role: true } },
+                    assignedTo: { select: { name: true, role: true } },
+                    offCircuitReport: true,
+                    _count: { select: { attachments: true } }
+                },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.ticket.count({ where })
+        ]);
+
+        const stats = {
+            total,
+            open: await prisma.ticket.count({ where: { ...where, status: { in: ['OPEN', 'SUPERVISOR_REVIEW', 'HSE_REVIEW', 'DEP_REP_RESPONDED'] } } }),
+            assigned: await prisma.ticket.count({ where: { ...where, status: { notIn: ['CLOSED', 'CLOSED_REJECTED'] } } }),
+            responded: await prisma.ticket.count({ where: { ...where, status: 'DEP_REP_RESPONDED' } }),
+            investigation: await prisma.ticket.count({ where: { ...where, status: 'UNDER_INVESTIGATION' } }),
+            closed: await prisma.ticket.count({ where: { ...where, status: { in: ['CLOSED', 'CLOSED_REJECTED'] } } }),
+            injuries: await prisma.ticket.count({ where: { ...where, hasInjury: true } })
+        };
+
+        res.json({ tickets, total, page, limit, pages: Math.ceil(total / limit), stats });
     } catch (error) {
         console.error('Get OC Tickets Error:', error);
         res.status(500).json({ message: 'Error fetching tickets' });
@@ -453,7 +478,7 @@ const hseControllerAction = async (req, res) => {
             return res.status(403).json({ message: 'Only HSE Controllers can route tickets' });
         }
 
-        const { 
+        const {
             action, notes, targetId, serviceProviderId, priority, severityLevel,
             isLTI, isMaterialDamage, isRegulatoryReportable, isNearMiss,
             riskLikelihood, riskConsequence, riskScore, riskLevel,
@@ -463,7 +488,7 @@ const hseControllerAction = async (req, res) => {
         const baseUpdateData = {};
         if (priority) baseUpdateData.priority = priority;
         if (severityLevel) baseUpdateData.severityLevel = severityLevel;
-        
+
         const controllerAssessmentData = {
             isLTI: isLTI || false,
             isMaterialDamage: isMaterialDamage || false,
@@ -542,7 +567,7 @@ const hseControllerAction = async (req, res) => {
 
         if (action === 'ROUTE_TO_USER') {
             if (!targetId) return res.status(400).json({ message: 'Target user ID is required.' });
-            
+
             const targetUser = await prisma.user.findUnique({ where: { id: targetId } });
             if (!targetUser) return res.status(404).json({ message: 'Target user not found.' });
 
@@ -605,17 +630,37 @@ const departmentRepAction = async (req, res) => {
             return res.status(400).json({ message: 'Ticket is not awaiting department response' });
         }
 
-        const { immediateCauses, preventiveActions } = req.body;
+        // IDOR Protection: Verify DEP_REP owns this ticket (assigned or same department)
+        if (role === 'DEP_REP') {
+            const isAssigned = ticket.assignedToId === req.user.id;
+            const isSameDept = ticket.departmentId && ticket.departmentId === req.user.repDepartmentId;
+            if (!isAssigned && !isSameDept) {
+                return res.status(403).json({ message: 'You are not authorized to respond to this ticket' });
+            }
+        }
+
+        const { immediateCauses, preventiveActions, gosiNotificationDate, gosiReferenceNumber, hrNotes } = req.body;
 
         if (ticket.offCircuitReport) {
+            const updateData = {
+                immediateCauses,
+                preventiveActions,
+                depRepFilledBy: req.user.name,
+                depRepFilledAt: new Date()
+            };
+
+            // If ticket has injury and GOSI data is provided, save it
+            if (ticket.hasInjury && gosiNotificationDate && gosiReferenceNumber) {
+                updateData.hrGosiNotificationDate = new Date(gosiNotificationDate);
+                updateData.hrGosiReferenceNumber = gosiReferenceNumber;
+                updateData.hrNotes = hrNotes || null;
+                updateData.hrFilledBy = req.user.name;
+                updateData.hrFilledAt = new Date();
+            }
+
             await prisma.offCircuitReport.update({
                 where: { ticketId: ticket.id },
-                data: {
-                    immediateCauses,
-                    preventiveActions,
-                    depRepFilledBy: req.user.name,
-                    depRepFilledAt: new Date()
-                }
+                data: updateData
             });
         }
 
@@ -678,7 +723,7 @@ const submitInvestigation = async (req, res) => {
         // 1. Action: RETURN_TO_DEPARTMENT
         if (action === 'RETURN_TO_DEPARTMENT') {
             if (!returnReason) return res.status(400).json({ message: 'Return reason is strictly required.' });
-            
+
             await prisma.ticket.update({
                 where: { id: ticket.id },
                 data: {
@@ -704,8 +749,8 @@ const submitInvestigation = async (req, res) => {
         if (!rootCauses?.trim()) missingFields.push('Root Causes');
         if (!underlyingCauses?.trim()) missingFields.push('Underlying Causes');
 
-        if (missingFields.length > 0) { 
-            return res.status(400).json({ message: `Missing required Analysis fields: ${missingFields.join(', ')}` }); 
+        if (missingFields.length > 0) {
+            return res.status(400).json({ message: `Missing required Analysis fields: ${missingFields.join(', ')}` });
         }
 
         if (ticket.offCircuitReport) {
@@ -982,7 +1027,7 @@ const uploadOCAttachments = async (req, res) => {
 // ==========================================
 
 const OC_ADMIN_ROLES = ['OC_HSE_MANAGER', 'ADMIN', 'HSE_CONTROLLER'];
-const OC_USER_ROLES = ['OC_REPORTER', 'HSE_CONTROLLER', 'OC_HSE_MANAGER', 'HR_REP', 'PROCUREMENT_REP', 'DEP_REP', 'DEP_MANAGER', 'SAFETY_MANAGER', 'SERVICE_PROVIDER_REP'];
+const OC_USER_ROLES = ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'HSE_CONTROLLER', 'OC_HSE_MANAGER', 'HR_REP', 'PROCUREMENT_REP', 'DEP_REP', 'DEP_MANAGER', 'SAFETY_MANAGER', 'SERVICE_PROVIDER_REP'];
 
 const getOCUsers = async (req, res) => {
     try {
@@ -994,7 +1039,6 @@ const getOCUsers = async (req, res) => {
             select: {
                 id: true, name: true, email: true, role: true, userGroup: true,
                 status: true, createdAt: true, mobile: true,
-                canViewAnalytics: true,  canManageUsers: true,
                 canCloseTickets: true, canPerformRCA: true
             },
             orderBy: { createdAt: 'desc' }
@@ -1011,7 +1055,7 @@ const createOCUser = async (req, res) => {
         if (!OC_ADMIN_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        const { name, email, role, mobile, canManageUsers, canCloseTickets, canPerformRCA } = req.body;
+        const { name, email, role, mobile, canCloseTickets, canPerformRCA } = req.body;
         if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
         if (!OC_USER_ROLES.includes(role)) return res.status(400).json({ message: 'Invalid OC role' });
 
@@ -1024,7 +1068,6 @@ const createOCUser = async (req, res) => {
                 userGroup: 'OFF_CIRCUIT',
                 mobile: mobile || null,
                 status: 'ACTIVE',
-                canManageUsers: canManageUsers || false,
                 canCloseTickets: canCloseTickets || false,
                 canPerformRCA: canPerformRCA || false
             }
@@ -1041,13 +1084,12 @@ const updateOCUser = async (req, res) => {
         if (!OC_ADMIN_ROLES.includes(req.user.role)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
-        const { name, email, role, mobile, canManageUsers, canCloseTickets, canPerformRCA } = req.body;
+        const { name, email, role, mobile, canCloseTickets, canPerformRCA } = req.body;
         const updateData = {};
         if (name) updateData.name = name;
         if (email) updateData.email = email;
         if (role && OC_USER_ROLES.includes(role)) updateData.role = role;
         if (mobile !== undefined) updateData.mobile = mobile;
-        if (typeof canManageUsers === 'boolean') updateData.canManageUsers = canManageUsers;
         if (typeof canCloseTickets === 'boolean') updateData.canCloseTickets = canCloseTickets;
         if (typeof canPerformRCA === 'boolean') updateData.canPerformRCA = canPerformRCA;
         updateData.userGroup = 'OFF_CIRCUIT';
@@ -1154,7 +1196,7 @@ const getOCAnalytics = async (req, res) => {
         });
         const topLocations = Object.keys(locMap)
             .map(k => ({ name: k.substring(0, 25), count: locMap[k] }))
-            .sort((a,b) => b.count - a.count)
+            .sort((a, b) => b.count - a.count)
             .slice(0, 5);
 
         // Top reporters
@@ -1170,6 +1212,34 @@ const getOCAnalytics = async (req, res) => {
         const topReporters = topReportersData.map(t => {
             const u = reporters.find(r => r.id === t.createdById);
             return { name: u?.name || 'Unknown', role: u?.role || '', count: t._count.id };
+        });
+
+        // Top Departments
+        const topDepartmentsData = await prisma.ticket.groupBy({
+            by: ['departmentId'], _count: { id: true },
+            where: { ...where, departmentId: { not: null } }, orderBy: { _count: { id: 'desc' } }, take: 5
+        });
+        const deptIds = topDepartmentsData.map(t => t.departmentId).filter(Boolean);
+        const departments = await prisma.department.findMany({
+            where: { id: { in: deptIds } }, select: { id: true, name: true }
+        });
+        const topDepartments = topDepartmentsData.map(t => {
+            const d = departments.find(d => d.id === t.departmentId);
+            return { name: d?.name || 'Unknown', count: t._count.id };
+        });
+
+        // Top Providers
+        const topProvidersData = await prisma.ticket.groupBy({
+            by: ['serviceProviderId'], _count: { id: true },
+            where: { ...where, serviceProviderId: { not: null } }, orderBy: { _count: { id: 'desc' } }, take: 5
+        });
+        const providerIds = topProvidersData.map(t => t.serviceProviderId).filter(Boolean);
+        const providers = await prisma.serviceProvider.findMany({
+            where: { id: { in: providerIds } }, select: { id: true, name: true }
+        });
+        const topProviders = topProvidersData.map(t => {
+            const p = providers.find(p => p.id === t.serviceProviderId);
+            return { name: p?.name || 'Unknown', count: t._count.id };
         });
 
         // Average closure time
@@ -1224,18 +1294,37 @@ const fs = require('fs');
 const downloadOCUserTemplate = async (req, res) => {
     try {
         const worksheet = xlsx.utils.json_to_sheet([
-            { name: 'Ahmed Ali', email: 'ahmed@company.com', mobile: '+966500000000', role: 'OC_REPORTER' },
-            { name: 'Sara Hassan', email: 'sara@company.com', mobile: '+966500000001', role: 'OC_SUPERVISOR' },
+            { name: 'Ahmed Ali', email: 'ahmed@company.com', mobile: '+966500000000', role: 'REPORTER' },
+            { name: 'Sara Hassan', email: 'sara@company.com', mobile: '+966500000001', role: 'HSE_CONTROLLER' },
+            { name: 'Mohammed Khalid', email: 'mohammed@company.com', mobile: '+966500000002', role: 'HSE_MANAGER' },
+        ]);
+        // Add a "Roles Guide" sheet
+        const rolesGuide = xlsx.utils.json_to_sheet([
+            { Role: 'REPORTER', Description: 'Can create incident reports' },
+            { Role: 'HSE_CONTROLLER', Description: 'Reviews and routes tickets' },
+            { Role: 'HSE_MANAGER', Description: 'Final review and closure' },
         ]);
         const workbook = xlsx.utils.book_new();
-        xlsx.utils.book_append_sheet(workbook, worksheet, 'OC Users');
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Users');
+        xlsx.utils.book_append_sheet(workbook, rolesGuide, 'Roles Guide');
         const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-        res.setHeader('Content-Disposition', 'attachment; filename="oc_users_template.xlsx"');
+        res.setHeader('Content-Disposition', 'attachment; filename="users_template.xlsx"');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.send(buffer);
     } catch (error) {
         res.status(500).json({ message: 'Failed to generate template' });
     }
+};
+
+// Role name mapping: accepts short names and maps to actual DB enum values
+const ROLE_MAP = {
+    'REPORTER': 'OC_REPORTER',
+    'OC_REPORTER': 'OC_REPORTER',
+    'CONTROLLER': 'HSE_CONTROLLER',
+    'HSE_CONTROLLER': 'HSE_CONTROLLER',
+    'HSE_MANAGER': 'OC_HSE_MANAGER',
+    'OC_HSE_MANAGER': 'OC_HSE_MANAGER',
+    'MANAGER': 'OC_HSE_MANAGER',
 };
 
 const importOCUsers = async (req, res) => {
@@ -1250,22 +1339,23 @@ const importOCUsers = async (req, res) => {
 
         let added = 0, skipped = 0;
         const errors = [];
-        const validRoles = ['OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER'];
 
         for (const row of data) {
             const email = row['email']?.toString().trim();
             const name = row['name']?.toString().trim();
             const mobile = row['mobile']?.toString().trim();
-            const role = row['role']?.toString().trim();
+            const rawRole = row['role']?.toString().trim().toUpperCase();
 
             if (!email || !name) { errors.push(`Missing name/email: ${JSON.stringify(row)}`); continue; }
-            if (!validRoles.includes(role)) { errors.push(`Invalid role for ${email}: ${role}`); continue; }
+            
+            const mappedRole = ROLE_MAP[rawRole];
+            if (!mappedRole) { errors.push(`Invalid role for ${email}: "${rawRole}". Valid: REPORTER, HSE_CONTROLLER, HSE_MANAGER`); continue; }
 
             const existing = await prisma.user.findUnique({ where: { email } });
             if (existing) { skipped++; errors.push(`Exists: ${email}`); continue; }
 
             await prisma.user.create({
-                data: { name, email, password: '', role, userGroup: 'OFF_CIRCUIT', mobile: mobile || null, status: 'ACTIVE' }
+                data: { name, email, password: '', role: mappedRole, userGroup: 'OFF_CIRCUIT', mobile: mobile || null, status: 'ACTIVE' }
             });
             added++;
         }
@@ -1285,7 +1375,7 @@ const exportOCTickets = async (req, res) => {
 
         const { startDate, endDate } = req.query;
         let whereClause = { userGroup: 'OFF_CIRCUIT' };
-        
+
         if (startDate && endDate) {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
@@ -1366,6 +1456,141 @@ const exportOCTickets = async (req, res) => {
         res.status(500).json({ message: 'Failed to export tickets' });
     }
 };
+// ---------- REPORTER REPLY (when ticket is RETURNED_TO_REPORTER) ----------
+const reporterReply = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { replyText } = req.body;
+        const userId = req.user.id;
+
+        const ticket = await prisma.ticket.findUnique({
+            where: { id },
+            include: { offCircuitReport: true }
+        });
+
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+        if (ticket.status !== 'RETURNED_TO_REPORTER') {
+            return res.status(400).json({ message: 'Ticket is not in RETURNED_TO_REPORTER status' });
+        }
+        if (ticket.createdById !== userId && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Only the original reporter can reply' });
+        }
+        if (!replyText || !replyText.trim()) {
+            return res.status(400).json({ message: 'Reply text is required' });
+        }
+
+        // Log the reply as an activity
+        await prisma.activityLog.create({
+            data: {
+                ticketId: id,
+                actorId: userId,
+                action: 'REPORTER_REPLY',
+                details: replyText.trim()
+            }
+        });
+
+        // Transition ticket back to HSE_REVIEW
+        await prisma.ticket.update({
+            where: { id },
+            data: { status: 'HSE_REVIEW' }
+        });
+
+        // Log the status change
+        await prisma.activityLog.create({
+            data: {
+                ticketId: id,
+                actorId: userId,
+                action: 'STATUS_CHANGE',
+                details: 'Reporter replied. Ticket returned to HSE Review.'
+            }
+        });
+
+        const updated = await prisma.ticket.findUnique({
+            where: { id },
+            include: {
+                offCircuitReport: true,
+                createdBy: { select: { id: true, name: true, role: true, email: true } },
+                assignedTo: { select: { id: true, name: true, role: true } },
+                activityLogs: { include: { actor: { select: { name: true, role: true } } }, orderBy: { createdAt: 'desc' } },
+                attachments: true
+            }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Reporter reply error:', error);
+        res.status(500).json({ message: 'Failed to submit reply' });
+    }
+};
+
+// ---------- HR GOSI ACTION (when ticket is PENDING_HR) ----------
+const submitHRAction = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { gosiNotificationDate, gosiReferenceNumber, hrNotes } = req.body;
+        const userRole = req.user.role;
+
+        if (userRole !== 'HR_REP' && userRole !== 'ADMIN') {
+            return res.status(403).json({ message: 'Only HR representatives can submit GOSI details' });
+        }
+
+        const ticket = await prisma.ticket.findUnique({
+            where: { id },
+            include: { offCircuitReport: true }
+        });
+
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+        if (ticket.status !== 'PENDING_HR') {
+            return res.status(400).json({ message: 'Ticket is not in PENDING_HR status' });
+        }
+        if (!gosiNotificationDate || !gosiReferenceNumber) {
+            return res.status(400).json({ message: 'GOSI notification date and reference number are required' });
+        }
+
+        // Update OffCircuitReport with HR GOSI data
+        await prisma.offCircuitReport.update({
+            where: { ticketId: id },
+            data: {
+                hrGosiNotificationDate: new Date(gosiNotificationDate),
+                hrGosiReferenceNumber: gosiReferenceNumber,
+                hrNotes: hrNotes || null,
+                hrFilledBy: req.user.name,
+                hrFilledAt: new Date()
+            }
+        });
+
+        // Transition to HSE_REVIEW
+        await prisma.ticket.update({
+            where: { id },
+            data: { status: 'HSE_REVIEW' }
+        });
+
+        await prisma.activityLog.create({
+            data: {
+                ticketId: id,
+                actorId: req.user.id,
+                action: 'HR_GOSI_SUBMITTED',
+                details: `GOSI Reference: ${gosiReferenceNumber}, Date: ${gosiNotificationDate}`
+            }
+        });
+
+        const updated = await prisma.ticket.findUnique({
+            where: { id },
+            include: {
+                offCircuitReport: true,
+                createdBy: { select: { id: true, name: true, role: true, email: true } },
+                assignedTo: { select: { id: true, name: true, role: true } },
+                activityLogs: { include: { actor: { select: { name: true, role: true } } }, orderBy: { createdAt: 'desc' } },
+                attachments: true
+            }
+        });
+
+        res.json(updated);
+    } catch (error) {
+        console.error('HR Action error:', error);
+        res.status(500).json({ message: 'Failed to submit HR action' });
+    }
+};
 
 module.exports = {
     createOCTicket,
@@ -1386,5 +1611,7 @@ module.exports = {
     getOCAnalytics,
     downloadOCUserTemplate,
     importOCUsers,
-    exportOCTickets
+    exportOCTickets,
+    reporterReply,
+    submitHRAction
 };

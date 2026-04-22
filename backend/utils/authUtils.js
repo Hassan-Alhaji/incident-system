@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
 const generateToken = (id, role) => {
-    return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '24h' });
 };
 
 const hashPassword = async (password) => {

@@ -170,6 +170,7 @@
   },
   "priority": {
     "LOW": "Low",
+    "MINOR": "Green (Minor)",
     "MEDIUM": "Medium",
     "HIGH": "High",
     "CRITICAL": "Critical",
@@ -203,8 +204,8 @@
       "settings": "Settings"
     },
     "login": {
-      "title": "Off-Circuit Incident Portal",
-      "subtitle": "Sign in to report and manage incidents",
+      "title": "Incident Portal",
+      "subtitle": "",
       "error": "Login failed. Please try again.",
       "invalidCode": "Invalid verification code."
     },
@@ -327,7 +328,7 @@
       "departmentResponse": "Department Response",
       "depManagerApprove": "Department Manager Endorsement",
       "pendingDepRep": "Awaiting Department Representative response...",
-      "sendToSafetyContext": "Submit Department Response",
+      "sendToSafetyContext": "Submit it to HSE",
       "action": "Action",
       "notes": "Notes",
       "notesPlaceholder": "Enter instructions or reasons...",

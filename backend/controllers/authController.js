@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const { generateToken } = require('../utils/authUtils');
 const { sendOTP } = require('../utils/emailService');
+const crypto = require('crypto');
 
 // @desc    Request OTP for login
 // @route   POST /api/auth/otp/request
@@ -19,13 +20,14 @@ const requestEmailOtp = async (req, res) => {
         let user = await prisma.user.findUnique({ where: { email } });
 
         // Auto-create Admin if missing
-        if (!user && email === 'al3ren0@gmail.com') {
+        // Auto-create Admin only if ADMIN_EMAIL is configured in .env
+        if (!user && process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL) {
             user = await prisma.user.create({
                 data: {
                     email,
                     name: 'Admin',
                     role: 'ADMIN',
-                    password: '', // No password needed
+                    password: '',
                 }
             });
         }
@@ -43,7 +45,7 @@ const requestEmailOtp = async (req, res) => {
         }
 
         step = 3; // Generate OTP
-        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
+        const otpCode = crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
         step = 4; // Update Database (Critical Step)
@@ -66,10 +68,10 @@ const requestEmailOtp = async (req, res) => {
             email
         };
 
-        // Only expose testCode in development/staging environments (or for testing)
-        // if (process.env.NODE_ENV !== 'production') {
+        // Only expose testCode in development (NOT production)
+        if (process.env.NODE_ENV !== 'production') {
             response.testCode = otpCode;
-        // }
+        }
 
         res.json(response);
 
@@ -127,9 +129,6 @@ const verifyEmailOtp = async (req, res) => {
             mobile: updatedUser.mobile,
             isProfileCompleted: updatedUser.isProfileCompleted,
             role: updatedUser.role,
-            canEscalate: updatedUser.canEscalate,
-            canViewAnalytics: updatedUser.canViewAnalytics,
-            canManageUsers: updatedUser.canManageUsers,
             canCloseTickets: updatedUser.canCloseTickets,
             canPerformRCA: updatedUser.canPerformRCA,
             token: generateToken(updatedUser.id, updatedUser.role),
@@ -167,7 +166,8 @@ const registerUser = async (req, res) => {
             }
         }
 
-        // Create user as OC_REPORTER
+        // Create user as OC_REPORTER with PENDING status
+        // Admin must approve before they can login
         const user = await prisma.user.create({
             data: {
                 name: `${firstName} ${lastName}`,
@@ -183,34 +183,13 @@ const registerUser = async (req, res) => {
             }
         });
 
-        // Generate OTP immediately so they can verify right away
-        const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
-        const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+        // Note: No OTP generated here — account is PENDING and user cannot login
+        // until an admin activates their account. This avoids confusing the user.
 
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { otpCode, otpExpires }
-        });
-
-        // Send OTP email
-        let sent = false;
-        try {
-            sent = await sendOTP(email, otpCode);
-        } catch (e) {
-            console.error('Email failed during registration:', e);
-        }
-
-        const response = {
-            message: 'Account created successfully. Please verify your email.',
+        res.status(201).json({
+            message: 'Account created successfully. An administrator will review and activate your account.',
             email
-        };
-
-        // Expose testCode in non-production (or testing)
-        // if (process.env.NODE_ENV !== 'production') {
-            response.testCode = otpCode;
-        // }
-
-        res.status(201).json(response);
+        });
 
     } catch (error) {
         console.error('[Auth] Register Error:', error);

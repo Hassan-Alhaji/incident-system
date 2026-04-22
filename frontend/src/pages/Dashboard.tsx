@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import { formatDate, formatDateTime } from '../utils/formatDate';
+import { getRandomSafetyTip } from '../utils/safetyTips';
 import {
  AlertTriangle, Clock, CheckCircle, Search, Filter, Eye,
  FileWarning, ShieldAlert, Flame, Zap, Activity, ChevronRight,
- XCircle, Loader2, RefreshCw, Paperclip, Plus, ClipboardList, Timer
+ XCircle, Loader2, RefreshCw, Paperclip, Plus, ClipboardList, Timer, Lightbulb
 } from 'lucide-react';
 import {
  ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip
@@ -74,13 +75,39 @@ const typeIcons: Record<string, React.ReactNode> = {
 
 const Dashboard = () => {
  const { user } = useAuth();
- const { t } = useTranslation();
+ const { t, i18n } = useTranslation();
  const navigate = useNavigate();
  const [tickets, setTickets] = useState<Ticket[]>([]);
  const [loading, setLoading] = useState(true);
  const [search, setSearch] = useState('');
  const [statusFilter, setStatusFilter] = useState('ALL');
  const [showFilters, setShowFilters] = useState(false);
+
+ const isArabic = i18n.language.startsWith('ar');
+ const currentLang: 'ar' | 'en' = isArabic ? 'ar' : 'en';
+
+ // Safety tip state with auto-rotation
+ const [safetyTip, setSafetyTip] = useState(() => getRandomSafetyTip(currentLang));
+ const [tipFade, setTipFade] = useState(true);
+
+ const rotateTip = useCallback(() => {
+  setTipFade(false);
+  setTimeout(() => {
+   setSafetyTip(getRandomSafetyTip(currentLang));
+   setTipFade(true);
+  }, 400);
+ }, [currentLang]);
+
+ // Auto-rotate tip every 12 seconds
+ useEffect(() => {
+  const interval = setInterval(rotateTip, 12000);
+  return () => clearInterval(interval);
+ }, [rotateTip]);
+
+ // Update tip when language changes
+ useEffect(() => {
+  setSafetyTip(getRandomSafetyTip(currentLang));
+ }, [currentLang]);
 
  const getTicketDuration = (ticket: any) => {
  const start = new Date(ticket.createdAt).getTime();
@@ -141,7 +168,8 @@ const Dashboard = () => {
  setLoading(true);
  try {
  const res = await api.get('/tickets');
- setTickets(res.data);
+ const data = res.data;
+ setTickets(Array.isArray(data) ? data : data.tickets || []);
  } catch (err) {
  console.error('Failed to fetch tickets:', err);
  } finally {
@@ -196,6 +224,30 @@ const Dashboard = () => {
   <button onClick={fetchTickets} className="p-2 bg-white rounded-lg border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm">
   <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
   </button>
+  </div>
+
+  {/* Safety Awareness Tip */}
+  <div
+   onClick={rotateTip}
+   className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all duration-300 group"
+   title={isArabic ? 'اضغط لنصيحة جديدة' : 'Click for a new tip'}
+  >
+   <div className="flex items-start gap-3">
+    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+     <Lightbulb size={16} className="text-amber-600" />
+    </div>
+    <div className="flex-1 min-w-0">
+     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">
+      {isArabic ? '💡 نصيحة توعوية' : '💡 Safety Tip'}
+     </p>
+     <p
+      className={`text-sm text-amber-900 leading-relaxed transition-opacity duration-300 ${tipFade ? 'opacity-100' : 'opacity-0'}`}
+      dir={isArabic ? 'rtl' : 'ltr'}
+     >
+      {safetyTip}
+     </p>
+    </div>
+   </div>
   </div>
 
   {/* Stats Chart */}

@@ -11,7 +11,7 @@ const protect = async (req, res, next) => {
 
             req.user = await prisma.user.findUnique({
                 where: { id: decoded.id },
-                select: { id: true, name: true, email: true, role: true, isIntakeEnabled: true,  mobile: true,      userGroup: true, canManageUsers: true, canCloseTickets: true, canPerformRCA: true, canViewAnalytics: true, serviceProviderId: true, repDepartmentId: true },
+                select: { id: true, name: true, email: true, role: true, isIntakeEnabled: true,  mobile: true,      userGroup: true, canCloseTickets: true, canPerformRCA: true, serviceProviderId: true, repDepartmentId: true },
             });
 
             if (!req.user) {
@@ -26,7 +26,7 @@ const protect = async (req, res, next) => {
     }
 
     if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
+        return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
 

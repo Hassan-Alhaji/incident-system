@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import {
- Plus, Trash2, Edit2, Users, CheckCircle, XCircle, AlertCircle,
+ Plus, Trash2, Edit2, Users, CheckCircle, XCircle, AlertCircle, AlertTriangle,
  Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase
 } from 'lucide-react';
 import ZoneDrawerMap from '../components/ZoneDrawerMap';
@@ -51,11 +51,16 @@ const Settings = () => {
 
  const [departments, setDepartments] = useState<any[]>([]);
  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+ const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
  const [departmentFormData, setDepartmentFormData] = useState({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] });
  const [departmentError, setDepartmentError] = useState('');
 
+ // Confirmation modal state
+ const [confirmModal, setConfirmModal] = useState<{title: string, message: string, onConfirm: () => void} | null>(null);
+
  const [serviceProviders, setServiceProviders] = useState<any[]>([]);
  const [showProviderModal, setShowProviderModal] = useState(false);
+ const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
  const [providerFormData, setProviderFormData] = useState({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] });
  const [providerError, setProviderError] = useState('');
 
@@ -82,28 +87,57 @@ const Settings = () => {
  catch (err: any) { setZoneError(err.response?.data?.error || 'Failed to create zone'); }
  };
  const deleteZone = async (id: string) => {
- if (!confirm('Deactivate this zone?')) return;
- try { await api.delete(`/zones/${id}`); fetchZones(); } catch (err) { alert('Failed'); }
+ setConfirmModal({ title: 'Delete Zone (حذف المنطقة)', message: 'Are you sure you want to delete this zone? This action cannot be undone.\n\nهل أنت متأكد من حذف هذه المنطقة؟ لا يمكن التراجع عن هذا الإجراء.', onConfirm: async () => { try { await api.delete(`/zones/${id}`); fetchZones(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); } setConfirmModal(null); } });
  };
 
  const handleDepartmentSubmit = async () => {
  setDepartmentError('');
- try { await api.post('/departments', departmentFormData); setShowDepartmentModal(false); fetchDepartments(); } 
- catch (err: any) { setDepartmentError(err.response?.data?.message || 'Failed to create department'); }
+ try {
+   if (editingDepartmentId) {
+     await api.put(`/departments/${editingDepartmentId}`, departmentFormData);
+   } else {
+     await api.post('/departments', departmentFormData);
+   }
+   setShowDepartmentModal(false); setEditingDepartmentId(null); fetchDepartments();
+ } catch (err: any) { setDepartmentError(err.response?.data?.message || 'Failed'); }
+ };
+ const openEditDepartment = (d: any) => {
+   setEditingDepartmentId(d.id);
+   setDepartmentFormData({
+     nameEn: d.name || '', nameAr: d.nameAr || '',
+     manager: { name: d.manager?.name || '', email: d.manager?.email || '', mobile: d.manager?.mobile || '' },
+     representatives: d.representatives?.length > 0 ? d.representatives.map((r: any) => ({ name: r.name || '', email: r.email || '', mobile: r.mobile || '' })) : [{ name: '', email: '', mobile: '' }]
+   });
+   setDepartmentError('');
+   setShowDepartmentModal(true);
  };
  const deleteDepartment = async (id: string) => {
- if (!confirm('Delete this department?')) return;
- try { await api.delete(`/departments/${id}`); fetchDepartments(); } catch (err) { alert('Failed'); }
+ setConfirmModal({ title: 'Delete Department (حذف القسم)', message: 'Are you sure you want to delete this department? All related representatives will be unlinked.\n\nهل أنت متأكد من حذف هذا القسم؟ سيتم فصل جميع الممثلين المرتبطين.', onConfirm: async () => { try { await api.delete(`/departments/${id}`); fetchDepartments(); } catch (err: any) { alert(err.response?.data?.message || 'Failed to delete department'); } setConfirmModal(null); } });
  };
 
  const handleProviderSubmit = async () => {
  setProviderError('');
- try { await api.post('/service-providers', providerFormData); setShowProviderModal(false); fetchServiceProviders(); } 
- catch (err: any) { setProviderError(err.response?.data?.message || 'Failed to create provider'); }
+ try {
+   if (editingProviderId) {
+     await api.put(`/service-providers/${editingProviderId}`, providerFormData);
+   } else {
+     await api.post('/service-providers', providerFormData);
+   }
+   setShowProviderModal(false); setEditingProviderId(null); fetchServiceProviders();
+ } catch (err: any) { setProviderError(err.response?.data?.message || 'Failed'); }
+ };
+ const openEditProvider = (sp: any) => {
+   setEditingProviderId(sp.id);
+   setProviderFormData({
+     name: sp.name || '', commercialRegistrationNumber: sp.commercialRegistrationNumber || '',
+     responsibleDepartmentId: sp.departmentId || sp.department?.id || '',
+     representatives: sp.representatives?.length > 0 ? sp.representatives.map((r: any) => ({ name: r.name || '', email: r.email || '', mobile: r.mobile || '' })) : [{ name: '', email: '', mobile: '' }]
+   });
+   setProviderError('');
+   setShowProviderModal(true);
  };
  const deleteProvider = async (id: string) => {
- if (!confirm('Delete provider?')) return;
- try { await api.delete(`/service-providers/${id}`); fetchServiceProviders(); } catch (err) { alert('Failed'); }
+ setConfirmModal({ title: 'Delete Provider (حذف المزود)', message: 'Are you sure you want to delete this service provider?\n\nهل أنت متأكد من حذف مزود الخدمة؟', onConfirm: async () => { try { await api.delete(`/service-providers/${id}`); fetchServiceProviders(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); } setConfirmModal(null); } });
  };
 
  const fetchUsers = async () => {
@@ -151,15 +185,11 @@ const Settings = () => {
  };
 
  const handleDelete = async (id: string) => {
- if (!confirm(t('oc.settings.confirmDelete'))) return;
- try {
- await api.delete(`/users/${id}`);
- setSuccess(t('oc.settings.userDeleted'));
- fetchUsers();
- setTimeout(() => setSuccess(''), 3000);
- } catch (err: any) {
- setError(err.response?.data?.message || 'Delete failed');
- }
+ setConfirmModal({ title: 'Delete User (حذف المستخدم)', message: 'Are you sure you want to delete this user? This action cannot be undone.\n\nهل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.', onConfirm: async () => {
+   try { await api.delete(`/users/${id}`); setSuccess(t('oc.settings.userDeleted')); fetchUsers(); setTimeout(() => setSuccess(''), 3000); }
+   catch (err: any) { setError(err.response?.data?.message || 'Delete failed'); }
+   setConfirmModal(null);
+ }});
  };
 
  const handleToggleStatus = async (id: string, currentStatus: string) => {
@@ -536,7 +566,7 @@ const Settings = () => {
  <div className="space-y-4 animate-in fade-in">
  <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
  <div className="flex items-center gap-3"><Building className="text-blue-500" /><div><h3 className="font-bold text-gray-600">Departments Management</h3><p className="text-base text-gray-800">View and configure system departments.</p></div></div>
- <button onClick={() => { setDepartmentError(''); setDepartmentFormData({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] }); setShowDepartmentModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Department</button>
+ <button onClick={() => { setEditingDepartmentId(null); setDepartmentError(''); setDepartmentFormData({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] }); setShowDepartmentModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Department</button>
  </div>
  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
  <table className="w-full text-left text-base">
@@ -550,7 +580,7 @@ const Settings = () => {
  <td className="px-4 py-3 text-gray-600">{d.nameAr || '-'}</td>
  <td className="px-4 py-3 text-emerald-400">{d.manager?.name || 'N/A'}</td>
  <td className="px-4 py-3 text-gray-800">{d.representatives?.length || 0}</td>
- <td className="px-4 py-3 text-right"><button onClick={() => deleteDepartment(d.id)} className="text-gray-800 hover:text-red-400"><Trash2 size={16} /></button></td>
+ <td className="px-4 py-3 text-right flex items-center justify-end gap-2"><button onClick={() => openEditDepartment(d)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-blue-500 hover:border-blue-400 transition-all" title="Edit"><Edit2 size={14} /></button><button onClick={() => deleteDepartment(d.id)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-400 hover:border-red-400 transition-all" title="Delete"><Trash2 size={14} /></button></td>
  </tr>
  ))}
  </tbody>
@@ -564,12 +594,12 @@ const Settings = () => {
  <div className="space-y-4 animate-in fade-in">
  <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
  <div className="flex items-center gap-3"><Briefcase className="text-blue-500" /><div><h3 className="font-bold text-gray-600">Service Providers</h3><p className="text-base text-gray-800">Manage Service Providers and Blacklisting.</p></div></div>
- <button onClick={() => { setProviderError(''); setProviderFormData({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Provider</button>
+ <button onClick={() => { setEditingProviderId(null); setProviderError(''); setProviderFormData({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Provider</button>
  </div>
  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
  <table className="w-full text-left text-base">
  <thead className="bg-white text-gray-800 text-base">
- <tr><th className="px-4 py-3">CR Number</th><th className="px-4 py-3">Provider Name</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-right">Status</th></tr>
+ <tr><th className="px-4 py-3">CR Number</th><th className="px-4 py-3">Provider Name</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-right">Action</th></tr>
  </thead>
  <tbody className="divide-y divide-slate-700/50 text-gray-800">
  {serviceProviders.map(sp => (
@@ -577,17 +607,21 @@ const Settings = () => {
  <td className="px-4 py-3 font-mono text-gray-800">{sp.commercialRegistrationNumber}</td>
  <td className="px-4 py-3 font-bold text-gray-600">{sp.name}</td>
  <td className="px-4 py-3 text-gray-800">{sp.department?.name || 'N/A'}</td>
- <td className="px-4 py-3 text-right">
- <button onClick={async () => {
+ <td className="px-4 py-3 text-center">
+ <button onClick={() => {
  const newStatus = sp.status === 'BLACKLISTED' ? 'ACTIVE' : 'BLACKLISTED';
- if (confirm(`Change status to ${newStatus}?`)) {
- await api.patch(`/service-providers/${sp.id}/status`, { status: newStatus });
- fetchServiceProviders();
- }
+ setConfirmModal({ title: `Change Status (تغيير الحالة)`, message: `Change provider status to ${newStatus}?\n\nتغيير حالة المزود إلى ${newStatus === 'BLACKLISTED' ? 'قائمة سوداء' : 'نشط'}?`, onConfirm: async () => {
+ try { await api.patch(`/service-providers/${sp.id}/status`, { status: newStatus }); fetchServiceProviders(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); }
+ setConfirmModal(null);
+ }});
  }}
  className={`px-3 py-1 rounded text-base font-bold transition-all ${sp.status === 'BLACKLISTED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
  {sp.status}
  </button>
+ </td>
+ <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
+ <button onClick={() => openEditProvider(sp)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-blue-500 hover:border-blue-400 transition-all" title="Edit"><Edit2 size={14} /></button>
+ <button onClick={() => deleteProvider(sp.id)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-400 hover:border-red-400 transition-all" title="Delete"><Trash2 size={14} /></button>
  </td>
  </tr>
  ))}
@@ -625,7 +659,7 @@ const Settings = () => {
  {showDepartmentModal && (
  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
  <div className="bg-white border border-gray-200 rounded-2xl max-w-2xl w-full p-6 my-8">
- <div className="flex justify-between items-center mb-5 border-b border-gray-200 pb-3"><h3 className="text-lg font-bold text-gray-800">Add Department (Auto-Provisions Users)</h3><button onClick={() => setShowDepartmentModal(false)} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
+ <div className="flex justify-between items-center mb-5 border-b border-gray-200 pb-3"><h3 className="text-lg font-bold text-gray-800">{editingDepartmentId ? 'Edit Department (تعديل القسم)' : 'Add Department (Auto-Provisions Users)'}</h3><button onClick={() => { setShowDepartmentModal(false); setEditingDepartmentId(null); }} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
  <div className="space-y-6">
  {departmentError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{departmentError}</div>}
  
@@ -664,7 +698,7 @@ const Settings = () => {
  </div>
  </div>
  
- <button onClick={handleDepartmentSubmit} disabled={!departmentFormData.nameEn} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">Create Department & Provision Users</button>
+ <button onClick={handleDepartmentSubmit} disabled={!departmentFormData.nameEn} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">{editingDepartmentId ? 'Update Department (تحديث القسم)' : 'Create Department & Provision Users'}</button>
  </div>
  </div>
  </div>
@@ -674,7 +708,7 @@ const Settings = () => {
  {showProviderModal && (
  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
  <div className="bg-white border border-gray-200 rounded-2xl max-w-2xl w-full p-6 my-8">
- <div className="flex justify-between items-center mb-5 border-b border-gray-200 pb-3"><h3 className="text-lg font-bold text-gray-800">Add Service Provider (Auto-Provisions Users)</h3><button onClick={() => setShowProviderModal(false)} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
+ <div className="flex justify-between items-center mb-5 border-b border-gray-200 pb-3"><h3 className="text-lg font-bold text-gray-800">{editingProviderId ? 'Edit Service Provider (تعديل المزود)' : 'Add Service Provider (Auto-Provisions Users)'}</h3><button onClick={() => { setShowProviderModal(false); setEditingProviderId(null); }} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
  <div className="space-y-6">
  {providerError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{providerError}</div>}
  
@@ -714,7 +748,33 @@ const Settings = () => {
  </div>
  </div>
  
- <button onClick={handleProviderSubmit} disabled={!providerFormData.name || !providerFormData.commercialRegistrationNumber || !providerFormData.responsibleDepartmentId} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">Create Provider & Provision Users</button>
+ <button onClick={handleProviderSubmit} disabled={!providerFormData.name || !providerFormData.commercialRegistrationNumber || !providerFormData.responsibleDepartmentId} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">{editingProviderId ? 'Update Provider (تحديث المزود)' : 'Create Provider & Provision Users'}</button>
+ </div>
+ </div>
+ </div>
+ )}
+
+
+ {/* Confirmation Modal */}
+ {confirmModal && (
+ <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+ <div className="bg-white border border-gray-200 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-in fade-in zoom-in">
+ <div className="flex flex-col items-center text-center">
+ <div className="w-14 h-14 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center mb-4">
+ <AlertTriangle className="text-red-500" size={28} />
+ </div>
+ <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmModal.title}</h3>
+ <p className="text-sm text-gray-600 whitespace-pre-line mb-6">{confirmModal.message}</p>
+ <div className="flex gap-3 w-full">
+ <button onClick={() => setConfirmModal(null)}
+ className="flex-1 bg-gray-100 border border-gray-300 text-gray-700 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-200 transition-all">
+ Cancel (إلغاء)
+ </button>
+ <button onClick={confirmModal.onConfirm}
+ className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-lg hover:from-red-600 hover:to-red-700 transition-all">
+ Delete (حذف)
+ </button>
+ </div>
  </div>
  </div>
  </div>

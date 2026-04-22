@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -19,10 +18,19 @@ model User {
   role            Role                  @default(SPORT_MARSHAL)
   userGroup       String                @default("IN_CIRCUIT")
   isIntakeEnabled Boolean               @default(false)
+  marshalId       String?               @unique
   mobile          String?
   status          UserStatus            @default(ACTIVE)
+  isMedical       Boolean               @default(false)
   
   // Visibility Permissions
+  canViewMedical  Boolean               @default(false)
+  canViewSafety   Boolean               @default(false)
+  canViewSport    Boolean               @default(false)
+  canViewAll      Boolean               @default(false)
+  canViewAnalytics Boolean              @default(false)
+  canEscalate     Boolean               @default(false)
+  canManageUsers  Boolean               @default(false)
   
   // New Granular Permissions
   canCloseTickets Boolean               @default(false)
@@ -33,6 +41,8 @@ model User {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   activityLogs    ActivityLog[]
+  investigations  InvestigationReport[]
+  medicalReports  MedicalReport[]
   notifications   Notification[]
   assignedTickets Ticket[]              @relation("AssignedTickets")
   createdTickets  Ticket[]              @relation("CreatedTickets")
@@ -97,6 +107,11 @@ model Ticket {
   updatedAt           DateTime             @updatedAt
   activityLogs        ActivityLog[]
   attachments         Attachment[]
+  controlReport       ControlReport?
+  investigationReport InvestigationReport?
+  medicalReport       MedicalReport?
+  pitGridReport       PitGridReport?
+  safetyReport        SafetyReport?
   offCircuitReport    OffCircuitReport?
   assignedTo          User?                @relation("AssignedTickets", fields: [assignedToId], references: [id])
   createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
@@ -143,15 +158,112 @@ model ActivityLog {
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
 }
 
+model MedicalReport {
+  id                      String    @id @default(uuid())
+  ticketId                String    @unique
+  authorId                String?
+  patientName             String?
+  patientSurname          String?
+  patientGivenName        String?
+  patientDob              DateTime?
+  patientGender           String?
+  patientAddress          String?
+  patientSuburb           String?
+  patientState            String?
+  patientPostcode         String?
+  patientEmail            String?
+  patientMobile           String?
+  patientPhone            String?
+  patientOccupation       String?
+  motorsportId            String?
+  carNumber               String?
+  patientRole             String?
+  permitNumber            String?
+  licenseAction           String?
+  injuryType              String?
+  treatmentLocation       String?
+  treatmentLocationDetail String?
+  arrivalMethod           String?
+  incidentDescription     String?
+  whereSeen               String?
+  initialCondition        String?
+  treatmentGiven          String?
+  subsequentTreatment     String?
+  subsequentDetail        String?
+  summary                 String?
+  recommendation          String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  author                  User?     @relation(fields: [authorId], references: [id])
+  ticket                  Ticket    @relation(fields: [ticketId], references: [id])
+}
 
+model ControlReport {
+  id               String   @id @default(uuid())
+  ticketId         String   @unique
+  competitorNumber String?
+  lapNumber        Int?
+  sector           Int?
+  violationType    String?
+  competitors      String?
+  actionTaken      String?
+  penaltyValue     String?
+  reasoning        String?
+  published        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+}
 
+model PitGridReport {
+  id                 String   @id @default(uuid())
+  ticketId           String   @unique
+  sessionCategory    String?
+  teamName           String?
+  carNumber          String?
+  driverName         String?
+  pitNumber          String?
+  lapNumber          Int?
+  speedLimit         String?
+  speedRecorded      String?
+  radarOperatorName  String?
+  radarOperatorPhone String?
+  drivingOnWhiteLine Boolean  @default(false)
+  refueling          Boolean  @default(false)
+  driverChange       Boolean  @default(false)
+  excessMechanics    Boolean  @default(false)
+  remarks            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  ticket             Ticket   @relation(fields: [ticketId], references: [id])
+}
 
+model SafetyReport {
+  id                   String   @id @default(uuid())
+  ticketId             String   @unique
+  hazardType           String?
+  locationDetail       String?
+  interventionRequired Boolean  @default(false)
+  resourcesDeployed    String?
+  trackStatus          String?
+  damageDescription    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ticket               Ticket   @relation(fields: [ticketId], references: [id])
+}
 
-
-
-
-
-
+model InvestigationReport {
+  id               String   @id @default(uuid())
+  ticketId         String   @unique
+  authorId         String
+  responsibleParty String?
+  summary          String
+  decision         String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  author           User     @relation(fields: [authorId], references: [id])
+  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+}
 
 model TicketExport {
   id           String   @id @default(uuid())
@@ -227,6 +339,16 @@ enum Role {
 }
 
 enum TicketType {
+  MEDICAL
+  SAFETY
+  SPORT
+  TECHNICAL
+  JUDGEMENT
+  ACCIDENT
+  INJURY
+  VIOLATION
+  MISSING_ITEM
+  // Off-Circuit Types
   NEAR_MISS
   PROPERTY_DAMAGE
   FIRE
@@ -353,6 +475,13 @@ model OffCircuitReport {
   hseManagerFilledAt      DateTime?
   hseManagerSignature     String?
 
+  // === HR GOSI Section ===
+  hrGosiNotificationDate  DateTime?
+  hrGosiReferenceNumber   String?
+  hrNotes                 String?
+  hrFilledBy              String?
+  hrFilledAt              DateTime?
+
   createdAt               DateTime   @default(now())
   updatedAt               DateTime   @updatedAt
   ticket                  Ticket     @relation(fields: [ticketId], references: [id])
@@ -407,4 +536,3 @@ model RiskAssessment {
 
   ticket              Ticket   @relation(fields: [ticketId], references: [id])
 }
-

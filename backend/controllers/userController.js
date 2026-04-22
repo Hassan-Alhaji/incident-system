@@ -11,8 +11,6 @@ const getUsers = async (req, res) => {
             select: {
                 id: true, name: true, email: true, mobile: true, role: true, userGroup: true,
                 isIntakeEnabled: true, createdAt: true, status: true,
-                canViewMedical: true, canViewSafety: true, canViewSport: true, canViewAll: true,
-                canViewAnalytics: true,  canManageUsers: true,
                 canCloseTickets: true, canPerformRCA: true
             }
         });
@@ -41,13 +39,6 @@ const createUser = async (req, res) => {
                 role: role || 'SPORT_MARSHAL',
                 userGroup: userGroup || 'IN_CIRCUIT',
                 isIntakeEnabled: isIntakeEnabled || false,
-                canViewMedical: req.body.canViewMedical || false,
-                canViewSafety: req.body.canViewSafety || false,
-                canViewSport: req.body.canViewSport || false,
-                canViewAll: req.body.canViewAll || false,
-                canViewAnalytics: req.body.canViewAnalytics || false,
-                canEscalate: req.body.canEscalate || false,
-                canManageUsers: req.body.canManageUsers || false,
                 canCloseTickets: req.body.canCloseTickets || false,
                 canPerformRCA: req.body.canPerformRCA || false
             }
@@ -96,13 +87,6 @@ const updateUser = async (req, res) => {
         if (role) updateData.role = role;
         if (userGroup) updateData.userGroup = userGroup;
         if (typeof isIntakeEnabled === 'boolean') updateData.isIntakeEnabled = isIntakeEnabled;
-        if (typeof req.body.canViewMedical === 'boolean') updateData.canViewMedical = req.body.canViewMedical;
-        if (typeof req.body.canViewSafety === 'boolean') updateData.canViewSafety = req.body.canViewSafety;
-        if (typeof req.body.canViewSport === 'boolean') updateData.canViewSport = req.body.canViewSport;
-        if (typeof req.body.canViewAll === 'boolean') updateData.canViewAll = req.body.canViewAll;
-        if (typeof req.body.canViewAnalytics === 'boolean') updateData.canViewAnalytics = req.body.canViewAnalytics;
-        if (typeof req.body.canEscalate === 'boolean') updateData.canEscalate = req.body.canEscalate;
-        if (typeof req.body.canManageUsers === 'boolean') updateData.canManageUsers = req.body.canManageUsers;
         if (typeof req.body.canCloseTickets === 'boolean') updateData.canCloseTickets = req.body.canCloseTickets;
         if (typeof req.body.canPerformRCA === 'boolean') updateData.canPerformRCA = req.body.canPerformRCA;
 

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Globe, Mail, ShieldCheck, Loader2, UserPlus, LogIn, User, Phone } from 'lucide-react';
+import { AlertTriangle, Globe, Mail, ShieldCheck, Loader2, UserPlus, LogIn, User, Phone, Lightbulb } from 'lucide-react';
 import api from '../utils/api';
+import { getRandomSafetyTip } from '../utils/safetyTips';
 
 const Login = () => {
  const { login, user } = useAuth();
@@ -117,6 +118,30 @@ const Login = () => {
  };
 
  const isArabic = i18n.language.startsWith('ar');
+ const currentLang: 'ar' | 'en' = isArabic ? 'ar' : 'en';
+
+ // Safety tip state with auto-rotation
+ const [safetyTip, setSafetyTip] = useState(() => getRandomSafetyTip(currentLang));
+ const [tipFade, setTipFade] = useState(true);
+
+ const rotateTip = useCallback(() => {
+  setTipFade(false);
+  setTimeout(() => {
+   setSafetyTip(getRandomSafetyTip(currentLang));
+   setTipFade(true);
+  }, 400);
+ }, [currentLang]);
+
+ // Auto-rotate tip every 12 seconds
+ useEffect(() => {
+  const interval = setInterval(rotateTip, 12000);
+  return () => clearInterval(interval);
+ }, [rotateTip]);
+
+ // Update tip when language changes
+ useEffect(() => {
+  setSafetyTip(getRandomSafetyTip(currentLang));
+ }, [currentLang]);
 
  return (
  <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4">
@@ -133,7 +158,6 @@ const Login = () => {
  <ShieldCheck className="text-white" size={32} />
  </div>
  <h1 className="text-2xl font-bold text-gray-900">{t('oc.login.title')}</h1>
- <p className="text-gray-500 text-sm mt-1">{t('oc.login.subtitle')}</p>
  </div>
 
  {/* Login/Register Card */}
@@ -352,8 +376,32 @@ const Login = () => {
  )}
  </div>
 
+ {/* Safety Awareness Tip */}
+ <div
+  onClick={rotateTip}
+  className="mt-5 bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all duration-300 group"
+  title={isArabic ? 'اضغط لنصيحة جديدة' : 'Click for a new tip'}
+ >
+  <div className="flex items-start gap-3">
+   <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+    <Lightbulb size={16} className="text-amber-600" />
+   </div>
+   <div className="flex-1 min-w-0">
+    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">
+     {isArabic ? '💡 نصيحة توعوية' : '💡 Safety Tip'}
+    </p>
+    <p
+     className={`text-sm text-amber-900 leading-relaxed transition-opacity duration-300 ${tipFade ? 'opacity-100' : 'opacity-0'}`}
+     dir={isArabic ? 'rtl' : 'ltr'}
+    >
+     {safetyTip}
+    </p>
+   </div>
+  </div>
+ </div>
+
  <p className="text-center text-gray-400 text-xs mt-6">
- SMC HSE Department — Off-Circuit Incident System
+ SMC HSE Department
  </p>
  </div>
  </div>

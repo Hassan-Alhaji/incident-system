@@ -11,6 +11,12 @@ import {
  Trash2, Upload, User, Zap, Activity, FileWarning, X, Phone, CheckCircle
 } from 'lucide-react';
 
+// RTL-aware arrow components
+const NavArrowRight = ({ size, isRtl }: { size: number; isRtl: boolean }) => 
+  isRtl ? <ArrowLeft size={size} /> : <ArrowRight size={size} />;
+const NavArrowLeft = ({ size, isRtl }: { size: number; isRtl: boolean }) => 
+  isRtl ? <ArrowRight size={size} /> : <ArrowLeft size={size} />;
+
 const FilePreview = ({ file, onRemove }: { file: File, onRemove: () => void }) => {
  const [preview, setPreview] = React.useState<string>('');
 
@@ -46,10 +52,15 @@ interface Witness { name: string; mobile: string; }
 const INCIDENT_TYPES = ['VIOLATION', 'HEALTH', 'NEAR_MISS', 'PROPERTY_DAMAGE', 'INJURY', 'FIRE', 'SECURITY_BREACH', 'OTHER'];
 const SEVERITY_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
-const typeIconMap: Record<string, React.ReactNode> = {
- VIOLATION: <ShieldAlert size={20} />, HEALTH: <Activity size={20} />, NEAR_MISS: <Zap size={20} />,
- PROPERTY_DAMAGE: <FileWarning size={20} />, INJURY: <AlertTriangle size={20} />, FIRE: <Flame size={20} />,
- SECURITY_BREACH: <ShieldAlert size={20} />, OTHER: <FileWarning size={20} />,
+const typeIconMap: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string; hint_en: string; hint_ar: string }> = {
+ VIOLATION: { icon: <ShieldAlert size={20} />, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', hint_en: 'Non-compliance with safety rules or regulations', hint_ar: 'عدم الالتزام بإجراءات السلامة أو القوانين' },
+ HEALTH: { icon: <Activity size={20} />, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', hint_en: 'Fainting, breathing difficulty, heat stress', hint_ar: 'إغماء، ضيق تنفس، إجهاد حراري' },
+ NEAR_MISS: { icon: <Zap size={20} />, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', hint_en: 'An event that almost caused harm but didn\'t', hint_ar: 'حدث كاد يتسبب بإصابة لكنه لم يقع' },
+ PROPERTY_DAMAGE: { icon: <FileWarning size={20} />, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', hint_en: 'Damage to equipment, buildings, or vehicles', hint_ar: 'تلف في معدات أو مباني أو مركبات' },
+ INJURY: { icon: <AlertTriangle size={20} />, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', hint_en: 'Physical injury to employee, contractor, or visitor', hint_ar: 'إصابة جسدية' },
+ FIRE: { icon: <Flame size={20} />, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200', hint_en: 'Fire outbreak, smoke, or burning smell', hint_ar: 'اندلاع حريق أو دخان أو رائحة احتراق' },
+ SECURITY_BREACH: { icon: <ShieldAlert size={20} />, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', hint_en: 'Unauthorized access, theft, or security threat', hint_ar: 'دخول غير مصرح أو سرقة أو تهديد أمني' },
+ OTHER: { icon: <FileWarning size={20} />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', hint_en: 'Incident not covered by above categories', hint_ar: 'حادث لا يندرج تحت التصنيفات السابقة' },
 };
 
 const severityColorMap: Record<string, string> = {
@@ -317,7 +328,7 @@ const TicketWizard = () => {
  <div className="flex items-center gap-3">
  <button onClick={() => step > 1 ? setStep(step - 1) : navigate('/dashboard')}
  className="p-2 bg-white rounded-lg border border-gray-200 text-gray-800 hover:text-gray-800 transition-all">
- <ArrowLeft size={18} />
+ <NavArrowLeft size={18} isRtl={i18n.dir() === 'rtl'} />
  </button>
  <div>
  <h1 className="text-lg font-bold text-gray-800">{t('oc.wizard.title')}</h1>
@@ -374,19 +385,31 @@ const TicketWizard = () => {
  <label className={`block text-base font-semibold mb-3 ${showErrors && !incidentType ? 'text-red-400' : 'text-gray-600'}`}>
  {t('oc.wizard.incidentType')} *
  </label>
- <div className="grid grid-cols-2 gap-2">
- {INCIDENT_TYPES.map(type => (
+ <div className="grid grid-cols-2 gap-2.5">
+ {INCIDENT_TYPES.map(type => {
+ const meta = typeIconMap[type];
+ const isSelected = incidentType === type;
+ return (
  <button key={type} onClick={() => setIncidentType(type)}
- className={`flex items-center gap-2 p-3 rounded-xl shadow-sm border transition-all text-base font-medium
- ${incidentType === type
- ? 'bg-blue-600/15 border-blue-600/50 text-blue-500 shadow-lg shadow-amber-500/10'
+ className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-sm font-semibold
+ ${isSelected
+ ? `${meta.bg} ${meta.border} ${meta.color} shadow-md`
  : showErrors && !incidentType
- ? 'bg-white border-red-500/50 text-gray-800'
- : 'bg-white border-gray-200 text-gray-800 hover:border-gray-300'}`}>
- {typeIconMap[type]}
- {t(`oc.incidentTypes.${type}`)}
+ ? 'bg-white border-red-300 text-gray-600'
+ : 'bg-white border-gray-100 text-gray-600 hover:shadow-sm'}`}>
+ <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all
+ ${isSelected ? `${meta.bg} ${meta.color}` : 'bg-gray-50 text-gray-400'}`}>
+ {meta.icon}
+ </div>
+ <div className="flex flex-col text-start">
+ <span>{t(`oc.incidentTypes.${type}`)}</span>
+ <span className={`text-[9px] font-normal leading-tight mt-0.5 ${isSelected ? 'opacity-80' : 'text-gray-400'}`}>
+ {i18n.language.startsWith('ar') ? meta.hint_ar : meta.hint_en}
+ </span>
+ </div>
  </button>
- ))}
+ );
+ })}
  </div>
  </div>
  </div>
@@ -442,7 +465,7 @@ const TicketWizard = () => {
 
  <div>
  <label className={`block text-base font-medium mb-1.5 ${showErrors && !whatHappened.trim() ? 'text-red-400' : 'text-gray-800'}`}>
- {t('oc.wizard.whatHappened')} *
+ <MapPin size={12} className="inline mr-1" />{t('oc.wizard.whatHappened')} *
  </label>
  <textarea
  value={whatHappened}
@@ -631,13 +654,13 @@ const TicketWizard = () => {
  {step > 1 && (
  <button onClick={() => { setStep(step - 1); setShowErrors(false); }}
  className="flex-1 bg-white border border-gray-200 text-gray-800 font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 hover:bg-slate-200 transition-all">
- <ArrowLeft size={16} /> {t('oc.wizard.back')}
+ <NavArrowLeft size={16} isRtl={i18n.dir() === 'rtl'} /> {t('oc.wizard.back')}
  </button>
  )}
  {step < TOTAL_STEPS ? (
  <button onClick={handleNext}
  className={`flex-1 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-amber-600 hover:to-orange-700 text-white font-bold py-3 rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 ${!canProceed() && showErrors ? 'animate-shake' : ''}`}>
- {t('oc.wizard.next')} <ArrowRight size={16} />
+ {t('oc.wizard.next')} <NavArrowRight size={16} isRtl={i18n.dir() === 'rtl'} />
  </button>
  ) : (
  /* Fix #23: Keep amber color for submit button */
