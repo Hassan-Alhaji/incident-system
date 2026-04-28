@@ -155,7 +155,7 @@ function Layout() {
  </button>
 
  {/* Smart Notification Bell */}
- <NotificationBell portal="INCIRCUIT" />
+ <NotificationBell portal="OC" />
 
  <div className="h-8 w-[1px] bg-gray-200 mx-2 hidden sm:block" />
  <div className="flex items-center gap-2 hidden sm:flex">

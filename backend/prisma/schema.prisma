@@ -15,37 +15,28 @@ model User {
   firstName       String?
   lastName        String?
   isProfileCompleted Boolean            @default(false)
-  role            Role                  @default(SPORT_MARSHAL)
-  userGroup       String                @default("IN_CIRCUIT")
+  role            Role                  @default(OC_REPORTER)
+  userGroup       String                @default("OFF_CIRCUIT")
   isIntakeEnabled Boolean               @default(false)
   marshalId       String?               @unique
   mobile          String?
   status          UserStatus            @default(ACTIVE)
-  isMedical       Boolean               @default(false)
   
-  // Visibility Permissions
-  canViewMedical  Boolean               @default(false)
-  canViewSafety   Boolean               @default(false)
-  canViewSport    Boolean               @default(false)
-  canViewAll      Boolean               @default(false)
-  canViewAnalytics Boolean              @default(false)
-  canEscalate     Boolean               @default(false)
-  canManageUsers  Boolean               @default(false)
-  
-  // New Granular Permissions
+  // Permissions
   canCloseTickets Boolean               @default(false)
   canPerformRCA   Boolean               @default(false)
+  canEscalate     Boolean               @default(false)
+  canManageUsers  Boolean               @default(false)
 
   otpCode         String?
   otpExpires      DateTime?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   activityLogs    ActivityLog[]
-  investigations  InvestigationReport[]
-  medicalReports  MedicalReport[]
   notifications   Notification[]
   assignedTickets Ticket[]              @relation("AssignedTickets")
   createdTickets  Ticket[]              @relation("CreatedTickets")
+  reminders       Reminder[]
 
   // Department Relations
   managedDepartment  Department? @relation("DepartmentManager")
@@ -73,24 +64,15 @@ model Ticket {
   id                  String               @id @default(uuid())
   ticketNo            String               @unique
   type                TicketType
-  status              TicketStatus         @default(DRAFT)
+  status              TicketStatus         @default(SUBMITTED)
   priority            Priority             @default(MEDIUM)
   escalatedToRole     String?
-  userGroup           String               @default("IN_CIRCUIT")
-  eventId             String?
-  eventName           String?
-  venue               String?
-  marshalId           String?
-  marshalMobile       String?
+  userGroup           String               @default("OFF_CIRCUIT")
   reporterName        String?
-  reporterSignature   String?
-  postNumber          String?
   incidentDate        DateTime?
   incidentTime        String?
   location            String?
   description         String
-  drivers             String?
-  witnesses           String?
   createdById         String?
   assignedToId        String?
   closureReason       String?
@@ -98,25 +80,21 @@ model Ticket {
   closedByRole        String?
   closedAt            DateTime?
   hasInjury           Boolean              @default(false)
-  dueDate             DateTime?            // SLA Deadline
-  severityLevel       String?              // RED, YELLOW, GREEN
-  serviceProviderId   String?              // Null if internal SMC
-  departmentId        String?              // Internal Assigned Department
+  dueDate             DateTime?
+  severityLevel       String?              // MAJOR, SIGNIFICANT, MINOR
+  serviceProviderId   String?
+  departmentId        String?
   department          Department?          @relation("TicketDepartment", fields: [departmentId], references: [id])
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   activityLogs        ActivityLog[]
   attachments         Attachment[]
-  controlReport       ControlReport?
-  investigationReport InvestigationReport?
-  medicalReport       MedicalReport?
-  pitGridReport       PitGridReport?
-  safetyReport        SafetyReport?
   offCircuitReport    OffCircuitReport?
+  actionPlans         ActionPlan[]
+  reminders           Reminder[]
   assignedTo          User?                @relation("AssignedTickets", fields: [assignedToId], references: [id])
   createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
   ticketExports       TicketExport[]
-  riskAssessment      RiskAssessment?
   serviceProvider     ServiceProvider?     @relation(fields: [serviceProviderId], references: [id])
   zoneId              String?
   zone                Zone?                @relation(fields: [zoneId], references: [id])
@@ -126,7 +104,7 @@ model Zone {
   id          String   @id @default(uuid())
   name        String   @unique
   description String?
-  coordinates Json?    // Array of {lat, lng} for polygon boundaries
+  coordinates Json?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -158,111 +136,173 @@ model ActivityLog {
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
 }
 
-model MedicalReport {
-  id                      String    @id @default(uuid())
-  ticketId                String    @unique
-  authorId                String?
-  patientName             String?
-  patientSurname          String?
-  patientGivenName        String?
-  patientDob              DateTime?
-  patientGender           String?
-  patientAddress          String?
-  patientSuburb           String?
-  patientState            String?
-  patientPostcode         String?
-  patientEmail            String?
-  patientMobile           String?
-  patientPhone            String?
-  patientOccupation       String?
-  motorsportId            String?
-  carNumber               String?
-  patientRole             String?
-  permitNumber            String?
-  licenseAction           String?
-  injuryType              String?
-  treatmentLocation       String?
-  treatmentLocationDetail String?
-  arrivalMethod           String?
-  incidentDescription     String?
-  whereSeen               String?
-  initialCondition        String?
-  treatmentGiven          String?
-  subsequentTreatment     String?
-  subsequentDetail        String?
-  summary                 String?
-  recommendation          String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  author                  User?     @relation(fields: [authorId], references: [id])
-  ticket                  Ticket    @relation(fields: [ticketId], references: [id])
+model OffCircuitReport {
+  id                      String   @id @default(uuid())
+  ticketId                String   @unique
+
+  // === Reporter Section ===
+  incidentType            String?    // OBSERVATION, ACCIDENT, SECURITY
+  incidentDate            DateTime?
+  incidentTime            String?
+  locationLat             Float?
+  locationLng             Float?
+  locationAddress         String?
+  locationDescription     String?    // Free text description of location
+  whatHappened             String?
+  hasInjury               Boolean    @default(false)
+
+  // Late Reporting (>24h rule)
+  isLateReport            Boolean    @default(false)
+  lateReportReason        String?
+
+  // Injured Person(s) - JSON array [{name, mobile, type, dept, company}]
+  // type: EMPLOYEE | CONTRACTOR | OTHER
+  // If EMPLOYEE: name, mobile, dept
+  // If CONTRACTOR: name, mobile, company
+  injuredPersons          String?
+
+  // Witnesses - JSON array [{name, mobile}]
+  witnesses               String?
+
+  reporterFilledBy        String?
+  reporterFilledAt        DateTime?
+
+  // === Controller Stage ===
+  // Type change tracking
+  originalType            String?    // Original type before controller changed it
+  typeChangeReason        String?    // Reason for changing the type
+  
+  // Severity set by controller
+  severity                String?    // MAJOR, SIGNIFICANT, MINOR
+  
+  // Controller notes
+  controllerNotes         String?
+  controllerFilledBy      String?
+  controllerFilledAt      DateTime?
+
+  // === Department Stage ===
+  // GOSI (for employee injuries → HR)
+  gosiEmployeeId          String?
+  gosiSubmitted           Boolean?   // Did you submit GOSI?
+  gosiReportDate          DateTime?  // If yes: date
+  gosiReportNumber        String?    // If yes: number
+  gosiNoReason            String?    // If no: reason
+
+  // Contractor notification
+  contractorNotified      Boolean?   // Was contractor company notified?
+  contractorNotifyDate    DateTime?  // If yes: date
+  contractorNoReason      String?    // If no: reason
+
+  depRepFilledBy          String?
+  depRepFilledAt          DateTime?
+
+  // === HR Stage (GOSI - auto-assigned when employee injured) ===
+  hrAssignedAt            DateTime?  // When HR was notified
+  hrFilledBy              String?    // HR rep who submitted
+  hrFilledAt              DateTime?  // When HR submitted
+  responsibleDeptId       String?    // The dept the controller routes to AFTER HR completes
+
+  // === RCA Section (Required if Major/Significant/Accident/Escalated) ===
+  rcaRequired             Boolean    @default(false)
+  rcaCompleted            Boolean    @default(false)
+  rcaCause                String?    // What caused it
+  rcaWhy                  String?    // Why did it happen (5 Whys)
+  rcaPreventable          Boolean?   // Was it preventable
+  rcaRootCause            String?    // Root cause
+  rcaCategory             String?    // Category of root cause
+
+  rcaFilledBy             String?
+  rcaFilledAt             DateTime?
+
+  // === HSE Manager / Safety Manager Final ===
+  finalDecision           String?    // CLOSE, REJECT
+  finalNotes              String?
+
+  hseManagerFilledBy      String?
+  hseManagerFilledAt      DateTime?
+  hseManagerSignature     String?
+
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  ticket                  Ticket     @relation(fields: [ticketId], references: [id])
 }
 
-model ControlReport {
-  id               String   @id @default(uuid())
-  ticketId         String   @unique
-  competitorNumber String?
-  lapNumber        Int?
-  sector           Int?
-  violationType    String?
-  competitors      String?
-  actionTaken      String?
-  penaltyValue     String?
-  reasoning        String?
-  published        Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+// Action Plans submitted by departments
+model ActionPlan {
+  id              String               @id @default(uuid())
+  ticketId        String
+  type            ActionPlanType       // IMMEDIATE, SHORT_TERM, LONG_TERM
+  description     String
+  targetDate      DateTime?
+  departmentId    String?
+  department      Department?          @relation(fields: [departmentId], references: [id])
+  submittedBy     String?
+  submittedAt     DateTime?
+  status          ActionPlanStatus     @default(PENDING)
+  reviewNotes     String?              // Controller review notes
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  ticket          Ticket               @relation(fields: [ticketId], references: [id])
+  attachments     ActionPlanAttachment[]
 }
 
-model PitGridReport {
-  id                 String   @id @default(uuid())
-  ticketId           String   @unique
-  sessionCategory    String?
-  teamName           String?
-  carNumber          String?
-  driverName         String?
-  pitNumber          String?
-  lapNumber          Int?
-  speedLimit         String?
-  speedRecorded      String?
-  radarOperatorName  String?
-  radarOperatorPhone String?
-  drivingOnWhiteLine Boolean  @default(false)
-  refueling          Boolean  @default(false)
-  driverChange       Boolean  @default(false)
-  excessMechanics    Boolean  @default(false)
-  remarks            String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  ticket             Ticket   @relation(fields: [ticketId], references: [id])
+// Evidence attachments for Action Plans
+model ActionPlanAttachment {
+  id              String       @id @default(uuid())
+  actionPlanId    String
+  url             String
+  name            String
+  type            String       // IMAGE, DOCUMENT, EMAIL
+  size            Int
+  mimeType        String
+  data            Bytes?
+  createdAt       DateTime     @default(now())
+  actionPlan      ActionPlan   @relation(fields: [actionPlanId], references: [id], onDelete: Cascade)
 }
 
-model SafetyReport {
-  id                   String   @id @default(uuid())
-  ticketId             String   @unique
-  hazardType           String?
-  locationDetail       String?
-  interventionRequired Boolean  @default(false)
-  resourcesDeployed    String?
-  trackStatus          String?
-  damageDescription    String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  ticket               Ticket   @relation(fields: [ticketId], references: [id])
+// Reminders for pending actions
+model Reminder {
+  id              String       @id @default(uuid())
+  ticketId        String
+  message         String
+  reminderDate    DateTime
+  isCompleted     Boolean      @default(false)
+  completedAt     DateTime?
+  completedNote   String?
+  createdById     String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  ticket          Ticket       @relation(fields: [ticketId], references: [id])
+  createdBy       User         @relation(fields: [createdById], references: [id])
 }
 
-model InvestigationReport {
-  id               String   @id @default(uuid())
-  ticketId         String   @unique
-  authorId         String
-  responsibleParty String?
-  summary          String
-  decision         String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  author           User     @relation(fields: [authorId], references: [id])
-  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+model Department {
+  id              String             @id @default(uuid())
+  name            String             @unique
+  nameAr          String?            
+  managerId       String?            @unique
+  manager         User?              @relation("DepartmentManager", fields: [managerId], references: [id])
+  representatives User[]             @relation("DepartmentReps")
+  serviceProviders ServiceProvider[]
+  tickets         Ticket[]           @relation("TicketDepartment")
+  actionPlans     ActionPlan[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model ServiceProvider {
+  id                           String     @id @default(uuid())
+  name                         String
+  commercialRegistrationNumber String     @unique
+  status                       String     @default("ACTIVE")
+  responsibleDepartmentId      String
+  department                   Department @relation(fields: [responsibleDepartmentId], references: [id])
+  representatives              User[]     @relation("ServiceProviderReps")
+  tickets                      Ticket[]
+  createdAt                    DateTime   @default(now())
+  updatedAt                    DateTime   @updatedAt
 }
 
 model TicketExport {
@@ -285,107 +325,46 @@ model Event {
   updatedAt DateTime @updatedAt
 }
 
+// ==================== ENUMS ====================
+
 enum Role {
   ADMIN
   
-  // Sport / Control
+  // Core Roles for Incident System
+  OC_REPORTER         // Creates incident reports
+  HSE_CONTROLLER      // Reviews, classifies, routes tickets
+  DEP_REP             // Department representative - submits action plans
+  DEP_MANAGER         // Department manager - approves/reviews
+  SAFETY_MANAGER      // Safety Manager - escalation target, full control
+  HR_REP              // HR representative - GOSI handling
+  SERVICE_PROVIDER_REP // Contractor company representative
+
+  // Legacy roles kept for compatibility
   SPORT_MARSHAL
-  OPERATION_CONTROL_TEAM
-  DEPUTY_CHIEF_CONTROL_OFFICER
-  CHIEF_OF_CONTROL
-  CONTROL_OP_TEAM
-  DEPUTY_CONTROL_OP_OFFICER
-
-  // Safety
-  SAFETY_MARSHAL
-  OPERATION_SAFETY_TEAM
-  DEPUTY_CHIEF_SAFETY_OFFICER
-  CHIEF_SAFETY_OFFICER
-  SAFETY_OP_TEAM
-  DEPUTY_SAFETY_OFFICER
-  SAFETY_OFFICER_CHIEF
-
-  // Medical
-  MEDICAL_MARSHAL
-  MEDICAL_EVACUATION_CREW
-  OPERATION_MEDICAL_TEAM
-  DEPUTY_CHIEF_MEDICAL_OFFICER
-  CHIEF_MEDICAL_OFFICER
-  MEDICAL_VENDOR
-  MEDICAL_EVACUATION
-  MEDICAL_OP_TEAM
-  DEPUTY_MEDICAL_OFFICER
-
-  // Other
-  SCRUTINEERS
-  JUDGEMENT
-  OPERATIONS
-  VIEWER
-
-  // Off-Circuit Roles
-  OC_REPORTER
   OC_SUPERVISOR
   OC_SAFETY_INVESTIGATOR
   OC_HSE_MANAGER
-
-  // Dynamic Routing Roles Phase 1
-  HSE_CONTROLLER
-  HR_REP
-  PROCUREMENT_REP
-  DEP_REP
-  DEP_MANAGER
-  SAFETY_MANAGER
-  SERVICE_PROVIDER_REP
+  VIEWER
 }
 
 enum TicketType {
-  MEDICAL
-  SAFETY
-  SPORT
-  TECHNICAL
-  JUDGEMENT
-  ACCIDENT
-  INJURY
-  VIOLATION
-  MISSING_ITEM
-  // Off-Circuit Types
-  NEAR_MISS
-  PROPERTY_DAMAGE
-  FIRE
-  SECURITY_BREACH
-  HEALTH
+  OBSERVATION      // ملاحظة
+  ACCIDENT         // حادث
+  SECURITY         // أمني
 }
 
 enum TicketStatus {
-  DRAFT
-  OPEN
-  UNDER_REVIEW
-  ESCALATED
-  AWAITING_MEDICAL
-  AWAITING_DECISION
-  RETURNED_TO_CONTROL
-  RETURNED_TO_MARSHAL
-  RESOLVED
-  CLOSED
-  CLOSED_REJECTED
-  REOPENED
-  // Off-Circuit Workflow Statuses
-  SUPERVISOR_REVIEW
-  RETURNED_FOR_EDIT
-  UNDER_INVESTIGATION
-  PENDING_ACTIONS
-  FINAL_REVIEW
-
-  // Dynamic Routing Phase 1 Statuses
-  HSE_REVIEW
-  RETURNED_TO_REPORTER
-  PENDING_HR
-  PENDING_PROCUREMENT
-  PENDING_DEP_REP
-  ESCALATED_TO_SAFETY_MANAGER
-  ESCALATED_TO_DEP_MANAGER
-  DEP_REP_RESPONDED
-  OVERDUE
+  SUBMITTED                // المبلّغ أرسل التقرير
+  RETURNED_TO_REPORTER     // أُرجع للمبلّغ لتعديل
+  ASSIGNED_TO_HR           // وُجّه للموارد البشرية لبيانات GOSI
+  HR_COMPLETED             // الموارد البشرية أكملت بيانات GOSI، بانتظار توجيه الكنترولر
+  ASSIGNED                 // وُجّه للقسم المعني لخطط العمل
+  RETURNED_TO_DEPARTMENT   // أُرجع للقسم من المتحكم
+  UNDER_REVIEW             // قيد المراجعة من المتحكم بعد رد القسم
+  PENDING_REMINDER         // بانتظار التذكير
+  UNDER_INVESTIGATION      // قيد التحقيق (RCA)
+  ESCALATED                // مُصعّد لمدير السلامة
+  CLOSED                   // مغلق
 }
 
 enum Priority {
@@ -402,137 +381,15 @@ enum UserStatus {
   BANNED
 }
 
-model OffCircuitReport {
-  id                      String   @id @default(uuid())
-  ticketId                String   @unique
-
-  // === Reporter Section (Stage 1) ===
-  incidentType            String?    // VIOLATION, HEALTH, NEAR_MISS, PROPERTY_DAMAGE, INJURY, FIRE, SECURITY_BREACH, OTHER
-  incidentDate            DateTime?
-  incidentTime            String?
-  locationLat             Float?
-  locationLng             Float?
-  locationAddress         String?
-  whatHappened             String?
-  hasInjury               Boolean    @default(false)
-  severity                String?    // LOW, MEDIUM, HIGH, CRITICAL
-
-  // Injured Person(s) - JSON array [{name, affiliate, contact, dept, jobTitle, empNumber}]
-  injuredPersons          String?
-
-  // Witnesses - JSON array [{name, mobile}]
-  witnesses               String?
-
-  // Reporter ownership
-  reporterFilledBy        String?
-  reporterFilledAt        DateTime?
-
-  // === Supervisor Section (Stage 2) ===
-  gosiReportDate          DateTime?
-  gosiReportNumber        String?
-  immediateActions        String?
-  supervisorNotes         String?
-
-  supervisorFilledBy      String?
-  supervisorFilledAt      DateTime?
-  supervisorSignature     String?
-
-  // === HSE Controller Assessment (Stage 1.5) ===
-  isLTI                   Boolean?   @default(false)
-  isMaterialDamage        Boolean?   @default(false)
-  isRegulatoryReportable  Boolean?   @default(false)
-  isNearMiss              Boolean?   @default(false)
-  
-  controllerFilledBy      String?
-  controllerFilledAt      DateTime?
-
-  // === Department Rep Section (Stage 2) ===
-  depRepFilledBy          String?
-  depRepFilledAt          DateTime?
-  immediateCauses         String?
-  preventiveActions       String?
-
-  // === Investigation/RCA Section (Stage 3) ===
-  underlyingCauses        String?
-  rootCauses              String?
-  analysisMethod          String?
-
-  // Risk Assessment (L x C)
-  riskLikelihood          Int?
-  riskConsequence         Int?
-  riskScore               Int?
-  riskLevel               String?
-
-  investigatorFilledBy    String?
-  investigatorFilledAt    DateTime?
-  investigatorSignature   String?
-
-  // === HSE Manager Section (Stage 4) ===
-  finalDecision           String?
-  finalNotes              String?
-
-  hseManagerFilledBy      String?
-  hseManagerFilledAt      DateTime?
-  hseManagerSignature     String?
-
-  // === HR GOSI Section ===
-  hrGosiNotificationDate  DateTime?
-  hrGosiReferenceNumber   String?
-  hrNotes                 String?
-  hrFilledBy              String?
-  hrFilledAt              DateTime?
-
-  createdAt               DateTime   @default(now())
-  updatedAt               DateTime   @updatedAt
-  ticket                  Ticket     @relation(fields: [ticketId], references: [id])
+enum ActionPlanType {
+  IMMEDIATE    // فوري (مطلوب)
+  SHORT_TERM   // قصير المدى (مطلوب)
+  LONG_TERM    // طويل المدى (اختياري)
 }
 
-model Department {
-  id              String             @id @default(uuid())
-  name            String             @unique
-  nameAr          String?            
-  managerId       String?            @unique
-  manager         User?              @relation("DepartmentManager", fields: [managerId], references: [id])
-  representatives User[]             @relation("DepartmentReps")
-  serviceProviders ServiceProvider[]
-  tickets         Ticket[]           @relation("TicketDepartment")
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-}
-
-model ServiceProvider {
-  id                           String     @id @default(uuid())
-  name                         String
-  commercialRegistrationNumber String     @unique
-  status                       String     @default("ACTIVE") // ACTIVE, BLACKLISTED
-  responsibleDepartmentId      String
-  department                   Department @relation(fields: [responsibleDepartmentId], references: [id])
-  representatives              User[]     @relation("ServiceProviderReps")
-  tickets                      Ticket[]
-  createdAt                    DateTime   @default(now())
-  updatedAt                    DateTime   @updatedAt
-}
-
-model RiskAssessment {
-  id                  String   @id @default(uuid())
-  ticketId            String   @unique
-  impactType          String?  // People, Environment, Services, Assets
-  
-  // Pre-Control
-  preLikelihood       Int?
-  preConsequence      Int?
-  preRiskScore        Int?
-  
-  // Post-Control
-  postLikelihood      Int?
-  postConsequence     Int?
-  postRiskScore       Int?
-  
-  preventiveAction    String?
-  controlHierarchy    String?  // Elimination, Substitution, Engineering, Administrative, PPE
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  ticket              Ticket   @relation(fields: [ticketId], references: [id])
+enum ActionPlanStatus {
+  PENDING      // لم يُقدم بعد
+  SUBMITTED    // تم التقديم
+  APPROVED     // تمت الموافقة
+  REJECTED     // مرفوض - يحتاج إعادة
 }

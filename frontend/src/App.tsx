@@ -11,6 +11,7 @@ import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
 import OfflineSyncManager from './components/OfflineSyncManager';
 import SessionTimeoutManager from './components/SessionTimeoutManager';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Protect routes based on auth status
 const ProtectedRoute = () => {
@@ -33,6 +34,7 @@ function App() {
  return (
  <BrowserRouter>
  <AuthProvider>
+ <ErrorBoundary>
  <Routes>
  <Route path="/login" element={<Login />} />
 
@@ -50,6 +52,7 @@ function App() {
 
  <Route path="*" element={<Navigate to="/login" replace />} />
  </Routes>
+ </ErrorBoundary>
  <OfflineSyncManager />
  <SessionTimeoutManager />
  </AuthProvider>

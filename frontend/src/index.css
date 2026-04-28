@@ -1,23 +1,30 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
 
 @layer base {
-  /* Force English/Western numerals everywhere */
-  *, *::before, *::after {
-    font-variant-numeric: lining-nums tabular-nums;
+  :root {
+    --sidebar-width: 15rem;
+    --header-height: 3.5rem;
   }
 
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-[#f0f2f5] text-gray-800;
+    background-color: #f8fafc;
+    color: #0f172a;
   }
 
-  /* Force LTR for all number/date/time inputs */
+  /* Force western numerals */
+  *, *::before, *::after {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  /* Force LTR for form fields */
   input[type="number"],
   input[type="date"],
   input[type="time"],
@@ -28,9 +35,81 @@
     text-align: left !important;
   }
 
-  /* Smooth scrolling */
+  /* Custom scrollbar */
   * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 99px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Dark sidebar scrollbar */
+  .sidebar-scroll {
+    scrollbar-color: #334155 transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+  }
+
+  /* Safe area bottom for mobile notch devices */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Minimum touch target size (Apple HIG: 44px) */
+  @media (pointer: coarse) {
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    select {
+      min-height: 44px;
+    }
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  /* Hide everything in body except the portal div */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show the portal wrapper */
+  body > div[data-print-portal] {
+    display: block !important;
+  }
+
+  /* Make the fixed overlay static so it flows across pages */
+  body > div[data-print-portal] #ticket-print-view {
+    position: static !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* Hide the controls bar when printing */
+  body > div[data-print-portal] .print-controls {
+    display: none !important;
+  }
+
+  /* Prevent breaks inside content cards */
+  #print-content > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

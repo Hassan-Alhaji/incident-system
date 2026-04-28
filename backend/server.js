@@ -29,11 +29,27 @@ app.use(cors({
     credentials: true
 }));
 app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            connectSrc: ["'self'", "http://localhost:3000", "http://localhost:5173", process.env.FRONTEND_URL || '*']
+        }
+    }
 }));
 app.use(morgan(isProd ? 'combined' : 'dev'));
 const path = require('path');
-app.use(express.json({ limit: '10mb' })); // Limit request body size
+// Skip JSON parsing for multipart uploads so Multer gets the raw stream
+app.use((req, res, next) => {
+    const ct = req.headers['content-type'] || '';
+    if (ct.startsWith('multipart/form-data')) return next();
+    express.json({ limit: '10mb' })(req, res, next);
+});
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const { sanitizeInput } = require('./middleware/sanitizeMiddleware');
 app.use(sanitizeInput); // Sanitize all inputs
 // Serve uploads from absolute path to ensure consistency regardless of CWD
@@ -83,7 +99,7 @@ app.use('/api/attachments', attachmentRoutes);
 app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
-
+app.use('/api/ai', require('./routes/aiRoutes'));
 app.get('/', (req, res) => {
     res.json({
         message: 'Incident System API is running',

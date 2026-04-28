@@ -60,42 +60,49 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  const filterPendingTickets = (tickets: any[]) => {
  if (!user) return [];
 
- if (portal === 'OC') {
- const isSupervisor = user.role === 'OC_SUPERVISOR' || user.role === 'ADMIN';
- const isInvestigator = user.role === 'OC_SAFETY_INVESTIGATOR' || user.role === 'ADMIN';
- const isHSE = user.role === 'OC_HSE_MANAGER' || user.role === 'ADMIN';
+ const role = user.role;
 
  return tickets.filter(t => {
- if (isSupervisor && (t.status === 'OPEN' || t.status === 'SUPERVISOR_REVIEW' || t.status === 'RETURNED_FOR_EDIT')) return true;
- if (isInvestigator && t.status === 'UNDER_INVESTIGATION') return true;
- if (isHSE && t.status === 'FINAL_REVIEW') return true;
- return false;
+  // OC_REPORTER: tickets returned to them or pending their reminder action
+  if (role === 'OC_REPORTER') {
+   return (t.status === 'RETURNED_TO_REPORTER' || t.status === 'PENDING_REMINDER') && t.createdById === user.id;
+  }
+  // HSE_CONTROLLER: new tickets to review or department responses to review
+  if (role === 'HSE_CONTROLLER') {
+   return t.status === 'SUBMITTED' || t.status === 'UNDER_REVIEW';
+  }
+  // DEP_REP: tickets assigned or returned to their department
+  if (role === 'DEP_REP') {
+   const isSameDept = t.departmentId && t.departmentId === (user as any).repDepartmentId;
+   const isAssigned = t.assignedToId === user.id;
+   return (t.status === 'ASSIGNED' || t.status === 'RETURNED_TO_DEPARTMENT') && (isSameDept || isAssigned);
+  }
+  // SAFETY_MANAGER / OC_HSE_MANAGER: escalated tickets
+  if (role === 'SAFETY_MANAGER' || role === 'OC_HSE_MANAGER') {
+   return t.status === 'ESCALATED';
+  }
+  // DEP_MANAGER: escalated tickets sent to them
+  if (role === 'DEP_MANAGER') {
+   return t.status === 'ESCALATED' && t.assignedToId === user.id;
+  }
+  // HR_REP: tickets with injuries assigned to HR
+  if (role === 'HR_REP') {
+   return (t.status === 'ASSIGNED' || t.status === 'RETURNED_TO_DEPARTMENT') && t.hasInjury;
+  }
+  // ADMIN: all tickets that need action
+  if (role === 'ADMIN') {
+   return ['SUBMITTED', 'UNDER_REVIEW', 'ESCALATED', 'ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(t.status);
+  }
+  return false;
  });
- } else {
- const isAdmin = user.role === 'ADMIN' || user.role === 'RACE_CONTROL';
- const isMedicalChief = ['MEDICAL_OP_TEAM', 'DEPUTY_MEDICAL_OFFICER', 'CHIEF_MEDICAL_OFFICER'].includes(user.role);
- const isSafetyChief = ['SAFETY_OP_TEAM', 'DEPUTY_SAFETY_OFFICER', 'SAFETY_OFFICER_CHIEF'].includes(user.role);
- const isControlChief = ['CONTROL_OP_TEAM', 'DEPUTY_CONTROL_OP_OFFICER', 'CHIEF_OF_CONTROL'].includes(user.role);
-
- return tickets.filter(t => {
- if (isAdmin && (t.status === 'OPEN' || t.status === 'ESCALATED')) return true;
- if (t.status === 'ESCALATED') {
- if (isMedicalChief && t.escalatedToRole === 'MEDICAL_OP_TEAM') return true;
- if (isSafetyChief && t.escalatedToRole === 'SAFETY_OP_TEAM') return true;
- if (isControlChief && t.escalatedToRole === 'CONTROL_OP_TEAM') return true;
- if (t.escalatedToRole === user.role) return true;
- }
- if (t.status === 'OPEN' && t.assignedToId === user.id) return true;
- return false;
- });
- }
  };
 
  const fetchTickets = async () => {
  try {
  const endpoint = portal === 'OC' ? '/tickets' : '/tickets';
  const res = await api.get(endpoint);
- const pt = filterPendingTickets(res.data || []);
+ const tickets = Array.isArray(res.data) ? res.data : (res.data?.tickets ?? []);
+ const pt = filterPendingTickets(tickets);
  const count = pt.length;
  setPendingTickets(pt);
  
@@ -203,45 +210,60 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  </button>
 
  {showDropdown && (
- <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 shadow-2xl rounded-xl shadow-sm overflow-hidden z-50">
- <div className="p-3 border-b border-gray-200 bg-white">
- <h3 className="text-base font-bold text-gray-800">Notifications</h3>
+ <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 shadow-2xl rounded-xl overflow-hidden z-50">
+ <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
+ <h3 className="text-sm font-bold text-gray-800">{t('notifications.title', 'التنبيهات — Notifications')}</h3>
  </div>
- <div className="p-4 flex flex-col items-center justify-center text-center gap-2">
+ <div className="p-3 flex flex-col gap-2">
  {pendingCount > 0 ? (
- <div className="flex flex-col w-full text-left">
- <div className="text-base font-medium text-gray-800 mb-2 px-1">
- You have <strong className="text-blue-500">{pendingCount}</strong> item(s) pending review:
+ <div className="flex flex-col w-full">
+ <div className="text-xs font-medium text-gray-600 mb-2 px-1">
+ {t('notifications.pending', 'لديك')} <strong className="text-blue-600">{pendingCount}</strong> {t('notifications.pendingItems', 'تذكرة تحتاج إجراءك')}
  </div>
- <div className="max-h-60 overflow-y-auto custom-scrollbar flex flex-col gap-1 w-full relative z-10">
- {pendingTickets.slice(0, 10).map(t => (
- <button 
- key={t.id}
- onClick={() => {
- setShowDropdown(false);
- navigate(portal === 'OC' ? `/tickets/${t.id}` : `/tickets/${t.id}`);
- }}
- className="w-full text-left p-3 hover:bg-slate-200 rounded-lg transition-all border border-gray-200 hover:border-blue-600/30 group"
- >
- <div className="flex justify-between items-center mb-1">
- <span className="font-bold text-gray-600 group-hover:text-blue-500">{t.ticketNo}</span>
- <span className="text-[9px] bg-blue-600/20 text-blue-600 px-1.5 py-0.5 rounded-full">{t.status.replace(/_/g, ' ')}</span>
- </div>
- <p className="text-[10px] text-gray-800 truncate w-full">{t.description || t.offCircuitReport?.whatHappened || 'Pending action'}</p>
- </button>
- ))}
+ <div className="max-h-64 overflow-y-auto custom-scrollbar flex flex-col gap-1.5 w-full relative z-10">
+ {pendingTickets.slice(0, 10).map(tk => {
+  const statusHints: Record<string, { ar: string; en: string; color: string }> = {
+   SUBMITTED: { ar: 'بانتظار مراجعتك', en: 'Awaiting your review', color: 'bg-blue-100 text-blue-700' },
+   ASSIGNED: { ar: 'بانتظار ردك', en: 'Awaiting your response', color: 'bg-amber-100 text-amber-700' },
+   UNDER_REVIEW: { ar: 'بانتظار مراجعتك', en: 'Awaiting your review', color: 'bg-purple-100 text-purple-700' },
+   RETURNED_TO_REPORTER: { ar: 'مُرجعة إليك', en: 'Returned to you', color: 'bg-rose-100 text-rose-700' },
+   RETURNED_TO_DEPARTMENT: { ar: 'مُرجعة لقسمك', en: 'Returned to your dept', color: 'bg-pink-100 text-pink-700' },
+   ESCALATED: { ar: 'مُصعَّدة إليك', en: 'Escalated to you', color: 'bg-red-100 text-red-700' },
+   PENDING_REMINDER: { ar: 'تنبيه بانتظارك', en: 'Reminder pending', color: 'bg-orange-100 text-orange-700' },
+  };
+  const hint = statusHints[tk.status] || { ar: tk.status, en: tk.status, color: 'bg-gray-100 text-gray-600' };
+  return (
+  <button 
+   key={tk.id}
+   onClick={() => {
+   setShowDropdown(false);
+   navigate(`/tickets/${tk.id}`);
+   }}
+   className="w-full text-start p-2.5 hover:bg-blue-50 rounded-lg transition-all border border-gray-100 hover:border-blue-200 group"
+  >
+   <div className="flex justify-between items-center mb-1">
+   <span className="font-bold text-xs text-gray-700 group-hover:text-blue-600">{tk.ticketNo}</span>
+   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${hint.color}`}>{hint.ar}</span>
+   </div>
+   <p className="text-[10px] text-gray-500 truncate w-full">{tk.description || tk.offCircuitReport?.whatHappened || '—'}</p>
+  </button>
+  );
+ })}
  </div>
  {pendingCount > 10 && (
- <button 
- onClick={() => { setShowDropdown(false); navigate(portal === 'OC' ? '/dashboard' : '/dashboard'); }}
- className="text-center text-base text-gray-800 mt-2 py-2 hover:text-gray-600 w-full"
- >
- View all in dashboard...
- </button>
+  <button 
+  onClick={() => { setShowDropdown(false); navigate('/dashboard'); }}
+  className="text-center text-xs text-blue-600 font-bold mt-2 py-2 hover:text-blue-800 w-full"
+  >
+  {t('notifications.viewAll', 'عرض الكل في لوحة التحكم...')}
+  </button>
  )}
  </div>
  ) : (
- <p className="text-base text-gray-800 py-4">No pending tickets require your action right now.</p>
+ <div className="text-center py-6 px-4">
+  <Bell size={24} className="mx-auto text-gray-300 mb-2" />
+  <p className="text-xs text-gray-400">{t('notifications.empty', 'لا توجد تذاكر تتطلب إجراءً منك حالياً')}</p>
+ </div>
  )}
  </div>
  </div>

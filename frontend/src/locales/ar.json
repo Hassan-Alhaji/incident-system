@@ -35,10 +35,13 @@
     "action": "الإجراء",
     "viewDetails": "عرض التفاصيل",
     "loadingTickets": "جاري تحميل التذاكر...",
-    "noTickets": "لا توجد تذاكر"
+    "noTickets": "لا توجد تذاكر",
+    "injuryAlert": "تذكرة بها إصابات مسجلة",
+    "hideFilter": "إخفاء",
+    "showFilter": "فلترة"
   },
   "login": {
-    "title": "بوابة الحوادث",
+    "title": "بوابة تبليغ الحوادث",
     "subtitle": "تسجيل الدخول بالبريد الإلكتروني",
     "emailLabel": "البريد الإلكتروني",
     "emailPlaceholder": "name@company.com",
@@ -106,7 +109,10 @@
     "submit": "إرسال التقرير",
     "submitting": "جاري الإرسال...",
     "uploadEvidence": "رفع الأدلة",
-    "dragDrop": "اسحب وأفلت الملفات هنا"
+    "dragDrop": "اسحب وأفلت الملفات هنا",
+    "timeAlert": "تنبيه: الرجاء إدخال تاريخ ووقت وقوع الحادث الفعلي بدقة (وليس الوقت الحالي).",
+    "lateReport": "بلاغ متأخر (>٢٤ ساعة) - يُرجى توضيح السبب",
+    "lateReasonPlaceholder": "لماذا يتم رفع هذا البلاغ متأخراً؟"
   },
   "settings": {
     "title": "إعدادات النظام",
@@ -157,16 +163,30 @@
   "notifications": {
     "title": "الإشعارات",
     "markAllRead": "تحديد الكل كمقروء",
-    "noNotifications": "لا توجد إشعارات"
+    "noNotifications": "لا توجد إشعارات",
+    "pending": "لديك",
+    "pendingItems": "تذكرة تحتاج إجراءك",
+    "viewAll": "عرض الكل في لوحة التحكم...",
+    "empty": "لا توجد تذاكر تتطلب إجراءً منك حالياً"
   },
   "status": {
     "OPEN": "مفتوحة",
     "UNDER_REVIEW": "قيد المراجعة",
-    "ESCALATED": "مُصعّدة",
+    "ESCALATED": "مُصعد",
     "RESOLVED": "تم الحل",
-    "CLOSED": "مُغلقة",
+    "CLOSED": "مغلقة",
     "REOPENED": "أُعيد فتحها",
-    "DRAFT": "مسودة"
+    "DRAFT": "مسودة",
+    "SUBMITTED": "تم التقديم",
+    "RETURNED_TO_REPORTER": "مُعاد للمُبلغ",
+    "ASSIGNED": "موجه للقسم",
+    "RETURNED_TO_DEPARTMENT": "مُعاد للقسم",
+    "PENDING_REMINDER": "بانتظار تذكير",
+    "UNDER_INVESTIGATION": "قيد التحقيق (RCA)",
+    "SUPERVISOR_REVIEW": "مراجعة المشرف",
+    "RETURNED_FOR_EDIT": "مُعادة للتعديل",
+    "FINAL_REVIEW": "المراجعة النهائية",
+    "CLOSED_REJECTED": "مغلقة (مرفوضة)"
   },
   "priority": {
     "LOW": "منخفض",
@@ -175,7 +195,11 @@
     "CRITICAL": "حرج",
     "YELLOW": "أصفر (متوسط)",
     "RED": "أحمر (عالي)",
-    "GREEN": "أخضر (منخفض)"
+    "GREEN": "أخضر (منخفض)",
+    "MINOR": "بسيط",
+    "SIGNIFICANT": "مؤثر",
+    "MAJOR": "جسيم",
+    "SEVERE": "شديد الخطورة"
   },
   "types": {
     "MEDICAL": "طبي",
@@ -185,7 +209,7 @@
   },
   "oc": {
     "accessDenied": "الوصول مرفوض",
-    "noPermission": "ليس لديك صلاحية للوصول إلى بوابة الحوادث الخارجية.",
+    "noPermission": "ليس لديك صلاحية للوصول إلى بوابة تبليغ الحوادث الخارجية.",
     "injury": "إصابة",
     "yes": "نعم",
     "no": "لا",
@@ -203,7 +227,7 @@
       "settings": "الإعدادات"
     },
     "login": {
-      "title": "بوابة الحوادث",
+      "title": "بوابة تبليغ الحوادث",
       "subtitle": "",
       "error": "فشل تسجيل الدخول. حاول مرة أخرى.",
       "invalidCode": "رمز التحقق غير صحيح."
@@ -237,24 +261,19 @@
       "responded": "تم الرد"
     },
     "status": {
+      "OPEN": "مفتوحة",
+      "UNDER_REVIEW": "قيد المراجعة",
+      "ESCALATED": "مُصعد",
+      "RESOLVED": "تم الحل",
+      "CLOSED": "مغلق",
+      "REOPENED": "أُعيد فتحها",
       "DRAFT": "مسودة",
-      "OPEN": "مُرسلة",
-      "HSE_REVIEW": "مراجعة Controller",
-      "PENDING_HR": "بانتظار الموارد البشرية",
-      "PENDING_PROCUREMENT": "بانتظار المشتريات",
-      "PENDING_DEP_REP": "بانتظار رد القسم",
-      "ESCALATED_TO_SAFETY_MANAGER": "تصعيد لمدير السلامة",
-      "ESCALATED_TO_DEP_MANAGER": "تصعيد لمدير القسم",
-      "OVERDUE": "متأخرة",
-      "RETURNED_TO_REPORTER": "مرتجعة للمُبلغ",
-      "SUPERVISOR_REVIEW": "مراجعة المشرف",
-      "RETURNED_FOR_EDIT": "مرتجعة للتعديل",
-      "UNDER_INVESTIGATION": "قيد التحقيق",
-      "PENDING_ACTIONS": "بانتظار الإجراءات",
-      "FINAL_REVIEW": "المراجعة النهائية",
-      "CLOSED": "مغلقة",
-      "CLOSED_REJECTED": "مرفوضة",
-      "DEP_REP_RESPONDED": "رد ممثل القسم"
+      "SUBMITTED": "تم التقديم",
+      "RETURNED_TO_REPORTER": "مُعاد للمُبلغ",
+      "ASSIGNED": "موجه للقسم",
+      "RETURNED_TO_DEPARTMENT": "مُعاد للقسم",
+      "PENDING_REMINDER": "بانتظار تذكير",
+      "UNDER_INVESTIGATION": "قيد التحقيق (RCA)"
     },
     "statusShort": {
       "OPEN": "مفتوحة",
@@ -276,8 +295,13 @@
       "FIRE": "حريق",
       "SECURITY_BREACH": "اختراق أمني",
       "OTHER": "أخرى",
-      "ACCIDENT": "حادث",
-      "SAFETY": "سلامة"
+      "ACCIDENT": "حادث / إصابة",
+      "SAFETY": "سلامة",
+      "OBSERVATION": "ملاحظة",
+      "OBSERVATION_desc": "رصد حالة غير آمنة",
+      "ACCIDENT_desc": "تضرر ممتلكات أو أفراد",
+      "SECURITY": "أمني",
+      "SECURITY_desc": "مخالفات أو اختراقات أمنية"
     },
     "wizard": {
       "title": "الإبلاغ عن حادث جديد",
@@ -412,22 +436,6 @@
       "importExcel": "استيراد",
       "importing": "جاري الاستيراد..."
     },
-    "analytics": {
-      "title": "إحصائيات الحوادث",
-      "subtitle": "مؤشرات أداء الحوادث الخارجية",
-      "totalIncidents": "إجمالي الحوادث",
-      "totalInjuries": "إجمالي الإصابات",
-      "avgClosure": "متوسط الإغلاق",
-      "closedTickets": "مغلقة",
-      "statusDistribution": "توزيع الحالات",
-      "byPriority": "حسب الخطورة",
-      "byType": "حسب نوع الحادث",
-      "monthlyTrend": "الاتجاه الشهري",
-      "topReporters": "أكثر المُبلّغين",
-      "total": "الإجمالي",
-      "withInjuries": "مع إصابات",
-      "exportExcel": "تصدير Excel"
-    },
     "time": {
       "justNow": "الآن",
       "minsAgo": "منذ {{count}} دقيقة",
@@ -459,5 +467,244 @@
     "locateMe": "موقعي الحالي",
     "locationFailed": "لم نتمكن من تحديد موقعك. يرجى الاختيار يدوياً على الخريطة.",
     "notSupported": "المتصفح لا يدعم تحديد الموقع الجغرافي"
+  },
+  "ap": {
+    "title": "خطط العمل",
+    "immediate": "فوري",
+    "shortTerm": "قصير المدى",
+    "longTerm": "طويل المدى",
+    "descPlaceholder": "اكتب تفاصيل خطة العمل...",
+    "create": "إضافة خطة عمل",
+    "uploadEvidence": "إرفاق إثبات",
+    "reviewNotes": "ملاحظات التقييم...",
+    "by": "بواسطة",
+    "review": "المراجعة"
+  },
+  "rca": {
+    "title": "تحليل السبب الجذري (RCA)",
+    "required": "مطلوب",
+    "cause": "ما الذي سبب الحادث؟",
+    "why": "لماذا حدث؟ (لماذا 5 مرات)",
+    "rootCause": "السبب الجذري",
+    "category": "تصنيف السبب",
+    "selectCategory": "اختر تصنيف",
+    "preventable": "هل كان بالإمكان تجنبه؟",
+    "submit": "اعتماد RCA",
+    "allRequired": "جميع حقول الـ RCA مطلوبة",
+    "minWords": "يجب أن لا يقل كل حقل عن 20 كلمة لوصف المشكلة بشكل دقيق."
+  },
+  "rem": {
+    "title": "التذكيرات",
+    "completedNote": "ملاحظة الإنجاز...",
+    "complete": "إنجاز",
+    "pendingActionTitle": "تنبيه يتطلب إجراؤك",
+    "pendingActionDesc": "يوجد تنبيه معلق بانتظار ردك، يرجى التوجه لقسم (التنبيهات) أدناه، وكتابة ملاحظة الإنجاز ثم الضغط على قنبلة \"إنجاز\"."
+  },
+  "ticketActions": {
+    "changeTypeOptional": "تغيير النوع (اختياري)",
+    "keepCurrent": "الاحتفاظ بالنوع الحالي",
+    "reasonForChange": "سبب التغيير...",
+    "routeToDept": "توجيه إلى قسم",
+    "selectDept": "اختر القسم",
+    "notes": "الملاحظات",
+    "notesPlaceholder": "ملاحظات...",
+    "return": "إرجاع",
+    "assign": "توجيه",
+    "missingActionPlans": "يجب إدراج خطة عمل فورية (Immediate) وخطة عمل قصيرة المدى (Short-Term) على الأقل قبل إرسال الرد.",
+    "gosiDateError": "عذاراً، يجب أن يكون تاريخ بلاغ التأمينات مساوياً أو بعد تاريخ وقوع الحادث.",
+    "hrGosi": "الموارد البشرية / التأمينات",
+    "gosiSubmitted": "هل تم رفع بلاغ التأمينات؟",
+    "gosiNo": "رقم التأمينات",
+    "reason": "السبب...",
+    "contractor": "المقاول",
+    "companyNotified": "هل تم إشعار الشركة؟",
+    "addApNotice": "يرجى إضافة خطط العمل من اليسار قبل الإرسال.",
+    "submitResponse": "إرسال الرد",
+    "reviewNotes": "ملاحظات المراجعة",
+    "reviewNotesPlaceholder": "ملاحظات المراجعة...",
+    "setReminder": "إعداد تذكير",
+    "reminderMessage": "رسالة التذكير...",
+    "returnToDept": "إرجاع للقسم",
+    "escalate": "تصعيد",
+    "proceedRca": "الانتقال لتحليل RCA",
+    "closeTicket": "إغلاق التذكرة",
+    "closureNotes": "ملاحظات الإغلاق / التصعيد",
+    "selectDeptManager": "اختر مدير القسم",
+    "sendToManager": "إرسال للمدير",
+    "noPending": "لا توجد إجراءات معلقة لدورك.",
+    "ticketClosed": "التذكرة مغلقة",
+    "replyPlaceholder": "ردك...",
+    "resubmit": "إعادة إرسال",
+    "export": "تصدير",
+    "classification": "التصنيف (Classification)"
+  },
+  "nav": {
+    "details": "التفاصيل",
+    "timeline": "السجل الزمني",
+    "attachments": "المرفقات",
+    "actions": "الإجراءات"
+  },
+  "classification": {
+    "MINOR": "بسيط (Minor)",
+    "SIGNIFICANT": "مؤثر (Significant)",
+    "MAJOR": "جسيم (Major)"
+  },
+  "analytics": {
+    "title": "إحصائيات الحوادث",
+    "subtitle": "مؤشرات أداء الحوادث الخارجية",
+    "totalIncidents": "إجمالي الحوادث",
+    "totalInjuries": "إجمالي الإصابات",
+    "avgClosure": "متوسط الإغلاق",
+    "closedTickets": "مغلقة",
+    "statusDistribution": "توزيع الحالات",
+    "byPriority": "حسب الخطورة",
+    "byType": "حسب نوع الحادث",
+    "monthlyTrend": "الاتجاه الشهري",
+    "topReporters": "أكثر المُبلّغين",
+    "total": "الإجمالي",
+    "withInjuries": "مع إصابات",
+    "exportExcel": "تصدير Excel",
+    "errors": {
+      "loadFailed": "فشل تحميل الإحصائيات",
+      "exportFailed": "فشل التصدير. يرجى المحاولة مرة أخرى."
+    },
+    "ai": {
+      "title": "مساعد الذكاء الاصطناعي",
+      "subtitle": "اسأل عن أي شيء يخص بيانات السلامة",
+      "welcome": "اسألني عن إحصائيات السلامة المهنية!",
+      "q1": "ما هو نوع الحادث الأكثر تكراراً؟",
+      "q2": "أي قسم لديه تأخير أكثر؟",
+      "q3": "ما هو مستوى ثقافة التبليغ؟",
+      "placeholder": "اسأل عن الحوادث، الاتجاهات، الأقسام...",
+      "error": "⚠️ عذراً، لم أتمكن من الحصول على رد. حاول مرة أخرى.",
+      "button": "المساعد الذكي"
+    },
+    "filter": {
+      "from": "من",
+      "to": "إلى",
+      "apply": "تطبيق الفلتر",
+      "export": "تصدير Excel"
+    },
+    "hero": {
+      "title": "إحصائيات السلامة والصحة المهنية",
+      "subtitle": "مؤشرات الأداء وثقافة التبليغ"
+    },
+    "kpi": {
+      "daysWithoutLTI": "يوم بدون إصابة مقعدة (LTI)",
+      "openTickets": "تذاكر مفتوحة",
+      "outOfTotal": "من أصل {{total}} إجمالي",
+      "overduePlans": "خطط عمل متأخرة",
+      "recordedInjuries": "إصابات مسجلة"
+    },
+    "rci": {
+      "title": "مؤشر ثقافة التبليغ (RCI)",
+      "subtitle": "أهم مؤشر لصحة ثقافة السلامة",
+      "excellent": "ممتازة",
+      "good": "جيدة",
+      "concerning": "ضعيفة",
+      "poor": "حرجة",
+      "outof100": "من 100",
+      "vsLastMonth": "عن الشهر الماضي",
+      "components": "مكونات المؤشر:",
+      "compNearMiss": "نسبة الحوادث الوشيكة (40%)",
+      "actual": "الفعلي",
+      "ideal": "المثالي",
+      "compDiversity": "تنوع المُبلغين (25%)",
+      "reportersFrom": "مُبلغين من",
+      "totalReports": "إجمالي البلاغات",
+      "compProactive": "نسبة البلاغات الاستباقية (20%)",
+      "areProactive": "بلاغات استباقية",
+      "compTimeliness": "سرعة الإغلاق (15%)",
+      "reportedWithin24h": "تم الإبلاغ خلال 24 ساعة",
+      "automatedInsights": "توصيات وتنبيهات تلقائية:"
+    },
+    "pyramid": {
+      "title": "هرم الحوادث (المعيار الصناعي)",
+      "fatality": "وفيات",
+      "lti": "إصابات مقعدة (LTI)",
+      "medical": "علاج طبي / إسعافات",
+      "nearMiss": "حوادث وشيكة (Near-Miss)",
+      "observation": "ملاحظات (Observations)",
+      "ideal": "المثالي",
+      "gap": "فجوة",
+      "healthy": "معدل صحي",
+      "hint": "القاعدة الذهبية: لكل حادث خطير يجب أن يكون هناك بلاغات أكثر للحوادث الأقل خطورة. وجود فجوة يدل على ضعف التبليغ ووجود مخاطر خفية."
+    },
+    "leading": {
+      "title": "مؤشرات استباقية (Leading)",
+      "subtitle": "تمنع الحوادث قبل وقوعها",
+      "nearMiss": "حوادث وشيكة (Near-Miss)",
+      "observations": "ملاحظات غير آمنة",
+      "approvedPlans": "خطط عمل معتمدة",
+      "onTimePlans": "خطط منجزة في الوقت"
+    },
+    "lagging": {
+      "title": "مؤشرات نتائج (Lagging)",
+      "subtitle": "حوادث وقعت بالفعل",
+      "totalInjuries": "إجمالي الإصابات"
+    },
+    "scorecard": {
+      "title": "بطاقة أداء الأقسام",
+      "department": "القسم",
+      "total": "الإجمالي",
+      "incidents": "حوادث",
+      "proactive": "استباقي",
+      "ratio": "النسبة",
+      "reporters": "مُبلغون",
+      "alert": "تنبيه",
+      "underReporting": "ضعف تبليغ",
+      "singleReporter": "مبلغ واحد",
+      "healthy": "صحي"
+    },
+    "heatmaps": {
+      "zones": "الحوادث حسب المنطقة",
+      "departments": "الحوادث حسب القسم"
+    },
+    "time": {
+      "hour": "الحوادث حسب ساعة اليوم",
+      "hourSub": "متى تحدث الحوادث؟",
+      "day": "الحوادث حسب يوم الأسبوع"
+    },
+    "days": {
+      "sunday": "الأحد",
+      "monday": "الإثنين",
+      "tuesday": "الثلاثاء",
+      "wednesday": "الأربعاء",
+      "thursday": "الخميس",
+      "friday": "الجمعة",
+      "saturday": "السبت"
+    },
+    "pareto": {
+      "title": "أنواع الحوادث (تحليل Pareto)",
+      "subtitle": "80/20 — أكثر الأنواع تكراراً"
+    },
+    "compliance": {
+      "title": "الامتثال والإجراءات النظامية",
+      "gosi": "بلاغات التأمينات (GOSI)",
+      "rca": "اكتمال تقارير RCA",
+      "ontime": "تقارير في الوقت (<24h)",
+      "lateReports": "تقارير متأخرة"
+    },
+    "performance": {
+      "closure": "متوسط زمن الإغلاق",
+      "overallAvg": "المتوسط العام:",
+      "overdue": "أكثر الأقسام تأخراً في الخطط",
+      "oldestOverdue": "أقدم تأخير:",
+      "days": "يوم",
+      "noOverdue": "لا توجد خطط متأخرة",
+      "allOnTrack": "جميع الأقسام ملتزمة بمواعيد خططها 🎉"
+    },
+    "trend": {
+      "title": "المنحنى الشهري — آخر 6 شهور",
+      "total": "الإجمالي",
+      "injuries": "الإصابات"
+    },
+    "champions": {
+      "title": "أبطال السلامة (Top Reporters)",
+      "subtitle": "الموظفون الأكثر التزاماً بثقافة التبليغ",
+      "championBadge": "بطل السلامة",
+      "proactiveRate": "بلاغات استباقية"
+    },
+    "footerNote": "تم بناء هذه الإحصائيات وفقاً لأفضل ممارسات السلامة والصحة المهنية (HSE) العالمية ومعايير المواقع الصناعية."
   }
 }

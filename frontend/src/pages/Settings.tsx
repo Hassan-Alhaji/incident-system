@@ -645,7 +645,7 @@ const Settings = () => {
  </div>
  <div className="flex flex-col">
  <label className="block text-base font-medium text-gray-800 mb-1">Zone Boundary *</label>
- <ZoneDrawerMap onPolygonChange={(points) => setZoneFormData(prev => ({ ...prev, coordinates: points }))} />
+ <ZoneDrawerMap existingZones={zones} onPolygonChange={(points) => setZoneFormData(prev => ({ ...prev, coordinates: points }))} />
  </div>
  </div>
  <div className="flex gap-2 pt-4 justify-end">

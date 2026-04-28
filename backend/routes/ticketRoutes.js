@@ -4,89 +4,81 @@ const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/dbUploadMiddleware');
 const multer = require('multer');
 const fileUpload = multer({ dest: 'uploads/' });
-const {
-    createOCTicket,
-    getOCTickets,
-    getOCTicketById,
-    updateReporterSection,
-    submitInvestigation,
-    departmentRepAction,
-    departmentManagerApprove,
-    finalDecision,
-    hseControllerAction,
-    uploadOCAttachments,
-    getOCUsers,
-    createOCUser,
-    updateOCUser,
-    deleteOCUser,
-    toggleOCUserStatus,
-    getOCAnalytics,
-    downloadOCUserTemplate,
-    importOCUsers,
-    exportOCTickets,
-    reporterReply,
-    submitHRAction
-} = require('../controllers/ocTicketController');
 
-// All routes require authentication
+// Import controllers
+const { createTicket, getTickets, getTicketById, reporterReply, uploadAttachments } = require('../controllers/ticketCrud');
+const { controllerAction, hrAction, departmentAction, controllerFinalReview, submitRCA, safetyManagerAction } = require('../controllers/ticketWorkflow');
+const { createActionPlan, getActionPlans, updateActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode } = require('../controllers/actionPlanController');
 
-// Ticket routes
+const { getUsers, createUser, updateUser, deleteUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets } = require('../controllers/ticketAdmin');
+
+// ===== TICKET CRUD =====
 router.route('/tickets')
-    .post(protect, createOCTicket)
-    .get(protect, getOCTickets);
+    .post(protect, createTicket)
+    .get(protect, getTickets);
 
-router.get('/tickets/export', protect, exportOCTickets);
+router.get('/tickets/export', protect, exportTickets);
 
 router.route('/tickets/:id')
-    .get(protect, getOCTicketById);
+    .get(protect, getTicketById);
 
-router.route('/tickets/:id/reporter')
-    .put(protect, updateReporterSection);
+// ===== TICKET WORKFLOW =====
+router.put('/tickets/:id/reporter-reply', protect, reporterReply);
+router.put('/tickets/:id/controller-action', protect, controllerAction);
+router.put('/tickets/:id/hr-action', protect, hrAction);
+router.put('/tickets/:id/department-action', protect, departmentAction);
+router.put('/tickets/:id/controller-review', protect, controllerFinalReview);
+router.put('/tickets/:id/rca', protect, submitRCA);
+router.put('/tickets/:id/safety-manager', protect, safetyManagerAction);
 
-router.route('/tickets/:id/reporter-reply')
-    .put(protect, reporterReply);
+// ===== ATTACHMENTS =====
+router.post('/tickets/:id/attachments', protect, upload.array('files'), uploadAttachments);
+
+// ===== ACTION PLANS =====
+router.route('/tickets/:id/action-plans')
+    .post(protect, createActionPlan)
+    .get(protect, getActionPlans);
+
+router.put('/action-plans/:id', protect, updateActionPlan);
+
+// Action plan file upload — wrap multer errors explicitly
+router.post('/action-plans/:id/attachments', protect, (req, res, next) => {
+    upload.array('files')(req, res, (err) => {
+        if (err) return res.status(400).json({ message: `Upload error: ${err.message}` });
+        next();
+    });
+}, uploadActionPlanAttachment);
+
+// Attachment content served without auth — UUID is the access control (like S3 presigned URLs)
+router.get('/action-plan-attachments/:id/content', getActionPlanAttachmentContent);
+router.delete('/action-plan-attachments/:id', protect, deleteActionPlanAttachment);
 
 
+// ===== QR CODE =====
+router.get('/tickets/:id/qrcode', protect, getTicketQRCode);
 
-router.route('/tickets/:id/hse-action')
-    .put(protect, hseControllerAction);
+// ===== REMINDERS =====
+router.route('/tickets/:id/reminders')
+    .post(protect, createReminder)
+    .get(protect, getReminders);
 
-router.route('/tickets/:id/dep-rep')
-    .put(protect, departmentRepAction);
+router.put('/reminders/:id/complete', protect, completeReminder);
 
-router.route('/tickets/:id/investigation')
-    .put(protect, submitInvestigation);
-
-router.route('/tickets/:id/dep-manager-approve')
-    .put(protect, departmentManagerApprove);
-
-router.route('/tickets/:id/final-review')
-    .put(protect, finalDecision);
-
-router.route('/tickets/:id/hr-action')
-    .put(protect, submitHRAction);
-
-router.route('/tickets/:id/attachments')
-    .post(protect, upload.array('files'), uploadOCAttachments);
-
-// User Management routes (HSE Manager / Admin only)
+// ===== USER MANAGEMENT =====
 router.route('/users')
-    .get(protect, getOCUsers)
-    .post(protect, createOCUser);
+    .get(protect, getUsers)
+    .post(protect, createUser);
 
-// Excel Import/Export routes (MUST be before /users/:id)
-router.get('/users/template', protect, downloadOCUserTemplate);
-router.post('/users/import', protect, fileUpload.single('file'), importOCUsers);
+router.get('/users/template', protect, downloadUserTemplate);
+router.post('/users/import', protect, fileUpload.single('file'), importUsers);
 
 router.route('/users/:id')
-    .put(protect, updateOCUser)
-    .delete(protect, deleteOCUser);
+    .put(protect, updateUser)
+    .delete(protect, deleteUser);
 
-router.route('/users/:id/status')
-    .patch(protect, toggleOCUserStatus);
+router.patch('/users/:id/status', protect, toggleUserStatus);
 
-// Analytics route
-router.route('/analytics')
-    .get(protect, getOCAnalytics);
+// ===== ANALYTICS =====
+router.get('/analytics', protect, getAnalytics);
 
 module.exports = router;

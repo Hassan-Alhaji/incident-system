@@ -35,10 +35,13 @@
     "action": "Action",
     "viewDetails": "View Details",
     "loadingTickets": "Loading tickets...",
-    "noTickets": "No tickets found"
+    "noTickets": "No tickets found",
+    "injuryAlert": "ticket(s) with recorded injuries",
+    "hideFilter": "Hide",
+    "showFilter": "Filter"
   },
   "login": {
-    "title": "Incident Portal",
+    "title": "Incident Reporting Portal",
     "subtitle": "Sign in with your email",
     "emailLabel": "Email Address",
     "emailPlaceholder": "name@company.com",
@@ -106,7 +109,10 @@
     "submit": "Submit Report",
     "submitting": "Submitting...",
     "uploadEvidence": "Upload Evidence",
-    "dragDrop": "Drag and drop files here"
+    "dragDrop": "Drag and drop files here",
+    "timeAlert": "Note: Please enter the exact date and time the incident occurred (not the current time).",
+    "lateReport": "Late Report (>24 hrs) — Please provide a reason",
+    "lateReasonPlaceholder": "Why is this report being submitted late?"
   },
   "settings": {
     "title": "System Settings",
@@ -157,7 +163,11 @@
   "notifications": {
     "title": "Notifications",
     "markAllRead": "Mark all read",
-    "noNotifications": "No notifications"
+    "noNotifications": "No notifications",
+    "pending": "You have",
+    "pendingItems": "ticket(s) requiring your action",
+    "viewAll": "View all in dashboard...",
+    "empty": "No tickets currently require your action"
   },
   "status": {
     "OPEN": "Open",
@@ -166,7 +176,13 @@
     "RESOLVED": "Resolved",
     "CLOSED": "Closed",
     "REOPENED": "Reopened",
-    "DRAFT": "Draft"
+    "DRAFT": "Draft",
+    "SUBMITTED": "Submitted",
+    "RETURNED_TO_REPORTER": "Returned to Reporter",
+    "ASSIGNED": "Assigned",
+    "RETURNED_TO_DEPARTMENT": "Returned to Department",
+    "PENDING_REMINDER": "Pending Reminder",
+    "UNDER_INVESTIGATION": "Under Investigation"
   },
   "priority": {
     "LOW": "Low",
@@ -204,7 +220,7 @@
       "settings": "Settings"
     },
     "login": {
-      "title": "Incident Portal",
+      "title": "Incident Reporting Portal",
       "subtitle": "",
       "error": "Login failed. Please try again.",
       "invalidCode": "Invalid verification code."
@@ -238,19 +254,19 @@
       "responded": "Responded"
     },
     "status": {
-      "DRAFT": "Draft",
-      "OPEN": "Submitted",
-      "HSE_REVIEW": "HSE Review",
-      "SUPERVISOR_REVIEW": "Supervisor Review",
-      "RETURNED_FOR_EDIT": "Returned for Edit",
-      "PENDING_DEP_REP": "Pending Dept. Rep",
-      "DEP_REP_RESPONDED": "Rep Responded",
-      "UNDER_INVESTIGATION": "Under Investigation",
-      "ESCALATED_TO_DEP_MANAGER": "Manager Approval",
-      "PENDING_ACTIONS": "Pending Actions",
-      "FINAL_REVIEW": "Final Review",
+      "OPEN": "Open",
+      "UNDER_REVIEW": "Under Review",
+      "ESCALATED": "Escalated",
+      "RESOLVED": "Resolved",
       "CLOSED": "Closed",
-      "CLOSED_REJECTED": "Rejected"
+      "REOPENED": "Reopened",
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "RETURNED_TO_REPORTER": "Returned to Reporter",
+      "ASSIGNED": "Assigned",
+      "RETURNED_TO_DEPARTMENT": "Returned to Department",
+      "PENDING_REMINDER": "Pending Reminder",
+      "UNDER_INVESTIGATION": "Under Investigation"
     },
     "statusShort": {
       "OPEN": "Open",
@@ -272,8 +288,13 @@
       "FIRE": "Fire",
       "SECURITY_BREACH": "Security Breach",
       "OTHER": "Other",
-      "ACCIDENT": "Accident",
-      "SAFETY": "Safety"
+      "ACCIDENT": "Accident / Injury",
+      "SAFETY": "Safety",
+      "OBSERVATION": "Observation",
+      "OBSERVATION_desc": "Unsafe condition or act",
+      "ACCIDENT_desc": "Damage to property or persons",
+      "SECURITY": "Security",
+      "SECURITY_desc": "Security breaches or violations"
     },
     "wizard": {
       "title": "Report New Incident",
@@ -409,22 +430,6 @@
       "importExcel": "Import",
       "importing": "Importing..."
     },
-    "analytics": {
-      "title": "Incident Analytics",
-      "subtitle": "Off-Circuit performance metrics",
-      "totalIncidents": "Total Incidents",
-      "totalInjuries": "Total Injuries",
-      "avgClosure": "Avg. Closure",
-      "closedTickets": "Closed",
-      "statusDistribution": "Status Distribution",
-      "byPriority": "By Severity",
-      "byType": "By Incident Type",
-      "monthlyTrend": "Monthly Trend",
-      "topReporters": "Top Reporters",
-      "total": "Total",
-      "withInjuries": "With Injuries",
-      "exportExcel": "Export Excel"
-    },
     "time": {
       "justNow": "Just now",
       "minsAgo": "{{count}} min ago",
@@ -456,5 +461,111 @@
     "locateMe": "My Location",
     "locationFailed": "Could not get your location. Please select manually on the map.",
     "notSupported": "Geolocation is not supported by your browser"
+  },
+  "ap": {
+    "title": "Action Plans",
+    "immediate": "Immediate",
+    "shortTerm": "Short-Term",
+    "longTerm": "Long-Term",
+    "descPlaceholder": "Describe the action plan...",
+    "create": "Add Action Plan",
+    "uploadEvidence": "Upload Evidence",
+    "reviewNotes": "Review notes...",
+    "by": "By",
+    "review": "Review"
+  },
+  "rca": {
+    "title": "Root Cause Analysis (RCA)",
+    "required": "Required",
+    "cause": "What caused it?",
+    "why": "Why did it happen? (5 Whys)",
+    "rootCause": "Root Cause",
+    "category": "Root Cause Category",
+    "selectCategory": "Select Category",
+    "preventable": "Was this preventable?",
+    "submit": "Submit RCA",
+    "allRequired": "All RCA fields are required",
+    "minWords": "Each text field must contain at least 20 words to describe the issue accurately."
+  },
+  "rem": {
+    "title": "Reminders",
+    "completedNote": "Completion note...",
+    "complete": "Complete",
+    "pendingActionTitle": "Action Required",
+    "pendingActionDesc": "There is a pending reminder awaiting your response. Please go to the (Reminders) section below, write a completion note, and click \"Complete\"."
+  },
+  "ticketActions": {
+    "changeTypeOptional": "Change Type (Optional)",
+    "keepCurrent": "Keep current",
+    "reasonForChange": "Reason for change...",
+    "routeToDept": "Route to Department",
+    "selectDept": "Select Department",
+    "notes": "Notes",
+    "notesPlaceholder": "Notes...",
+    "return": "Return",
+    "assign": "Assign",
+    "missingActionPlans": "You must add at least one Immediate and one Short-Term action plan before submitting your response.",
+    "gosiDateError": "The GOSI report date must be on or after the incident date.",
+    "hrGosi": "HR / GOSI",
+    "gosiSubmitted": "GOSI Submitted?",
+    "gosiNo": "GOSI No.",
+    "reason": "Reason...",
+    "contractor": "Contractor",
+    "companyNotified": "Company Notified?",
+    "addApNotice": "Please add Action Plans from the left before submitting.",
+    "submitResponse": "Submit Response",
+    "reviewNotes": "Review Notes",
+    "reviewNotesPlaceholder": "Review Notes...",
+    "setReminder": "Set Reminder",
+    "reminderMessage": "Reminder message...",
+    "returnToDept": "Return to Dept",
+    "escalate": "Escalate",
+    "proceedRca": "Proceed to RCA",
+    "closeTicket": "Close Ticket",
+    "closureNotes": "Closure / Escalation Notes",
+    "selectDeptManager": "Select Dept Manager",
+    "sendToManager": "Send to Manager",
+    "noPending": "No pending actions for your role.",
+    "ticketClosed": "Ticket Closed",
+    "replyPlaceholder": "Your reply...",
+    "resubmit": "Resubmit",
+    "export": "Export",
+    "classification": "Classification"
+  },
+  "nav": {
+    "details": "Details",
+    "timeline": "Timeline",
+    "attachments": "Attachments",
+    "actions": "Actions"
+  },
+  "classification": {
+    "MINOR": "Minor",
+    "SIGNIFICANT": "Significant",
+    "MAJOR": "Major"
+  },
+  "analytics": {
+    "title": "Incident Analytics",
+    "subtitle": "Off-Circuit performance metrics",
+    "totalIncidents": "Total Incidents",
+    "totalInjuries": "Total Injuries",
+    "avgClosure": "Avg. Closure",
+    "closedTickets": "Closed",
+    "statusDistribution": "Status Distribution",
+    "byPriority": "By Severity",
+    "byType": "By Incident Type",
+    "monthlyTrend": "Monthly Trend",
+    "topReporters": "Top Reporters",
+    "total": "Total",
+    "withInjuries": "With Injuries",
+    "exportExcel": "Export Excel",
+    "days": {
+      "sunday": "Sunday",
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday"
+    }
   }
 }

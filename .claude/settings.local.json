@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && head -50 {}')",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
