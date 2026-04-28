@@ -68,8 +68,8 @@ const requestEmailOtp = async (req, res) => {
             email
         };
 
-        // Only expose testCode in development (NOT production)
-        if (process.env.NODE_ENV !== 'production') {
+        // Only expose testCode in development OR when SHOW_OTP_ON_SCREEN=true (for testing)
+        if (process.env.NODE_ENV !== 'production' || process.env.SHOW_OTP_ON_SCREEN === 'true') {
             response.testCode = otpCode;
         }
 
