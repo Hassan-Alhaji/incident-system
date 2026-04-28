@@ -58,7 +58,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Rate Limiting — Point #5
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 attempts per window
+    max: 9999, // open for UAT testing
     message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' },
     standardHeaders: true,
     legacyHeaders: false,
