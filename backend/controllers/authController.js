@@ -54,17 +54,12 @@ const requestEmailOtp = async (req, res) => {
             data: { otpCode, otpExpires }
         });
 
-        step = 5; // Send Email
-        let sent = false;
-        try {
-            sent = await sendOTP(email, otpCode);
-        } catch (e) {
-            console.error('Email failed:', e);
-        }
+        step = 5; // Send Email (fire-and-forget — don't block response)
+        sendOTP(email, otpCode).catch(e => console.error('Email failed:', e));
 
-        // Return success - only expose OTP in non-production for debugging
+        // Return success immediately
         const response = {
-            message: sent ? 'OTP sent to email' : 'Email delivery pending',
+            message: 'OTP generated',
             email
         };
 
