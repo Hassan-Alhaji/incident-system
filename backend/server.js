@@ -118,8 +118,20 @@ app.use((req, res) => {
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
+
+        // Keep-alive: ping self every 14 minutes to prevent Render free tier sleep
+        if (isProd) {
+            const https = require('https');
+            const SELF_URL = process.env.RENDER_EXTERNAL_URL || `https://incident-system-api.onrender.com`;
+            setInterval(() => {
+                https.get(`${SELF_URL}/health`, (res) => {
+                    console.log(`[Keep-Alive] Pinged /health → ${res.statusCode}`);
+                }).on('error', (err) => {
+                    console.warn('[Keep-Alive] Ping failed:', err.message);
+                });
+            }, 14 * 60 * 1000); // every 14 minutes
+        }
     });
-    setInterval(() => { }, 1000 * 60);
 }
 
 module.exports = app;
