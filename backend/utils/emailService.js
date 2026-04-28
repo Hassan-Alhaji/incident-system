@@ -13,7 +13,8 @@ const sendOTP = async (email, otp) => {
         console.log(`[Email Service] Attempting to send OTP to ${email}...`);
 
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            throw new Error('Email credentials are missing in environment variables.');
+            console.warn('[Email Service] Email credentials missing — skipping send.');
+            return false;
         }
 
         const mailOptions = {
@@ -34,7 +35,13 @@ const sendOTP = async (email, otp) => {
             `
         };
 
-        const info = await transporter.sendMail(mailOptions);
+        // 8-second timeout — prevents login from hanging if SMTP is slow
+        const sendWithTimeout = Promise.race([
+            transporter.sendMail(mailOptions),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout after 8s')), 8000))
+        ]);
+
+        const info = await sendWithTimeout;
         console.log(`[Email Service] Email sent successfully: ${info.messageId}`);
         return true;
     } catch (error) {
