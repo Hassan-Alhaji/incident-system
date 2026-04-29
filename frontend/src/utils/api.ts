@@ -44,13 +44,32 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Only force logout on genuine 401 authentication failures
+    // Skip if: no response (network error/timeout), already on login page, or login request itself
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
+      const isOnLoginPage = window.location.pathname === '/login';
+      
+      // Don't auto-logout for login attempts or if already on login page
+      if (!isLoginRequest && !isOnLoginPage) {
+        // Check if this is a real auth failure vs a transient server error
+        const errorMessage = error.response?.data?.message || '';
+        const isRealAuthError = errorMessage.toLowerCase().includes('token') 
+          || errorMessage.toLowerCase().includes('unauthorized')
+          || errorMessage.toLowerCase().includes('expired')
+          || errorMessage.toLowerCase().includes('invalid')
+          || errorMessage.toLowerCase().includes('jwt');
+        
+        if (isRealAuthError || error.response?.data?.error === 'Unauthorized') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }
 );
+
 
 export default api;

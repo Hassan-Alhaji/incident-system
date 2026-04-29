@@ -144,13 +144,13 @@ const getTickets = async (req, res) => {
             prisma.ticket.count({ where })
         ]);
 
-        const stats = {
-            total,
-            open: await prisma.ticket.count({ where: { ...where, status: { in: ['SUBMITTED','ASSIGNED','UNDER_REVIEW'] } } }),
-            closed: await prisma.ticket.count({ where: { ...where, status: 'CLOSED' } }),
-            escalated: await prisma.ticket.count({ where: { ...where, status: 'ESCALATED' } }),
-            injuries: await prisma.ticket.count({ where: { ...where, hasInjury: true } })
-        };
+        const [open, closed, escalated, injuries] = await Promise.all([
+            prisma.ticket.count({ where: { ...where, status: { in: ['SUBMITTED','ASSIGNED','UNDER_REVIEW'] } } }),
+            prisma.ticket.count({ where: { ...where, status: 'CLOSED' } }),
+            prisma.ticket.count({ where: { ...where, status: 'ESCALATED' } }),
+            prisma.ticket.count({ where: { ...where, hasInjury: true } })
+        ]);
+        const stats = { total, open, closed, escalated, injuries };
 
         res.json({ tickets, total, page, limit, pages: Math.ceil(total/limit), stats });
     } catch (error) {
