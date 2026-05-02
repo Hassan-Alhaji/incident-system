@@ -93,15 +93,16 @@ const getAnalytics = async (req, res) => {
         const where = { userGroup: 'OFF_CIRCUIT' };
 
         // Fetch everything in parallel ────────────────────────────────────────
-        const [tickets, actionPlans, departments] = await Promise.all([
+        const [tickets, actionPlans, departments, serviceProviders] = await Promise.all([
             prisma.ticket.findMany({
                 where,
                 select: {
                     id: true, type: true, status: true, priority: true, hasInjury: true,
                     severityLevel: true, createdAt: true, closedAt: true, createdById: true,
-                    departmentId: true, zoneId: true,
+                    departmentId: true, zoneId: true, serviceProviderId: true,
                     department: { select: { id: true, name: true, nameAr: true } },
                     zone: { select: { id: true, name: true } },
+                    serviceProvider: { select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { name: true, nameAr: true } } } },
                     offCircuitReport: { select: { isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true } },
                 },
             }),
@@ -109,6 +110,7 @@ const getAnalytics = async (req, res) => {
                 select: { id: true, ticketId: true, type: true, status: true, targetDate: true, departmentId: true, submittedAt: true, department: { select: { name: true, nameAr: true } } },
             }),
             prisma.department.findMany({ select: { id: true, name: true, nameAr: true } }),
+            prisma.serviceProvider.findMany({ select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { name: true, nameAr: true } } } }),
         ]);
 
         const totalTickets = tickets.length;
@@ -442,6 +444,35 @@ const getAnalytics = async (req, res) => {
             priorityDistribution: byPriority,
             typeDistribution: typeCounts,
             totalInjuries: lagging.totalInjuries,
+
+            // Service Provider Violations
+            serviceProviderViolations: (() => {
+                const spMap = {};
+                tickets.forEach(t => {
+                    if (!t.serviceProviderId || !t.serviceProvider) return;
+                    const spId = t.serviceProviderId;
+                    if (!spMap[spId]) {
+                        spMap[spId] = {
+                            id: spId,
+                            name: t.serviceProvider.name,
+                            crNumber: t.serviceProvider.commercialRegistrationNumber,
+                            status: t.serviceProvider.status,
+                            department: t.serviceProvider.department?.name || 'N/A',
+                            departmentAr: t.serviceProvider.department?.nameAr || '',
+                            totalViolations: 0,
+                            hasInjury: 0,
+                            byType: {},
+                        };
+                    }
+                    spMap[spId].totalViolations++;
+                    if (t.hasInjury) spMap[spId].hasInjury++;
+                    const tType = t.type || 'OTHER';
+                    spMap[spId].byType[tType] = (spMap[spId].byType[tType] || 0) + 1;
+                });
+                return Object.values(spMap)
+                    .sort((a, b) => b.totalViolations - a.totalViolations)
+                    .slice(0, 10);
+            })(),
         });
     } catch (error) {
         console.error('Analytics Error:', error);
@@ -520,11 +551,11 @@ const exportTickets = async (req, res) => {
                 { 'Field': '--- RCA ---', 'Value': '' },
                 { 'Field': 'Required?', 'Value': oc.rcaRequired ? 'Yes' : 'No' },
                 { 'Field': 'Completed?', 'Value': oc.rcaCompleted ? 'Yes' : 'No' },
-                { 'Field': 'Root Cause', 'Value': oc.rcaRootCause || '-' },
-                { 'Field': 'Cause (What)', 'Value': oc.rcaCause || '-' },
-                { 'Field': 'Why', 'Value': oc.rcaWhy || '-' },
-                { 'Field': 'Category', 'Value': oc.rcaCategory || '-' },
-                { 'Field': 'Preventable?', 'Value': oc.rcaPreventable ? 'Yes' : 'No' },
+                { 'Field': 'Q1: Immediate Causes', 'Value': oc.rcaCause || '-' },
+                { 'Field': 'Q2: Underlying Causes', 'Value': oc.rcaWhy || '-' },
+                { 'Field': 'Q3: Root Causes', 'Value': oc.rcaRootCause || '-' },
+                { 'Field': 'Q4: Corrective Actions', 'Value': oc.rcaCategory || '-' },
+                { 'Field': 'Q5: Preventive Actions', 'Value': oc.rcaPreventiveActions || '-' },
                 { 'Field': '', 'Value': '' },
                 { 'Field': '--- GOSI / CONTRACTOR ---', 'Value': '' },
                 { 'Field': 'GOSI Submitted?', 'Value': oc.gosiSubmitted !== null ? (oc.gosiSubmitted ? 'Yes' : 'No') : '-' },

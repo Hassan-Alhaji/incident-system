@@ -240,7 +240,7 @@
     },
     "dashboard": {
       "title": "Incident Dashboard",
-      "subtitle": "Off-Circuit Incident Reports",
+      "subtitle": "SMC HSE Incident Management",
       "open": "Open",
       "investigating": "Investigating",
       "closed": "Closed",
@@ -558,6 +558,10 @@
     "total": "Total",
     "withInjuries": "With Injuries",
     "exportExcel": "Export Excel",
+    "errors": {
+      "loadFailed": "Failed to load analytics",
+      "exportFailed": "Export failed. Please try again."
+    },
     "days": {
       "sunday": "Sunday",
       "monday": "Monday",
@@ -567,5 +571,54 @@
       "friday": "Friday",
       "saturday": "Saturday"
     }
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "operationFailed": "Operation failed. Please try again.",
+    "deleteFailed": "Delete failed. Please try again.",
+    "loadUsersFailed": "Failed to load users.",
+    "downloadTemplateFailed": "Failed to download template. See console for details.",
+    "failedToSubmit": "Failed to submit the report.",
+    "nameEnglishOnly": "Name must be in English letters only.",
+    "mobileRequired": "Mobile number is required.",
+    "namesEnglishOnly": "Names must be in English letters only.",
+    "failedCreateZone": "Failed to create zone.",
+    "failedCreateDept": "Failed to create department.",
+    "failedCreateProvider": "Failed to create provider.",
+    "accidentMustHaveInjury": "Accidents must have an injury recorded.",
+    "addInjuredPersons": "Please add injured persons for the accident.",
+    "addAtLeastOneInjured": "Please add at least one injured person.",
+    "fillInjuredNameMobile": "Please fill the name and mobile for all injured persons.",
+    "selectInjuredDept": "Please select a department for the injured employee.",
+    "selectInjuredCompany": "Please select a company for the injured contractor.",
+    "fileUploadFailed": "File upload failed.",
+    "planDescRequired": "Please write the plan description.",
+    "planDateRequired": "Please set the target date.",
+    "planSaved": "Plan saved successfully.",
+    "planUpdated": "Plan updated successfully.",
+    "planApproved": "Plan approved.",
+    "planRejected": "Plan rejected.",
+    "attachmentDeleted": "Attachment deleted.",
+    "attachmentDeleteFailed": "Delete failed.",
+    "rejectionReasonRequired": "Please write a rejection reason first.",
+    "rejectionNotesRequired": "Please write notes first.",
+    "plansRejectedEscalated": "Plans rejected & ticket escalated.",
+    "rcaFieldsRequired": "All 5 RCA fields are required.",
+    "rcaMinWords": "Each field must contain at least 10 words.",
+    "aiUnavailable": "AI temporarily unavailable."
+  },
+  "confirm": {
+    "deleteZone": "Delete Zone",
+    "deleteZoneMsg": "Are you sure you want to delete this zone? This action cannot be undone.",
+    "deleteDept": "Delete Department",
+    "deleteDeptMsg": "Are you sure you want to delete this department? All related representatives will be unlinked.",
+    "deleteProvider": "Delete Provider",
+    "deleteProviderMsg": "Are you sure you want to delete this service provider?",
+    "deleteUser": "Delete User",
+    "deleteUserMsg": "Are you sure you want to delete this user? This action cannot be undone.",
+    "changeStatus": "Change Status",
+    "changeStatusMsg": "Change provider status to {{status}}?",
+    "cancel": "Cancel",
+    "delete": "Delete"
   }
 }

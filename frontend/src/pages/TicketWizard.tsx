@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
+import { useToast } from '../components/Toast';
 import LocationPickerMap from '../components/LocationPickerMap';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, Clock,
@@ -58,6 +59,7 @@ const TicketWizard = () => {
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const isRtl = i18n.dir() === 'rtl';
 
   const [step, setStep] = useState(1);
@@ -131,30 +133,30 @@ const TicketWizard = () => {
 
   const canProceed = () => {
     if (step === 1) {
-      if (!incidentType) { alert(t('oc.wizard.selectType', 'Please select an incident type.')); return false; }
+      if (!incidentType) { showToast(t('oc.wizard.selectType', 'Please select an incident type.'), 'warning'); return false; }
       return true;
     }
     if (step === 2) {
-      if (!incidentDate || !incidentTime) { alert(t('oc.wizard.missingDate', 'Please provide incident date and time.')); return false; }
-      if (!locationLat) { alert(t('oc.wizard.missingLocation', 'Please confirm the location on the map.')); return false; }
-      if (!whatHappened.trim()) { alert(t('oc.wizard.missingDesc', 'Please describe what happened.')); return false; }
-      if (isLateReport() && !lateReportReason.trim()) { alert(t('oc.wizard.missingLateReason', 'Please provide a reason for the late report.')); return false; }
+      if (!incidentDate || !incidentTime) { showToast(t('oc.wizard.missingDate', 'Please provide incident date and time.'), 'warning'); return false; }
+      if (!locationLat) { showToast(t('oc.wizard.missingLocation', 'Please confirm the location on the map.'), 'warning'); return false; }
+      if (!whatHappened.trim()) { showToast(t('oc.wizard.missingDesc', 'Please describe what happened.'), 'warning'); return false; }
+      if (isLateReport() && !lateReportReason.trim()) { showToast(t('oc.wizard.missingLateReason', 'Please provide a reason for the late report.'), 'warning'); return false; }
       return true;
     }
     if (step === 3) {
       if (files.length === 0) {
-        alert(t('oc.wizard.missingFiles', 'You must attach at least one image or supporting document.'));
+        showToast(t('oc.wizard.missingFiles', 'You must attach at least one image or supporting document.'), 'warning');
         return false;
       }
-      if (incidentType === 'ACCIDENT' && !hasInjury) { alert('Accidents must have an injury recorded.'); return false; }
-      if (incidentType === 'ACCIDENT' && injuredPersons.length === 0) { alert('Please add injured persons for the accident.'); return false; }
+      if (incidentType === 'ACCIDENT' && !hasInjury) { showToast(t('errors.accidentMustHaveInjury'), 'warning'); return false; }
+      if (incidentType === 'ACCIDENT' && injuredPersons.length === 0) { showToast(t('errors.addInjuredPersons'), 'warning'); return false; }
       
       if (hasInjury) {
-        if (injuredPersons.length === 0) { alert('Please add at least one injured person.'); return false; }
+        if (injuredPersons.length === 0) { showToast(t('errors.addAtLeastOneInjured'), 'warning'); return false; }
         for (const p of injuredPersons) {
-          if (!p.name.trim() || !p.mobile.trim()) { alert('Please fill the name and mobile for all injured persons.'); return false; }
-          if (p.type === 'EMPLOYEE' && !p.dept) { alert('Please select a department for the injured employee.'); return false; }
-          if (p.type === 'CONTRACTOR' && !p.company) { alert('Please select a company for the injured contractor.'); return false; }
+          if (!p.name.trim() || !p.mobile.trim()) { showToast(t('errors.fillInjuredNameMobile'), 'warning'); return false; }
+          if (p.type === 'EMPLOYEE' && !p.dept) { showToast(t('errors.selectInjuredDept'), 'warning'); return false; }
+          if (p.type === 'CONTRACTOR' && !p.company) { showToast(t('errors.selectInjuredCompany'), 'warning'); return false; }
         }
       }
     }
@@ -189,7 +191,7 @@ const TicketWizard = () => {
       if (files.length > 0) { const fd = new FormData(); files.forEach(f => fd.append('files', f)); await api.post(`/tickets/${ticketId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       setSubmittedId(ticketId); setSubmitted(true);
       setTimeout(() => navigate(`/tickets/${ticketId}`), 3000);
-    } catch (err: any) { setError(err.response?.data?.message || 'Failed to submit'); } finally { setSubmitting(false); }
+    } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); } finally { setSubmitting(false); }
   };
 
   if (submitted) return (

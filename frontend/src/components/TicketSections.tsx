@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
+import { useToast } from './Toast';
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
-import { Plus, Upload, Trash2, FileImage, Loader2, Check, AlertTriangle, Sparkles, X } from 'lucide-react';
+import { Plus, Upload, Trash2, FileImage, Loader2, Check, AlertTriangle, Sparkles, X, CornerUpRight, RotateCcw } from 'lucide-react';
 
 /** Fetches a protected image with Bearer token and renders via blob URL */
 const AuthImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -25,12 +26,13 @@ const AuthImage = ({ src, alt, className }: { src: string; alt: string; classNam
 
 
 export const MagicWandButton = ({ text, context, type, onEnhanced }: { text: string; context: string; type: string; onEnhanced: (newText: string) => void }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
 
   const handleEnhance = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || unavailable) return;
     setLoading(true);
     setError(null);
     try {
@@ -40,12 +42,11 @@ export const MagicWandButton = ({ text, context, type, onEnhanced }: { text: str
       const data = err.response?.data;
       const status = err.response?.status;
       if (status === 503 || data?.unavailable) {
-        // Quota exceeded — hide button gracefully
         setUnavailable(true);
-        setError(data?.message?.split('/')[1]?.trim() || 'AI unavailable (quota exceeded)');
-        setTimeout(() => { setError(null); }, 5000);
+        setError(t('errors.aiUnavailable'));
+        setTimeout(() => { setError(null); }, 6000);
       } else {
-        setError(data?.message || 'AI enhancement failed');
+        setError(data?.message || t('errors.generic'));
         setTimeout(() => setError(null), 4000);
       }
     } finally {
@@ -53,21 +54,22 @@ export const MagicWandButton = ({ text, context, type, onEnhanced }: { text: str
     }
   };
 
-  // Hide entirely if quota is confirmed exceeded
-  if (unavailable) return null;
-
   return (
     <div className="relative inline-flex items-center">
       <button
         onClick={handleEnhance}
-        disabled={loading || !text.trim()}
-        title="Enhance text using AI ✨"
-        className="p-1 text-purple-500 hover:bg-purple-100 rounded disabled:opacity-50 transition-all"
+        disabled={loading || !text.trim() || unavailable}
+        title={unavailable ? 'AI غير متاح مؤقتاً (تجاوز الحصة المجانية)' : 'Enhance text using AI ✨'}
+        className={`p-1.5 rounded-lg transition-all ${
+          unavailable 
+            ? 'text-gray-300 cursor-not-allowed bg-gray-50' 
+            : 'text-purple-500 hover:bg-purple-100 disabled:opacity-50'
+        }`}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
       </button>
       {error && (
-        <div className="absolute bottom-full right-0 mb-1 z-50 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] rounded-lg px-2 py-1 whitespace-nowrap shadow-md max-w-[220px] leading-relaxed">
+        <div className="absolute bottom-full right-0 mb-1 z-50 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] rounded-lg px-2 py-1 whitespace-nowrap shadow-md max-w-[250px] leading-relaxed">
           ⚠️ {error}
         </div>
       )}
@@ -100,6 +102,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
   const isRtl = i18n.dir() === 'rtl';
+  const { showToast } = useToast();
   const plans: ActionPlan[] = ticket.actionPlans || [];
 
   const role = user?.role || '';
@@ -117,18 +120,15 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   });
 
   const [saving,      setSaving]      = useState<string | null>(null);
+  const [savingAll,   setSavingAll]   = useState(false);
   const [uploading,   setUploading]   = useState<string | null>(null);
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNote,  setReviewNote]  = useState('');
-  const [toast,       setToast]       = useState<string | null>(null);
-  const [editingDecision, setEditingDecision] = useState<string | null>(null); // planId being re-reviewed
+  const [showRejectNotes, setShowRejectNotes] = useState(false); // show rejection notes textarea
+  const [bulkReviewing, setBulkReviewing] = useState(false); // loading state for bulk review
   // pending local files per plan type — shown as preview before save
   const [pendingFiles, setPendingFiles] = useState<Record<string, File[]>>({});
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
+  // pending attachment-delete confirmation (replaces native confirm() dialog)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const getPlan = (type: string) => plans.find(p => p.type === type);
 
@@ -141,17 +141,17 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
     try {
       await api.post(`/action-plans/${planId}/attachments`, fd);
     } catch (err: any) {
-      showToast(err.response?.data?.message || (isRtl ? '❌ فشل رفع الملف' : '❌ File upload failed'));
+      showToast(err.response?.data?.message || t('errors.fileUploadFailed'));
     } finally {
       setUploading(null);
     }
   };
 
-  // Save (or update) plan, then upload any pending files
+  // Save (or update) a single plan, then upload any pending files
   const handleSave = async (type: string) => {
     const { desc, date } = forms[type];
-    if (!desc.trim()) { showToast(isRtl ? '⚠️ الرجاء كتابة وصف الخطة' : '⚠️ Please write the plan description'); return; }
-    if (!date) { showToast(isRtl ? '⚠️ الرجاء تحديد التاريخ المستهدف' : '⚠️ Please set the target date'); return; }
+    if (!desc.trim()) { showToast(t('errors.planDescRequired')); return; }
+    if (!date) { showToast(t('errors.planDateRequired')); return; }
     setSaving(type);
     try {
       const ex = getPlan(type);
@@ -169,10 +169,41 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
         await doUpload(planId, pending);
         setPendingFiles(pf => ({ ...pf, [type]: [] }));
       }
-      showToast(ex ? (isRtl ? '✅ تم تحديث الخطة بنجاح' : '✅ Plan updated') : (isRtl ? '✅ تم حفظ الخطة بنجاح' : '✅ Plan saved'));
-      onRefresh();
-    } catch (err: any) { showToast(err.response?.data?.message || 'Error'); }
+      return true;
+    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); return false; }
     finally { setSaving(null); }
+  };
+
+  // Save ALL plans that have content — single unified action
+  const handleSaveAll = async () => {
+    // Validate required plans
+    for (const pd of PLAN_DEFS) {
+      const form = forms[pd.type];
+      if (pd.required && !form.desc.trim()) {
+        showToast(`${isRtl ? pd.labelAr : pd.labelEn}: ${t('errors.planDescRequired')}`, 'warning');
+        return;
+      }
+      if (pd.required && !form.date) {
+        showToast(`${isRtl ? pd.labelAr : pd.labelEn}: ${t('errors.planDateRequired')}`, 'warning');
+        return;
+      }
+    }
+    setSavingAll(true);
+    let savedCount = 0;
+    try {
+      for (const pd of PLAN_DEFS) {
+        const form = forms[pd.type];
+        // Skip optional plans with no content
+        if (!form.desc.trim() && !pd.required) continue;
+        if (!form.desc.trim()) continue;
+        const success = await handleSave(pd.type);
+        if (success) savedCount++;
+      }
+      if (savedCount > 0) {
+        showToast(isRtl ? `✅ تم حفظ ${savedCount} خطة بنجاح` : `✅ ${savedCount} plan(s) saved successfully`, 'success');
+        onRefresh();
+      }
+    } finally { setSavingAll(false); }
   };
 
   // Add files from existing saved plan immediately
@@ -193,21 +224,41 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const handleReview = async (planId: string, status: string) => {
     try {
       await api.put(`/action-plans/${planId}`, { status, reviewNotes: reviewNote });
-      showToast(status === 'APPROVED'
-        ? (isRtl ? '✅ تم اعتماد الخطة' : '✅ Plan approved')
-        : (isRtl ? '❌ تم رفض الخطة' : '❌ Plan rejected'));
-      setReviewingId(null); setReviewNote(''); setEditingDecision(null);
+      showToast(status === 'APPROVED' ? t('errors.planApproved') : t('errors.planRejected'),
+        status === 'APPROVED' ? 'success' : 'warning');
+      setReviewNote(''); setShowRejectNotes(false);
       onRefresh();
-    } catch (err: any) { showToast(err.response?.data?.message || 'Error'); }
+    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
+  };
+
+  // Bulk approve/reject all submitted plans at once
+  const handleBulkReview = async (status: string) => {
+    const submittedPlans = plans.filter(p => p.status === 'SUBMITTED');
+    if (submittedPlans.length === 0) return;
+    if (status === 'REJECTED' && !reviewNote.trim()) {
+      showToast(t('errors.rejectionReasonRequired'), 'warning');
+      return;
+    }
+    setBulkReviewing(true);
+    try {
+      for (const plan of submittedPlans) {
+        await api.put(`/action-plans/${plan.id}`, { status, reviewNotes: reviewNote || null });
+      }
+      showToast(status === 'APPROVED' ? t('errors.planApproved') : t('errors.planRejected'),
+        status === 'APPROVED' ? 'success' : 'warning');
+      setReviewNote(''); setShowRejectNotes(false);
+      onRefresh();
+    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
+    finally { setBulkReviewing(false); }
   };
 
   const deleteAttachment = async (attId: string) => {
     try {
       await api.delete(`/action-plan-attachments/${attId}`);
-      showToast(isRtl ? '🗑️ تم حذف المرفق' : '🗑️ Attachment deleted');
+      showToast(t('errors.attachmentDeleted'), 'success');
       onRefresh();
     } catch (err: any) {
-      showToast(err.response?.data?.message || (isRtl ? '❌ فشل الحذف' : '❌ Delete failed'));
+      showToast(err.response?.data?.message || t('errors.attachmentDeleteFailed'), 'error');
     }
   };
 
@@ -217,12 +268,6 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      {/* Toast notification */}
-      {toast && (
-        <div className="mx-4 mt-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm font-bold text-emerald-700 flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-          {toast}
-        </div>
-      )}
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
         <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
@@ -347,7 +392,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                                 }
                                 {/* Delete button — DEP_REP only */}
                                 {canEdit && (
-                                  <button onClick={e => { e.preventDefault(); e.stopPropagation(); if(confirm(isRtl ? 'حذف هذا المرفق؟' : 'Delete this attachment?')) deleteAttachment(att.id); }}
+                                  <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(att.id); }}
                                     className="absolute top-0.5 right-0.5 z-10 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
                                     <X size={10} strokeWidth={3} />
                                   </button>
@@ -396,18 +441,13 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                       )}
                     </div>
 
-                    <button
-                      onClick={() => handleSave(pd.type)}
-                      disabled={saving === pd.type || !form.desc.trim() || !form.date}
-                      className={`w-full text-white text-xs font-bold py-2.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 ${pd.saveCls}`}
-                    >
-                      {saving === pd.type
-                        ? <><Loader2 size={13} className="animate-spin" /> {isRtl ? 'جارٍ الحفظ...' : 'Saving...'}</>
-                        : isSaved
-                          ? <><Check size={13} /> {isRtl ? 'تحديث الخطة' : 'Update Plan'}{(pendingFiles[pd.type]?.length) ? ` (+${pendingFiles[pd.type].length} ${isRtl ? 'ملف' : 'file(s)'})` : ''}</>
-                          : <><Plus size={13} /> {isRtl ? 'حفظ الخطة' : 'Save Plan'}{(pendingFiles[pd.type]?.length) ? ` (+${pendingFiles[pd.type].length} ${isRtl ? 'ملف' : 'file(s)'})` : ''}</>
-                      }
-                    </button>
+                    {/* Status indicator for unsaved changes */}
+                    {(form.desc.trim() && !isSaved) || (isSaved && (form.desc.trim() !== (ex?.description || '') || form.date !== (ex?.targetDate?.slice(0,10) || ''))) ? (
+                      <div className="flex items-center gap-1.5 py-1">
+                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-[10px] text-amber-600 font-bold">{isRtl ? 'تغييرات غير محفوظة' : 'Unsaved changes'}</span>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   /* ── Read-only view (Controller / after approval) ── */
@@ -445,7 +485,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                                   }
                                   {/* Delete — DEP_REP only */}
                                   {canEdit && (
-                                    <button onClick={e => { e.preventDefault(); e.stopPropagation(); if(confirm(isRtl ? 'حذف هذا المرفق؟' : 'Delete this attachment?')) deleteAttachment(att.id); }}
+                                    <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(att.id); }}
                                       className="absolute top-0.5 right-0.5 z-10 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
                                       <X size={10} strokeWidth={3} />
                                     </button>
@@ -467,108 +507,24 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                         </label>
                       )}
 
-                      {/* Reviewer approve / reject — ONLY when department has submitted/resubmitted */}
+                      {/* Reviewer status badge — when plan is submitted */}
                       {isReviewer && ex!.status === 'SUBMITTED' && (
-                        <div className="pt-3 border-t border-gray-100 space-y-3">
-                          {/* Reject reason */}
-                          <div>
-                            <label className="text-xs font-bold text-gray-600 block mb-1">
-                              {isRtl ? 'ملاحظات المراجعة' : 'Review Notes'} 
-                              <span className="text-red-500 ml-1">*{isRtl ? ' مطلوبة عند الرفض' : ' Required for rejection'}</span>
-                            </label>
-                            <textarea
-                              placeholder={isRtl ? "اكتب ملاحظاتك أو سبب الرفض هنا..." : "Write your notes or rejection reason here..."}
-                              value={reviewingId === ex!.id ? reviewNote : ''}
-                              onFocus={() => setReviewingId(ex!.id)}
-                              onChange={e => { setReviewingId(ex!.id); setReviewNote(e.target.value); }}
-                              rows={3}
-                              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 resize-none"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleReview(ex!.id, 'APPROVED')}
-                              className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-sm"
-                            >
-                              <Check size={15} /> {isRtl ? '✓ اعتماد الخطة' : '✓ Approve Plan'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!reviewNote.trim()) {
-                                  showToast(isRtl ? '⚠️ يجب كتابة سبب الرفض أولاً' : '⚠️ Please write a rejection reason first');
-                                  return;
-                                }
-                                handleReview(ex!.id, 'REJECTED');
-                              }}
-                              className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-sm"
-                            >
-                              <Trash2 size={15} /> {isRtl ? '✗ رفض الخطة' : '✗ Reject Plan'}
-                            </button>
-                          </div>
+                        <div className="pt-2">
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full">
+                            ⏳ {isRtl ? 'بانتظار المراجعة الموحدة أدناه' : 'Awaiting unified review below'}
+                          </span>
                         </div>
                       )}
 
-                      {/* Rejection note display + Edit Decision for reviewer */}
+                      {/* Rejection/approval note display */}
                       {ex!.reviewNotes && (
                         <div className={`rounded-lg p-2.5 text-xs mt-1 ${approved ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <strong>{isRtl ? 'ملاحظة المراجع: ' : 'Reviewer Note: '}</strong>{ex!.reviewNotes}
-                            </div>
-                            {/* Edit Decision — only for reviewer on REJECTED plans */}
-                            {isReviewer && rejected && editingDecision !== ex!.id && (
-                              <button
-                                onClick={() => { setEditingDecision(ex!.id); setReviewingId(ex!.id); setReviewNote(ex!.reviewNotes || ''); }}
-                                className="shrink-0 text-[10px] font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 px-2 py-1 rounded-lg transition-all whitespace-nowrap"
-                              >
-                                ✏️ {isRtl ? 'تعديل القرار' : 'Edit Decision'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Edit Decision form — appears when reviewer clicks Edit */}
-                      {isReviewer && rejected && editingDecision === ex!.id && (
-                        <div className="pt-3 border border-orange-200 bg-orange-50 rounded-xl p-3 space-y-3">
-                          <p className="text-xs font-bold text-orange-700 flex items-center gap-1.5">
-                            ✏️ {isRtl ? 'تعديل قرار المراجعة' : 'Editing Review Decision'}
-                          </p>
                           <div>
-                            <label className="text-xs font-bold text-gray-600 block mb-1">
-                              {isRtl ? 'ملاحظات المراجعة' : 'Review Notes'}
-                              <span className="text-red-500 ml-1">*{isRtl ? ' مطلوبة عند الرفض' : ' Required for rejection'}</span>
-                            </label>
-                            <textarea
-                              value={reviewNote}
-                              onChange={e => setReviewNote(e.target.value)}
-                              rows={3}
-                              className="w-full text-sm border border-orange-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none bg-white"
-                            />
+                            <strong>{isRtl ? 'ملاحظة المراجع: ' : 'Reviewer Note: '}</strong>{ex!.reviewNotes}
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <button
-                              onClick={() => handleReview(ex!.id, 'APPROVED')}
-                              className="col-span-1 flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg transition-all"
-                            >
-                              <Check size={13} /> {isRtl ? 'اعتماد' : 'Approve'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (!reviewNote.trim()) { showToast(isRtl ? '⚠️ أدخل ملاحظة أولاً' : '⚠️ Enter a note first'); return; }
-                                handleReview(ex!.id, 'REJECTED');
-                              }}
-                              className="col-span-1 flex items-center justify-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-2 rounded-lg transition-all"
-                            >
-                              <Trash2 size={13} /> {isRtl ? 'رفض' : 'Reject'}
-                            </button>
-                            <button
-                              onClick={() => { setEditingDecision(null); setReviewingId(null); setReviewNote(''); }}
-                              className="col-span-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-lg transition-all"
-                            >
-                              {isRtl ? 'إلغاء' : 'Cancel'}
-                            </button>
-                          </div>
+                          {ex!.reviewedBy && (
+                            <p className="text-[9px] mt-1 opacity-70">{isRtl ? 'بواسطة:' : 'By:'} {ex!.reviewedBy}</p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -580,20 +536,196 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
             </div>
           );
         })}
+
+        {/* ═══════ UNIFIED SAVE BUTTON — Save all plans at once ═══════ */}
+        {canEdit && (
+          <button
+            onClick={handleSaveAll}
+            disabled={savingAll || saving !== null}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-bold py-3.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30"
+          >
+            {savingAll || saving !== null
+              ? <><Loader2 size={16} className="animate-spin" /> {isRtl ? 'جارٍ حفظ الخطط...' : 'Saving Plans...'}</>
+              : <><Check size={16} /> {isRtl ? '💾 حفظ جميع الخطط' : '💾 Save All Plans'}</>
+            }
+          </button>
+        )}
+
+        {/* ═══════ UNIFIED REVIEW SECTION — Single Approve / Reject for ALL plans ═══════ */}
+        {(() => {
+          const submittedPlans = plans.filter(p => p.status === 'SUBMITTED');
+          const hasSubmitted = submittedPlans.length > 0;
+
+          if (!isReviewer || !hasSubmitted) return null;
+
+          return (
+            <div className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 space-y-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-lg">⚖️</div>
+                <div>
+                  <h4 className="text-sm font-black text-blue-900">
+                    {isRtl ? 'مراجعة خطط العمل' : 'Review Action Plans'}
+                  </h4>
+                  <p className="text-[10px] text-blue-600">
+                    {isRtl ? `${submittedPlans.length} خطة بانتظار المراجعة` : `${submittedPlans.length} plan(s) awaiting review`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Rejection flow — shows notes + Return to Dept / Escalate */}
+              {showRejectNotes && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <label className="text-xs font-bold text-red-700 block">
+                    {isRtl ? 'ملاحظات الرفض' : 'Rejection Notes'} <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    placeholder={isRtl ? 'اكتب سبب الرفض أو الملاحظات هنا...' : 'Write the rejection reason or notes here...'}
+                    value={reviewNote}
+                    onChange={e => setReviewNote(e.target.value)}
+                    rows={3}
+                    autoFocus
+                    className="w-full text-sm border-2 border-red-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 resize-none bg-white"
+                  />
+
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    {isRtl ? 'اختر الإجراء بعد الرفض:' : 'Choose the action after rejection:'}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleBulkReview('REJECTED')}
+                      disabled={bulkReviewing || !reviewNote.trim()}
+                      className="flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white text-sm font-black py-3 rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-40"
+                    >
+                      {bulkReviewing ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                      {isRtl ? 'إرجاع للقسم' : 'Return to Dept'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!reviewNote.trim()) {
+                          showToast(t('errors.rejectionNotesRequired'), 'warning');
+                          return;
+                        }
+                        // Reject all plans then signal escalation via the onRefresh callback
+                        setBulkReviewing(true);
+                        try {
+                          for (const plan of submittedPlans) {
+                            await api.put(`/action-plans/${plan.id}`, { status: 'REJECTED', reviewNotes: reviewNote });
+                          }
+                          // Escalate the ticket
+                          await api.put(`/tickets/${ticket.id}/controller-review`, { action: 'ESCALATE', notes: reviewNote });
+                          showToast(t('errors.plansRejectedEscalated'), 'success');
+                          setReviewNote(''); setShowRejectNotes(false);
+                          onRefresh();
+                        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
+                        finally { setBulkReviewing(false); }
+                      }}
+                      disabled={bulkReviewing || !reviewNote.trim()}
+                      className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-black py-3 rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-40"
+                    >
+                      {bulkReviewing ? <Loader2 size={15} className="animate-spin" /> : <CornerUpRight size={15} />}
+                      {isRtl ? 'تصعيد' : 'Escalate'}
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => { setShowRejectNotes(false); setReviewNote(''); }}
+                    className="w-full text-xs font-bold text-gray-500 hover:text-gray-700 py-1.5 transition-all"
+                  >
+                    {isRtl ? 'إلغاء' : 'Cancel'}
+                  </button>
+                </div>
+              )}
+
+              {/* Main buttons — Approve / Reject (before rejection flow is triggered) */}
+              {!showRejectNotes && (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleBulkReview('APPROVED')}
+                    disabled={bulkReviewing}
+                    className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-sm font-black py-3 rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                  >
+                    {bulkReviewing ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    {isRtl ? '✓ اعتماد' : '✓ Approve'}
+                  </button>
+                  <button
+                    onClick={() => setShowRejectNotes(true)}
+                    className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-sm font-black py-3 rounded-xl transition-all shadow-md hover:shadow-lg"
+                  >
+                    <X size={16} />
+                    {isRtl ? '✗ رفض' : '✗ Reject'}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
+
+      {/* ── Attachment delete confirmation modal ── */}
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setConfirmDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="h-1 bg-red-500" />
+            <div className="p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <Trash2 size={18} className="text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    {isRtl ? 'حذف المرفق' : 'Delete Attachment'}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {isRtl
+                      ? 'هل أنت متأكد من حذف هذا المرفق؟ لا يمكن التراجع عن هذا الإجراء.'
+                      : 'Are you sure you want to delete this attachment? This action cannot be undone.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-all"
+                >
+                  {isRtl ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => { const id = confirmDelete; setConfirmDelete(null); if (id) deleteAttachment(id); }}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-red-600/30"
+                >
+                  {isRtl ? 'حذف' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () => void }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { showToast } = useToast();
+  const isRtl = i18n.language === 'ar';
   const oc = ticket.offCircuitReport;
   const [loading, setLoading] = useState(false);
+  // Q1: Immediate Causes
   const [cause, setCause] = useState(oc?.rcaCause || '');
+  // Q2: Underlying Causes
   const [why, setWhy] = useState(oc?.rcaWhy || '');
-  const [preventable, setPreventable] = useState(oc?.rcaPreventable || false);
+  // Q3: Root Causes
   const [rootCause, setRootCause] = useState(oc?.rcaRootCause || '');
-  const [category, setCategory] = useState(oc?.rcaCategory || '');
+  // Q4: Corrective Actions (stored in rcaCategory field)
+  const [correctiveActions, setCorrectiveActions] = useState(oc?.rcaCategory || '');
+  // Q5: Preventive Actions
+  const [preventiveActions, setPreventiveActions] = useState(oc?.rcaPreventiveActions || '');
 
   const { user } = useAuth();
   const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(user?.role || '');
@@ -603,31 +735,46 @@ export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () =
   const countWords = (str: string) => str.trim().split(/\s+/).filter(w => w.length > 0).length;
 
   const handleSubmit = async () => {
-    if (!cause || !why || !rootCause || !category) return alert(t('rca.allRequired', 'All RCA fields required'));
-
-    if (countWords(cause) < 20 || countWords(why) < 20 || countWords(rootCause) < 20) {
-      return alert(t('rca.minWords', 'Each text field must contain at least 20 words to describe the issue accurately.'));
+    if (!cause || !why || !rootCause || !correctiveActions || !preventiveActions) {
+      return showToast(t('errors.rcaFieldsRequired'), 'warning');
     }
-
+    if (countWords(cause) < 10 || countWords(why) < 10 || countWords(rootCause) < 10 || countWords(correctiveActions) < 10 || countWords(preventiveActions) < 10) {
+      return showToast(t('errors.rcaMinWords'), 'warning');
+    }
     setLoading(true);
     try {
-      await api.put(`/tickets/${ticket.id}/rca`, { rcaCause: cause, rcaWhy: why, rcaPreventable: preventable, rcaRootCause: rootCause, rcaCategory: category });
+      await api.put(`/tickets/${ticket.id}/rca`, {
+        rcaCause: cause,
+        rcaWhy: why,
+        rcaRootCause: rootCause,
+        rcaCategory: correctiveActions,
+        rcaPreventiveActions: preventiveActions,
+      });
       onRefresh();
-    } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
     finally { setLoading(false); }
   };
 
   if (!oc?.rcaRequired) return null;
-  // Hide RCA section from non-controllers if it is not completed yet
   if (!isControllerRole && !isCompleted) return null;
 
 
+
+  const RCA_QUESTIONS = [
+    { num: 1, en: 'What are the Immediate Causes?', ar: 'ماهي الأسباب المباشرة للحدث/الحادث ؟', value: cause, setter: setCause, bg: 'bg-red-50', border: 'border-red-200', numBg: 'bg-red-600', labelColor: 'text-red-800' },
+    { num: 2, en: 'What are the Underlying Causes?', ar: 'ماهي الأسباب الغير مباشرة للحدث/الحادث ؟', value: why, setter: setWhy, bg: 'bg-orange-50', border: 'border-orange-200', numBg: 'bg-orange-600', labelColor: 'text-orange-800' },
+    { num: 3, en: 'What are the Root Causes?', ar: 'ماهي الأسباب الجذرية للحدث/الحادث ؟', value: rootCause, setter: setRootCause, bg: 'bg-amber-50', border: 'border-amber-200', numBg: 'bg-amber-600', labelColor: 'text-amber-800' },
+    { num: 4, en: 'Immediate and Corrective Actions', ar: 'الإجراءات الفورية والتصحيحية', value: correctiveActions, setter: setCorrectiveActions, bg: 'bg-blue-50', border: 'border-blue-200', numBg: 'bg-blue-600', labelColor: 'text-blue-800' },
+    { num: 5, en: 'Preventive Actions', ar: 'الإجراءات الوقائية التي تمنع تكرار الحادث', value: preventiveActions, setter: setPreventiveActions, bg: 'bg-emerald-50', border: 'border-emerald-200', numBg: 'bg-emerald-600', labelColor: 'text-emerald-800' },
+  ];
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       <div className={`px-4 py-3 border-b ${isCompleted ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
         <h3 className="text-sm font-bold flex items-center gap-2">
-          {isCompleted ? <><Check size={14} className="text-emerald-500" /> {t('rca.title', 'Root Cause Analysis')} ✓</> : <><AlertTriangle size={14} className="text-amber-500" /> {t('rca.title', 'Root Cause Analysis')} ({t('rca.required', 'Required')})</>}
+          {isCompleted
+            ? <><Check size={14} className="text-emerald-500" /> {isRtl ? 'تحليل السبب الجذري' : 'Root Cause Analysis'} ✓</>
+            : <><AlertTriangle size={14} className="text-amber-500" /> {isRtl ? 'تحليل السبب الجذري' : 'Root Cause Analysis'} ({isRtl ? 'مطلوب' : 'Required'})</>}
         </h3>
       </div>
 
@@ -636,139 +783,44 @@ export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () =
         <div className="p-5 flex flex-col items-center gap-3 text-center">
           <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">📋</div>
           <p className="text-sm font-bold text-slate-700">
-            {t('rca.pendingTitle', 'RCA Not Started Yet')}
+            {isRtl ? 'لم يبدأ تحليل السبب الجذري بعد' : 'RCA Not Started Yet'}
           </p>
           <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-            {t('rca.pendingHint', 'Review the department\'s action plans first, then click "Proceed to RCA" in the Actions section below to begin the Root Cause Analysis.')}
+            {isRtl ? 'راجع خطط العمل أولاً، ثم اضغط "الانتقال إلى RCA" في قسم الإجراءات أدناه.' : 'Review the action plans first, then click "Proceed to RCA" in the Actions section below.'}
           </p>
         </div>
       )}
 
       {/* Full form — only in UNDER_INVESTIGATION or when completed */}
       {(canEdit || isCompleted) && (
-      <div className="p-4 space-y-3">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-bold text-gray-700">{t('rca.cause', 'What caused it?')} <span className="text-red-500">*</span></label>
-            {canEdit && <MagicWandButton text={cause} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={setCause} />}
+      <div className="p-4 space-y-4">
+        {RCA_QUESTIONS.map((q) => (
+          <div key={q.num} className={`rounded-xl border ${q.border} ${q.bg} p-4 space-y-2`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-7 h-7 ${q.numBg} rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0`}>
+                {q.num}
+              </div>
+              <div className="flex-1">
+                <p className={`text-sm font-black ${q.labelColor}`}>{q.en}</p>
+                <p className="text-xs font-bold text-slate-500 mt-0.5" dir="rtl">{q.ar}</p>
+              </div>
+              {canEdit && <MagicWandButton text={q.value} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={q.setter} />}
+            </div>
+            <textarea
+              value={q.value}
+              onChange={e => q.setter(e.target.value)}
+              disabled={!canEdit}
+              rows={6}
+              placeholder={canEdit ? (isRtl ? 'اكتب إجابتك هنا...' : 'Write your answer here...') : ''}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-3 resize-y disabled:bg-gray-50/80 min-h-[120px] focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+            />
           </div>
-          <textarea value={cause} onChange={e => setCause(e.target.value)} disabled={!canEdit} rows={10} className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-3 resize-y disabled:bg-gray-50 min-h-[240px]" />
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-bold text-gray-700">{t('rca.why', 'Why did it happen? (5 Whys)')} <span className="text-red-500">*</span></label>
-            {canEdit && <MagicWandButton text={why} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={setWhy} />}
-          </div>
-          <textarea value={why} onChange={e => setWhy(e.target.value)} disabled={!canEdit} rows={10} className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-3 resize-y disabled:bg-gray-50 min-h-[240px]" />
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-sm font-bold text-gray-700">{t('rca.rootCause', 'Root Cause')} <span className="text-red-500">*</span></label>
-            {canEdit && <MagicWandButton text={rootCause} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={setRootCause} />}
-          </div>
-          <textarea value={rootCause} onChange={e => setRootCause(e.target.value)} disabled={!canEdit} rows={10} className="w-full mt-1 text-sm border border-gray-200 rounded-lg px-3 py-3 resize-y disabled:bg-gray-50 min-h-[240px]" />
-        </div>
-        <div>
-          <label className="text-sm font-bold text-gray-700 mb-3 block">{t('rca.category', 'Root Cause Category')} <span className="text-red-500">*</span></label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { value: 'Biological Hazards', labelAr: 'مخاطر بيولوجية', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <circle cx="32" cy="32" r="8" fill="#1a1a1a"/>
-                  <path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                  <path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                  <path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                </svg>
-              )},
-              { value: 'Chemical Hazards', labelAr: 'مخاطر كيميائية', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
-                  <circle cx="20" cy="20" r="4" fill="#1a1a1a"/>
-                  <circle cx="44" cy="20" r="4" fill="#1a1a1a"/>
-                  <line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <line x1="10" y1="46" x2="22" y2="46" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <line x1="42" y1="46" x2="54" y2="46" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                </svg>
-              )},
-              { value: 'Physical Hazards', labelAr: 'مخاطر فيزيائية', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
-                  <path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/>
-                  <path d="M32 26 A6 6 0 1 1 32 38 A6 6 0 1 1 32 26" fill="#1a1a1a"/>
-                  <path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
-                  <path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
-                </svg>
-              )},
-              { value: 'Safety Hazards', labelAr: 'مخاطر السلامة', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <circle cx="40" cy="14" r="5" fill="#1a1a1a"/>
-                  <path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                  <path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                  <path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                </svg>
-              )},
-              { value: 'Ergonomic Hazards', labelAr: 'مخاطر هندسة بشرية', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <circle cx="36" cy="13" r="5" fill="#1a1a1a"/>
-                  <path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/>
-                  <path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                  <rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/>
-                </svg>
-              )},
-              { value: 'Psychosocial Hazards', labelAr: 'مخاطر نفسية-اجتماعية', icon: (
-                <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                  <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                  <ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/>
-                  <path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/>
-                  <path d="M18 30 C16 26 16 34 18 34" stroke="#FFC107" strokeWidth="2"/>
-                  <path d="M46 30 C48 26 48 34 46 34" stroke="#FFC107" strokeWidth="2"/>
-                  <path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                  <path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                  <path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                </svg>
-              )},
-            ].map(cat => {
-              const isSelected = category === cat.value;
-              return (
-                <button
-                  key={cat.value}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => canEdit && setCategory(cat.value)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-center
-                    ${isSelected
-                      ? 'border-amber-500 bg-amber-50 shadow-md scale-105'
-                      : 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/50'}
-                    ${!canEdit ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-sm'}`}
-                >
-                  {cat.icon}
-                  <span className={`text-[10px] font-bold leading-tight ${isSelected ? 'text-amber-700' : 'text-gray-600'}`}>
-                    {cat.value}
-                  </span>
-                  {isSelected && <span className="text-[9px] text-amber-500">✓ Selected</span>}
-                </button>
-              );
-            })}
-          </div>
-          {!category && <p className="text-[10px] text-red-400 mt-1">* Please select a hazard category</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="preventable" checked={preventable} onChange={e => setPreventable(e.target.checked)} disabled={!canEdit} className="rounded" />
-          <label htmlFor="preventable" className="text-sm text-gray-700">{t('rca.preventable', 'Was this preventable?')}</label>
-        </div>
-        {oc?.rcaFilledBy && <p className="text-[10px] text-gray-400">Completed by: {oc.rcaFilledBy} ({new Date(oc.rcaFilledAt).toLocaleString()})</p>}
+        ))}
+
+        {oc?.rcaFilledBy && <p className="text-[10px] text-gray-400">{isRtl ? 'أكمله:' : 'Completed by:'} {oc.rcaFilledBy} ({new Date(oc.rcaFilledAt).toLocaleString()})</p>}
         {canEdit && (
-          <button onClick={handleSubmit} disabled={loading} className="w-full bg-amber-500 text-white text-sm font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t('rca.submit', 'Submit RCA')}
+          <button onClick={handleSubmit} disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-md">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {isRtl ? 'حفظ تحليل السبب الجذري' : 'Submit RCA'}
           </button>
         )}
       </div>
@@ -779,6 +831,7 @@ export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () =
 
 export const ReminderSection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () => void }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [completedNote, setCompletedNote] = useState('');
   const reminders = ticket.reminders || [];
@@ -789,7 +842,7 @@ export const ReminderSection = ({ ticket, onRefresh }: { ticket: any; onRefresh:
       await api.put(`/reminders/${reminderId}/complete`, { completedNote });
       setCompletedNote('');
       onRefresh();
-    } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
     finally { setLoading(false); }
   };
 

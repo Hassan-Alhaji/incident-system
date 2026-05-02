@@ -6,6 +6,7 @@ import api from '../utils/api';
 import { formatDate, formatDateTime } from '../utils/formatDate';
 import { ArrowLeft, Clock, AlertTriangle, CheckCircle, Send, Loader2, User, Search, Paperclip, Check, X, Bell, Sparkles, Download } from 'lucide-react';
 import { ActionPlanSection, RCASection, ReminderSection, MagicWandButton } from '../components/TicketSections';
+import { useToast } from '../components/Toast';
 import TicketPrintReport from '../components/TicketPrintReport';
 
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
@@ -15,6 +16,7 @@ const TicketDetail = () => {
     const { user } = useAuth();
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const isRtl = i18n.dir() === 'rtl';
 
     const [ticket, setTicket] = useState<any>(null);
@@ -29,6 +31,7 @@ const TicketDetail = () => {
     const [severityLevel, setSeverityLevel] = useState('');
     const [newType, setNewType] = useState('');
     const [typeChangeReason, setTypeChangeReason] = useState('');
+    const [hazardCategory, setHazardCategory] = useState<string[]>([]);
     const [reminderDate, setReminderDate] = useState('');
     const [reminderMessage, setReminderMessage] = useState('');
 
@@ -95,19 +98,27 @@ const TicketDetail = () => {
     const handleControllerAction = async (action: string) => {
         setActionLoading(true);
         try {
-            await api.put(`/tickets/${id}/controller-action`, { action, notes: controllerNotes, severity: severityLevel, targetDepartmentId, newType: newType || undefined, typeChangeReason });
+            await api.put(`/tickets/${id}/controller-action`, { action, notes: controllerNotes, severity: severityLevel, targetDepartmentId, newType: newType || undefined, typeChangeReason, hazardCategory: hazardCategory.length > 0 ? JSON.stringify(hazardCategory) : undefined });
             await fetchTicket(true);
             setControllerNotes(''); setTypeChangeReason(''); setNewType('');
-        } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
     const handleDepartmentAction = async () => {
-        const plans = ticket.actionPlans || [];
-        const hasImmediate = plans.some((p: any) => p.type === 'IMMEDIATE');
-        const hasShortTerm = plans.some((p: any) => p.type === 'SHORT_TERM');
+        // Re-fetch ticket to get the latest action plans from server
+        // (avoids stale state after saving plans)
+        let latestPlans = ticket.actionPlans || [];
+        try {
+            const freshRes = await api.get(`/tickets/${id}`);
+            setTicket(freshRes.data);
+            latestPlans = freshRes.data.actionPlans || [];
+        } catch { /* use existing state if fetch fails */ }
+
+        const hasImmediate = latestPlans.some((p: any) => p.type === 'IMMEDIATE');
+        const hasShortTerm = latestPlans.some((p: any) => p.type === 'SHORT_TERM');
         if (!hasImmediate || !hasShortTerm) {
-            alert(t('ticketActions.missingActionPlans', 'يجب إدراج خطة عمل فورية (Immediate) وخطة عمل قصيرة المدى (Short-Term) على الأقل قبل إرسال الرد.'));
+            showToast(t('ticketActions.missingActionPlans', 'يجب إدراج خطة عمل فورية (Immediate) وخطة عمل قصيرة المدى (Short-Term) على الأقل قبل إرسال الرد.'), 'warning');
             return;
         }
 
@@ -120,7 +131,7 @@ const TicketDetail = () => {
 
         for (const pg of injuredPersonsGosi) {
             if (pg.gosiSubmitted && pg.gosiReportDate && minDateStr && pg.gosiReportDate < minDateStr) {
-                alert(t('ticketActions.gosiDateError', 'عذراً، يجب أن يكون تاريخ بلاغ التأمينات مساوياً أو بعد تاريخ وقوع الحادث.'));
+                showToast(t('ticketActions.gosiDateError', 'عذراً، يجب أن يكون تاريخ بلاغ التأمينات مساوياً أو بعد تاريخ وقوع الحادث.'), 'warning');
                 return;
             }
         }
@@ -132,7 +143,7 @@ const TicketDetail = () => {
                 contractorNotified, contractorNotifyDate, contractorNoReason
             });
             await fetchTicket(true);
-        } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
@@ -142,7 +153,7 @@ const TicketDetail = () => {
             await api.put(`/tickets/${id}/controller-review`, { action, notes: controllerNotes, reminderDate, reminderMessage });
             await fetchTicket(true);
             setControllerNotes(''); setReminderDate(''); setReminderMessage('');
-        } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
@@ -152,7 +163,7 @@ const TicketDetail = () => {
             await api.put(`/tickets/${id}/safety-manager`, { action, notes: controllerNotes, targetDepManagerId });
             await fetchTicket(true);
             setControllerNotes('');
-        } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
@@ -168,7 +179,7 @@ const TicketDetail = () => {
             await api.put(`/tickets/${id}/reporter-reply`, { replyText });
             await fetchTicket(true);
             setReplyText('');
-        } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
@@ -276,6 +287,37 @@ const TicketDetail = () => {
                                         <span className="font-bold">{t(`classification.${ticket.severityLevel}`, ticket.severityLevel) as string}</span>
                                     </div>
                                 )}
+                                {(() => {
+                                    const raw = oc?.hazardCategory;
+                                    if (!raw) return null;
+                                    let cats: string[] = [];
+                                    try { cats = JSON.parse(raw); } catch { cats = [raw]; }
+                                    if (!cats.length) return null;
+                                    const HAZARD_ICONS: Record<string, {svg: React.ReactNode, labelAr: string}> = {
+                                        'Biological Hazards': { labelAr: 'بيولوجية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="8" fill="#1a1a1a"/><path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/></svg> },
+                                        'Chemical Hazards': { labelAr: 'كيميائية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><circle cx="20" cy="20" r="4" fill="#1a1a1a"/><circle cx="44" cy="20" r="4" fill="#1a1a1a"/><line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
+                                        'Physical Hazards': { labelAr: 'فيزيائية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/><path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/><path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/></svg> },
+                                        'Safety Hazards': { labelAr: 'السلامة', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="40" cy="14" r="5" fill="#1a1a1a"/><path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
+                                        'Ergonomic Hazards': { labelAr: 'هندسة بشرية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="36" cy="13" r="5" fill="#1a1a1a"/><path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/><path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/></svg> },
+                                        'Psychosocial Hazards': { labelAr: 'نفسية-اجتماعية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/><path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/><path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/></svg> },
+                                    };
+                                    return (
+                                        <div className="col-span-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+                                            <strong className="block text-xs text-amber-800 mb-1.5">{isRtl ? 'تصنيف الخطر' : 'Hazard Category'}</strong>
+                                            <div className="flex flex-wrap gap-2">
+                                                {cats.map((c: string) => {
+                                                    const h = HAZARD_ICONS[c];
+                                                    return (
+                                                        <div key={c} className="flex flex-col items-center gap-0.5 bg-white border border-amber-200 rounded-lg p-1.5 shadow-sm min-w-[60px]">
+                                                            {h?.svg || <span className="text-lg">⚠️</span>}
+                                                            <span className="text-[8px] font-bold text-amber-700 text-center leading-tight">{isRtl ? (h?.labelAr || c) : c.replace(' Hazards', '')}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 {ticket.department && (
                                     <div className="col-span-1 bg-indigo-50 border border-indigo-200 text-indigo-800 p-2 rounded-lg">
                                         <strong className="block text-xs">{t('ticketActions.routedToDept', 'Routed to Department')}:</strong> 
@@ -571,6 +613,93 @@ const TicketDetail = () => {
                                         <p className="text-xs font-bold text-gray-500">{t('ticketActions.classification', 'Classification')}</p>
                                         <select value={severityLevel} onChange={e => setSeverityLevel(e.target.value)} className="w-full p-2 border rounded text-sm"><option value="">-- {t('ticketActions.classification', 'Classification')} --</option><option value="MINOR">{t('classification.MINOR', 'Minor')}</option><option value="SIGNIFICANT">{t('classification.SIGNIFICANT', 'Significant')}</option><option value="MAJOR">{t('classification.MAJOR', 'Major')}</option></select>
                                     </div>
+                                    {/* Hazard Category Grid */}
+                                    <div className="p-3 bg-white border rounded-lg space-y-2">
+                                        <p className="text-xs font-bold text-gray-500">{isRtl ? 'تصنيف الخطر' : 'Hazard Category'}</p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {[
+                                                { value: 'Biological Hazards', labelAr: 'مخاطر بيولوجية', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <circle cx="32" cy="32" r="8" fill="#1a1a1a"/>
+                                                        <path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
+                                                        <path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
+                                                        <path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
+                                                    </svg>
+                                                )},
+                                                { value: 'Chemical Hazards', labelAr: 'مخاطر كيميائية', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
+                                                        <circle cx="20" cy="20" r="4" fill="#1a1a1a"/>
+                                                        <circle cx="44" cy="20" r="4" fill="#1a1a1a"/>
+                                                        <line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                        <line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                        <line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                    </svg>
+                                                )},
+                                                { value: 'Physical Hazards', labelAr: 'مخاطر فيزيائية', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
+                                                        <path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/>
+                                                        <path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
+                                                        <path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
+                                                    </svg>
+                                                )},
+                                                { value: 'Safety Hazards', labelAr: 'مخاطر السلامة', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <circle cx="40" cy="14" r="5" fill="#1a1a1a"/>
+                                                        <path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                                                        <path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                                                        <path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                    </svg>
+                                                )},
+                                                { value: 'Ergonomic Hazards', labelAr: 'مخاطر هندسة بشرية', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <circle cx="36" cy="13" r="5" fill="#1a1a1a"/>
+                                                        <path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/>
+                                                        <path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                        <path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                        <path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
+                                                        <rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/>
+                                                    </svg>
+                                                )},
+                                                { value: 'Psychosocial Hazards', labelAr: 'مخاطر نفسية-اجتماعية', icon: (
+                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
+                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                                                        <ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/>
+                                                        <path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/>
+                                                        <path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
+                                                        <path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
+                                                        <path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
+                                                    </svg>
+                                                )},
+                                            ].map(cat => {
+                                                const isSelected = hazardCategory.includes(cat.value);
+                                                return (
+                                                    <button
+                                                        key={cat.value}
+                                                        type="button"
+                                                        onClick={() => setHazardCategory(prev => prev.includes(cat.value) ? prev.filter(v => v !== cat.value) : [...prev, cat.value])}
+                                                        className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 transition-all text-center
+                                                            ${isSelected
+                                                                ? 'border-amber-500 bg-amber-50 shadow-md scale-105'
+                                                                : 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/50'}
+                                                            cursor-pointer hover:shadow-sm`}
+                                                    >
+                                                        {cat.icon}
+                                                        <span className={`text-[9px] font-bold leading-tight ${isSelected ? 'text-amber-700' : 'text-gray-600'}`}>
+                                                            {isRtl ? cat.labelAr : cat.value}
+                                                        </span>
+                                                        {isSelected && <span className="text-[8px] text-amber-500">✓</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                     <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
                                         <div className="flex items-center justify-between px-2 pt-2">
                                             <span className="text-xs font-bold text-gray-500">{t('ticketActions.notes', 'Notes')}</span>
@@ -653,7 +782,7 @@ const TicketDetail = () => {
                                             try {
                                                 await api.put(`/tickets/${id}/hr-action`, { injuredPersonsGosi: injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined });
                                                 await fetchTicket(true);
-                                            } catch (err: any) { alert(err.response?.data?.message || 'Error'); }
+                                            } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
                                             finally { setActionLoading(false); }
                                         }}
                                         disabled={actionLoading}

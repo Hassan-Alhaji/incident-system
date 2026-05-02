@@ -175,6 +175,7 @@ model OffCircuitReport {
   
   // Severity set by controller
   severity                String?    // MAJOR, SIGNIFICANT, MINOR
+  hazardCategory          String?    // Biological, Chemical, Physical, Safety, Ergonomic, Psychosocial
   
   // Controller notes
   controllerNotes         String?
@@ -203,14 +204,15 @@ model OffCircuitReport {
   hrFilledAt              DateTime?  // When HR submitted
   responsibleDeptId       String?    // The dept the controller routes to AFTER HR completes
 
-  // === RCA Section (Required if Major/Significant/Accident/Escalated) ===
+  // === RCA Section (Required for all types EXCEPT Observation) ===
   rcaRequired             Boolean    @default(false)
   rcaCompleted            Boolean    @default(false)
-  rcaCause                String?    // What caused it
-  rcaWhy                  String?    // Why did it happen (5 Whys)
-  rcaPreventable          Boolean?   // Was it preventable
-  rcaRootCause            String?    // Root cause
-  rcaCategory             String?    // Category of root cause
+  rcaCause                String?    // Q1: Immediate Causes / الأسباب المباشرة
+  rcaWhy                  String?    // Q2: Underlying Causes / الأسباب الغير مباشرة
+  rcaRootCause            String?    // Q3: Root Causes / الأسباب الجذرية
+  rcaCategory             String?    // Q4: Corrective Actions / الإجراءات التصحيحية (repurposed)
+  rcaPreventiveActions    String?    // Q5: Preventive Actions / الإجراءات الوقائية
+  rcaPreventable          Boolean?   // Legacy field (kept for backward compat)
 
   rcaFilledBy             String?
   rcaFilledAt             DateTime?

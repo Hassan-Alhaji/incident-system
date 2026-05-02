@@ -19,7 +19,6 @@ const getBaseUrl = () => {
  if (!url.endsWith('/api')) {
  url += '/api';
  }
- console.log('API Base URL:', url); // Debugging 404
  return url;
 };
 

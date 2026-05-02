@@ -315,12 +315,44 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
         {/* CLASSIFICATION */}
         {sevInfo && (
           <div style={{ marginBottom: 18 }}>
-            <SecHead en="Classification" color="#374151" />
-            <div style={{ padding: '10px 0' }}>
+            <SecHead en="Classification — التصنيف" color="#374151" />
+            <div style={{ padding: '10px 0', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ background: sevInfo.color, color: '#fff', padding: '5px 18px', borderRadius: 99, fontWeight: 800, fontSize: '11pt' }}>
                 {sevInfo.en}
               </span>
             </div>
+            {(() => {
+              const raw = oc.hazardCategory;
+              if (!raw) return null;
+              let cats: string[] = [];
+              try { cats = JSON.parse(raw); } catch { cats = [raw]; }
+              if (!cats.length) return null;
+              const HAZARD_SVG: Record<string, {svg: React.ReactNode, label: string, labelAr: string}> = {
+                'Biological Hazards': { label: 'Biological', labelAr: 'بيولوجية', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="8" fill="#1a1a1a"/><path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/></svg> },
+                'Chemical Hazards': { label: 'Chemical', labelAr: 'كيميائية', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><circle cx="20" cy="20" r="4" fill="#1a1a1a"/><circle cx="44" cy="20" r="4" fill="#1a1a1a"/><line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
+                'Physical Hazards': { label: 'Physical', labelAr: 'فيزيائية', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/><path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/><path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/></svg> },
+                'Safety Hazards': { label: 'Safety', labelAr: 'السلامة', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="40" cy="14" r="5" fill="#1a1a1a"/><path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
+                'Ergonomic Hazards': { label: 'Ergonomic', labelAr: 'هندسة بشرية', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="36" cy="13" r="5" fill="#1a1a1a"/><path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/><path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/></svg> },
+                'Psychosocial Hazards': { label: 'Psychosocial', labelAr: 'نفسية-اجتماعية', svg: <svg viewBox="0 0 64 64" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="30" fill="#FFC107"/><ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/><path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/><path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/></svg> },
+              };
+              return (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: '9pt', fontWeight: 700, color: '#92400e', marginBottom: 6 }}>Hazard Categories — تصنيف المخاطر</div>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    {cats.map((c: string) => {
+                      const h = HAZARD_SVG[c];
+                      return (
+                        <div key={c} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: '#fffbeb', border: '2px solid #fbbf24', borderRadius: 12, padding: '8px 10px', minWidth: 72 }}>
+                          {h?.svg}
+                          <span style={{ fontSize: '7pt', fontWeight: 800, color: '#92400e', textAlign: 'center', lineHeight: 1.2 }}>{h?.label || c}</span>
+                          <span style={{ fontSize: '6pt', fontWeight: 700, color: '#b45309', direction: 'rtl' }}>{h?.labelAr || ''}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -527,17 +559,30 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
         {/* RCA */}
         {oc.rcaRequired && oc.rcaCompleted && (
           <div style={{ marginBottom: 18 }}>
-            <SecHead en="Root Cause Analysis" color="#1f2937" />
-            <Row label="What Caused It" value={<span style={{ whiteSpace: 'pre-wrap' }}>{oc.rcaCause}</span>} />
-            <Row label="Why Did It Happen (5 Whys)" value={<span style={{ whiteSpace: 'pre-wrap' }}>{oc.rcaWhy}</span>} />
-            <Row label="Root Cause" value={<span style={{ whiteSpace: 'pre-wrap' }}>{oc.rcaRootCause}</span>} />
-            {oc.rcaCategory && (
-              <div style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: '1px solid #f1f5f9', alignItems: 'center' }}>
-                <div style={{ minWidth: 180, flexShrink: 0, color: '#64748b', fontSize: '9.5pt', fontWeight: 700 }}>Root Cause Category</div>
-                <span style={{ fontWeight: 700, fontSize: '11pt', color: '#1e3a5f' }}>{oc.rcaCategory}</span>
+            <SecHead en="Root Cause Analysis — تحليل السبب الجذري" color="#1f2937" />
+            {[
+              { num: 1, en: 'What are the Immediate Causes?', ar: 'ماهي الأسباب المباشرة للحدث/الحادث ؟', value: oc.rcaCause, color: '#dc2626' },
+              { num: 2, en: 'What are the Underlying Causes?', ar: 'ماهي الأسباب الغير مباشرة للحدث/الحادث ؟', value: oc.rcaWhy, color: '#ea580c' },
+              { num: 3, en: 'What are the Root Causes?', ar: 'ماهي الأسباب الجذرية للحدث/الحادث ؟', value: oc.rcaRootCause, color: '#d97706' },
+              { num: 4, en: 'Immediate and Corrective Actions', ar: 'الإجراءات الفورية والتصحيحية', value: oc.rcaCategory, color: '#2563eb' },
+              { num: 5, en: 'Preventive Actions', ar: 'الإجراءات الوقائية التي تمنع تكرار الحادث', value: oc.rcaPreventiveActions, color: '#059669' },
+            ].map(q => (
+              <div key={q.num} style={{ marginBottom: 14, borderLeft: `4px solid ${q.color}`, paddingLeft: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ background: q.color, color: '#fff', width: 22, height: 22, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10pt', fontWeight: 900 }}>{q.num}</span>
+                  <span style={{ fontWeight: 800, fontSize: '10pt', color: '#1e293b' }}>{q.en}</span>
+                </div>
+                <div style={{ fontSize: '9pt', color: '#64748b', fontWeight: 700, marginBottom: 4, direction: 'rtl', textAlign: 'right' }}>{q.ar}</div>
+                <div style={{ padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '10pt', whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1e293b' }}>
+                  {q.value || 'N/A'}
+                </div>
+              </div>
+            ))}
+            {oc.rcaFilledBy && (
+              <div style={{ fontSize: '8.5pt', color: '#94a3b8', marginTop: 6 }}>
+                Completed by: <strong>{oc.rcaFilledBy}</strong> — {fmtDateTime(oc.rcaFilledAt)}
               </div>
             )}
-            <Row label="Preventable?" value={oc.rcaPreventable ? 'Yes' : 'No'} />
           </div>
         )}
 

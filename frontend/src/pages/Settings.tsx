@@ -6,6 +6,7 @@ import {
  Plus, Trash2, Edit2, Users, CheckCircle, XCircle, AlertCircle, AlertTriangle,
  Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase
 } from 'lucide-react';
+import { useToast } from '../components/Toast';
 import ZoneDrawerMap from '../components/ZoneDrawerMap';
 
 const OC_ROLE_OPTIONS = [
@@ -32,6 +33,7 @@ const statusColors: Record<string, string> = {
 const Settings = () => {
  const { user } = useAuth();
  const { t } = useTranslation();
+ const { showToast } = useToast();
  const [users, setUsers] = useState<any[]>([]);
  const [loading, setLoading] = useState(true);
  const [error, setError] = useState('');
@@ -84,10 +86,10 @@ const Settings = () => {
  const handleZoneSubmit = async () => {
  setZoneError('');
  try { await api.post('/zones', zoneFormData); setShowZoneModal(false); fetchZones(); } 
- catch (err: any) { setZoneError(err.response?.data?.error || 'Failed to create zone'); }
+ catch (err: any) { setZoneError(err.response?.data?.error || t('errors.failedCreateZone')); }
  };
  const deleteZone = async (id: string) => {
- setConfirmModal({ title: 'Delete Zone (حذف المنطقة)', message: 'Are you sure you want to delete this zone? This action cannot be undone.\n\nهل أنت متأكد من حذف هذه المنطقة؟ لا يمكن التراجع عن هذا الإجراء.', onConfirm: async () => { try { await api.delete(`/zones/${id}`); fetchZones(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); } setConfirmModal(null); } });
+ setConfirmModal({ title: t('confirm.deleteZone'), message: t('confirm.deleteZoneMsg'), onConfirm: async () => { try { await api.delete(`/zones/${id}`); fetchZones(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.deleteFailed'), 'error'); } setConfirmModal(null); } });
  };
 
  const handleDepartmentSubmit = async () => {
@@ -99,7 +101,7 @@ const Settings = () => {
      await api.post('/departments', departmentFormData);
    }
    setShowDepartmentModal(false); setEditingDepartmentId(null); fetchDepartments();
- } catch (err: any) { setDepartmentError(err.response?.data?.message || 'Failed'); }
+ } catch (err: any) { setDepartmentError(err.response?.data?.message || t('errors.failedCreateDept')); }
  };
  const openEditDepartment = (d: any) => {
    setEditingDepartmentId(d.id);
@@ -112,7 +114,7 @@ const Settings = () => {
    setShowDepartmentModal(true);
  };
  const deleteDepartment = async (id: string) => {
- setConfirmModal({ title: 'Delete Department (حذف القسم)', message: 'Are you sure you want to delete this department? All related representatives will be unlinked.\n\nهل أنت متأكد من حذف هذا القسم؟ سيتم فصل جميع الممثلين المرتبطين.', onConfirm: async () => { try { await api.delete(`/departments/${id}`); fetchDepartments(); } catch (err: any) { alert(err.response?.data?.message || 'Failed to delete department'); } setConfirmModal(null); } });
+ setConfirmModal({ title: t('confirm.deleteDept'), message: t('confirm.deleteDeptMsg'), onConfirm: async () => { try { await api.delete(`/departments/${id}`); fetchDepartments(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.deleteFailed'), 'error'); } setConfirmModal(null); } });
  };
 
  const handleProviderSubmit = async () => {
@@ -124,7 +126,7 @@ const Settings = () => {
      await api.post('/service-providers', providerFormData);
    }
    setShowProviderModal(false); setEditingProviderId(null); fetchServiceProviders();
- } catch (err: any) { setProviderError(err.response?.data?.message || 'Failed'); }
+ } catch (err: any) { setProviderError(err.response?.data?.message || t('errors.failedCreateProvider')); }
  };
  const openEditProvider = (sp: any) => {
    setEditingProviderId(sp.id);
@@ -137,7 +139,7 @@ const Settings = () => {
    setShowProviderModal(true);
  };
  const deleteProvider = async (id: string) => {
- setConfirmModal({ title: 'Delete Provider (حذف المزود)', message: 'Are you sure you want to delete this service provider?\n\nهل أنت متأكد من حذف مزود الخدمة؟', onConfirm: async () => { try { await api.delete(`/service-providers/${id}`); fetchServiceProviders(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); } setConfirmModal(null); } });
+ setConfirmModal({ title: t('confirm.deleteProvider'), message: t('confirm.deleteProviderMsg'), onConfirm: async () => { try { await api.delete(`/service-providers/${id}`); fetchServiceProviders(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.deleteFailed'), 'error'); } setConfirmModal(null); } });
  };
 
  const fetchUsers = async () => {
@@ -146,7 +148,7 @@ const Settings = () => {
  const res = await api.get('/users');
  setUsers(res.data);
  } catch (err: any) {
- setError(err.response?.data?.message || 'Failed to load users');
+ setError(err.response?.data?.message || t('errors.loadUsersFailed'));
  } finally {
  setLoading(false);
  }
@@ -159,11 +161,11 @@ const Settings = () => {
  // English-only name validation
  const englishRegex = /^[A-Za-z\s]+$/;
  if (!englishRegex.test(form.name)) {
- setError('Name must be in English letters only.');
+ setError(t('errors.nameEnglishOnly'));
  return;
  }
  if (!form.mobile?.trim()) {
- setError('Mobile number is required.');
+ setError(t('errors.mobileRequired'));
  return;
  }
  try {
@@ -180,14 +182,14 @@ const Settings = () => {
  fetchUsers();
  setTimeout(() => setSuccess(''), 3000);
  } catch (err: any) {
- setError(err.response?.data?.message || 'Operation failed');
+ setError(err.response?.data?.message || t('errors.operationFailed'));
  }
  };
 
  const handleDelete = async (id: string) => {
- setConfirmModal({ title: 'Delete User (حذف المستخدم)', message: 'Are you sure you want to delete this user? This action cannot be undone.\n\nهل أنت متأكد من حذف هذا المستخدم؟ لا يمكن التراجع عن هذا الإجراء.', onConfirm: async () => {
+ setConfirmModal({ title: t('confirm.deleteUser'), message: t('confirm.deleteUserMsg'), onConfirm: async () => {
    try { await api.delete(`/users/${id}`); setSuccess(t('oc.settings.userDeleted')); fetchUsers(); setTimeout(() => setSuccess(''), 3000); }
-   catch (err: any) { setError(err.response?.data?.message || 'Delete failed'); }
+   catch (err: any) { setError(err.response?.data?.message || t('errors.deleteFailed')); }
    setConfirmModal(null);
  }});
  };
@@ -231,8 +233,8 @@ const Settings = () => {
  window.URL.revokeObjectURL(url);
  } catch (err: any) { 
  console.error('Download template error:', err);
- setError('Failed to download template: ' + (err.response?.data?.message || err.message)); 
- alert('Failed to download template. See console for details.');
+ setError(t('errors.downloadTemplateFailed') + ': ' + (err.response?.data?.message || err.message)); 
+ showToast(t('errors.downloadTemplateFailed'), 'error');
  }
  };
 
@@ -277,52 +279,56 @@ const Settings = () => {
  }
 
  return (
- <div className="space-y-4">
- <div className="flex items-center justify-between">
+ <div className="space-y-3">
+ <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
  <div>
- <h1 className="text-xl font-bold text-gray-800">{t('oc.settings.title')}</h1>
- <p className="text-gray-800 text-base mt-0.5">{t('oc.settings.subtitle')}</p>
+ <h1 className="text-lg font-bold text-gray-800">{t('oc.settings.title')}</h1>
+ <p className="text-gray-500 text-xs mt-0.5">{t('oc.settings.subtitle')}</p>
  </div>
  {activeTab === 'users' && (
  <button onClick={openCreateModal}
- className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-4 py-2 rounded-xl shadow-sm flex items-center gap-2 font-bold text-base shadow-lg shadow-amber-500/20 hover:from-amber-600 hover:to-orange-700 transition-all">
- <UserPlus size={16} /> {t('oc.settings.addUser')}
+ className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-3 py-2 rounded-xl flex items-center gap-2 font-bold text-xs shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all w-full sm:w-auto justify-center">
+ <UserPlus size={14} /> {t('oc.settings.addUser')}
  </button>
  )}
  </div>
 
  {/* Admin Tabs */}
- <div className="flex gap-2 border-b border-gray-200 pb-2 overflow-x-auto no-scrollbar">
- <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-xl shadow-sm text-base font-bold flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'users' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-800 hover:bg-white'}`}>
- <Users size={16} /> User Management
+ <div className="flex gap-1 border-b border-gray-200 pb-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+ <button onClick={() => setActiveTab('users')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'users' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Users size={13} /> Users
  </button>
- <button onClick={() => setActiveTab('zones')} className={`px-4 py-2 rounded-xl shadow-sm text-base font-bold flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'zones' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-800 hover:bg-white'}`}>
- <Map size={16} /> Territories & Zones
+ <button onClick={() => setActiveTab('zones')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'zones' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Map size={13} /> Zones
  </button>
- <button onClick={() => setActiveTab('departments')} className={`px-4 py-2 rounded-xl shadow-sm text-base font-bold flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'departments' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-800 hover:bg-white'}`}>
- <Building size={16} /> Departments
+ <button onClick={() => setActiveTab('departments')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'departments' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Building size={13} /> Departments
  </button>
- <button onClick={() => setActiveTab('providers')} className={`px-4 py-2 rounded-xl shadow-sm text-base font-bold flex items-center gap-2 whitespace-nowrap transition-colors ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-800 hover:bg-white'}`}>
- <Briefcase size={16} /> Service Providers
+ <button onClick={() => setActiveTab('providers')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Briefcase size={13} /> Providers
  </button>
  </div>
 
  {activeTab === 'users' && (
- <div className="space-y-4 animate-in fade-in">
+ <div className="space-y-2.5 animate-in fade-in">
 
  {/* Excel Import/Export Bar */}
- <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 flex items-center gap-2 flex-wrap">
+ <div className="bg-white border border-gray-200 rounded-xl p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+ <div className="flex items-center gap-2 flex-1">
  <FileSpreadsheet size={16} className="text-emerald-400 flex-shrink-0" />
- <span className="text-base text-gray-800 flex-1">{t('oc.settings.excelTools')}</span>
+ <span className="text-sm text-gray-800">{t('oc.settings.excelTools')}</span>
+ </div>
+ <div className="flex gap-2">
  <button onClick={handleDownloadTemplate}
- className="bg-white border border-gray-200 text-gray-800 px-3 py-1.5 rounded-lg text-base font-medium flex items-center gap-1.5 hover:text-emerald-400 hover:border-emerald-500/50 transition-all">
+ className="bg-white border border-gray-200 text-gray-800 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:text-emerald-400 hover:border-emerald-500/50 transition-all flex-1 sm:flex-none justify-center">
  <Download size={13} /> {t('oc.settings.downloadTemplate')}
  </button>
- <label className={`bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg text-base font-medium flex items-center gap-1.5 cursor-pointer hover:bg-emerald-500/25 transition-all ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+ <label className={`bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer hover:bg-emerald-500/25 transition-all flex-1 sm:flex-none justify-center ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
  {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
  {importing ? t('oc.settings.importing') : t('oc.settings.importExcel')}
  <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
  </label>
+ </div>
  </div>
 
  {/* Import Result */}
@@ -368,22 +374,22 @@ const Settings = () => {
  )}
 
  {/* Role Distribution */}
- <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+ <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
  {roleStats.map(r => (
- <div key={r.value} className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 text-center">
- <p className="text-2xl font-bold text-gray-800">{r.count}</p>
- <p className="text-[10px] text-gray-800 mt-0.5">{r.label}</p>
+ <div key={r.value} className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+ <p className="text-xl font-bold text-gray-800">{r.count}</p>
+ <p className="text-[9px] text-gray-500 mt-0.5 leading-tight">{r.label}</p>
  </div>
  ))}
  </div>
 
  {/* Search */}
  <div className="relative">
- <SearchIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-800" />
+ <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
  <input
  type="text" value={search} onChange={(e) => setSearch(e.target.value)}
  placeholder={t('oc.settings.searchUsers')}
- className="w-full bg-white border border-gray-200 rounded-xl shadow-sm pl-9 pr-4 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+ className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
  </div>
 
  {/* User List */}
@@ -542,9 +548,9 @@ const Settings = () => {
  {/* Zones Tab */}
  {activeTab === 'zones' && (
  <div className="space-y-4 animate-in fade-in">
- <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
- <div className="flex items-center gap-3"><Map className="text-blue-500" /><div><h3 className="font-bold text-gray-600">Zone Boundaries</h3><p className="text-base text-gray-800">Map incidents to zones</p></div></div>
- <button onClick={() => { setZoneError(''); setZoneFormData({ name: '', description: '', coordinates: [] }); setShowZoneModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Zone</button>
+ <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
+ <div className="flex items-center gap-3"><Map className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Zone Boundaries</h3><p className="text-xs text-gray-500">Map incidents to zones</p></div></div>
+ <button onClick={() => { setZoneError(''); setZoneFormData({ name: '', description: '', coordinates: [] }); setShowZoneModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Zone</button>
  </div>
  {zones.length > 0 ? (
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -564,14 +570,32 @@ const Settings = () => {
  {/* Departments Tab */}
  {activeTab === 'departments' && (
  <div className="space-y-4 animate-in fade-in">
- <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
- <div className="flex items-center gap-3"><Building className="text-blue-500" /><div><h3 className="font-bold text-gray-600">Departments Management</h3><p className="text-base text-gray-800">View and configure system departments.</p></div></div>
- <button onClick={() => { setEditingDepartmentId(null); setDepartmentError(''); setDepartmentFormData({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] }); setShowDepartmentModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Department</button>
+ <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
+ <div className="flex items-center gap-3"><Building className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Departments Management</h3><p className="text-xs text-gray-500">View and configure departments.</p></div></div>
+ <button onClick={() => { setEditingDepartmentId(null); setDepartmentError(''); setDepartmentFormData({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] }); setShowDepartmentModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Department</button>
  </div>
- <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
- <table className="w-full text-left text-base">
- <thead className="bg-white text-gray-800 text-base">
- <tr><th className="px-4 py-3">Name (EN)</th><th className="px-4 py-3">Name (AR)</th><th className="px-4 py-3">Manager</th><th className="px-4 py-3">Reps Count</th><th className="px-4 py-3 text-right">Action</th></tr>
+ <div className="space-y-2 md:hidden">
+ {departments.map(d => (
+ <div key={d.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 space-y-1.5">
+ <div className="flex items-center justify-between">
+ <p className="font-bold text-gray-700 text-sm">{d.name}</p>
+ <div className="flex gap-1.5">
+ <button onClick={() => openEditDepartment(d)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-blue-500"><Edit2 size={14} /></button>
+ <button onClick={() => deleteDepartment(d.id)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+ </div>
+ </div>
+ {d.nameAr && <p className="text-xs text-gray-500" dir="rtl">{d.nameAr}</p>}
+ <div className="flex items-center justify-between text-xs text-gray-500">
+ <span>Manager: <strong className="text-emerald-600">{d.manager?.name || 'N/A'}</strong></span>
+ <span>{d.representatives?.length || 0} reps</span>
+ </div>
+ </div>
+ ))}
+ </div>
+ <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hidden md:block">
+ <table className="w-full text-left text-sm">
+ <thead className="bg-white text-gray-800 text-xs">
+ <tr><th className="px-4 py-3">Name (EN)</th><th className="px-4 py-3">Name (AR)</th><th className="px-4 py-3">Manager</th><th className="px-4 py-3">Reps</th><th className="px-4 py-3 text-right">Action</th></tr>
  </thead>
  <tbody className="divide-y divide-slate-700/50 text-gray-800">
  {departments.map(d => (
@@ -592,13 +616,40 @@ const Settings = () => {
  {/* Service Providers Tab */}
  {activeTab === 'providers' && (
  <div className="space-y-4 animate-in fade-in">
- <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-200">
- <div className="flex items-center gap-3"><Briefcase className="text-blue-500" /><div><h3 className="font-bold text-gray-600">Service Providers</h3><p className="text-base text-gray-800">Manage Service Providers and Blacklisting.</p></div></div>
- <button onClick={() => { setEditingProviderId(null); setProviderError(''); setProviderFormData({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-base font-bold"><Plus size={16}/> Add Provider</button>
+ <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
+ <div className="flex items-center gap-3"><Briefcase className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Service Providers</h3><p className="text-xs text-gray-500">Manage Providers & Blacklisting.</p></div></div>
+ <button onClick={() => { setEditingProviderId(null); setProviderError(''); setProviderFormData({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Provider</button>
  </div>
- <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
- <table className="w-full text-left text-base">
- <thead className="bg-white text-gray-800 text-base">
+ <div className="space-y-2 md:hidden">
+ {serviceProviders.map(sp => (
+ <div key={sp.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-3 space-y-2">
+ <div className="flex items-center justify-between">
+ <p className="font-bold text-gray-700 text-sm">{sp.name}</p>
+ <div className="flex gap-1.5">
+ <button onClick={() => openEditProvider(sp)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-blue-500"><Edit2 size={14} /></button>
+ <button onClick={() => deleteProvider(sp.id)} className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+ </div>
+ </div>
+ <p className="text-xs text-gray-500 font-mono">CR: {sp.commercialRegistrationNumber}</p>
+ <div className="flex items-center justify-between text-xs">
+ <span className="text-gray-500">{sp.department?.name || 'N/A'}</span>
+ <button onClick={() => {
+ const newStatus = sp.status === 'BLACKLISTED' ? 'ACTIVE' : 'BLACKLISTED';
+ setConfirmModal({ title: `Change Status`, message: `Change to ${newStatus}?`, onConfirm: async () => {
+ try { await api.patch(`/service-providers/${sp.id}/status`, { status: newStatus }); fetchServiceProviders(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.operationFailed'), 'error'); }
+ setConfirmModal(null);
+ }});
+ }}
+ className={`px-2 py-0.5 rounded text-xs font-bold ${sp.status === 'BLACKLISTED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+ {sp.status}
+ </button>
+ </div>
+ </div>
+ ))}
+ </div>
+ <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hidden md:block">
+ <table className="w-full text-left text-sm">
+ <thead className="bg-white text-gray-800 text-xs">
  <tr><th className="px-4 py-3">CR Number</th><th className="px-4 py-3">Provider Name</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-right">Action</th></tr>
  </thead>
  <tbody className="divide-y divide-slate-700/50 text-gray-800">
@@ -610,12 +661,12 @@ const Settings = () => {
  <td className="px-4 py-3 text-center">
  <button onClick={() => {
  const newStatus = sp.status === 'BLACKLISTED' ? 'ACTIVE' : 'BLACKLISTED';
- setConfirmModal({ title: `Change Status (تغيير الحالة)`, message: `Change provider status to ${newStatus}?\n\nتغيير حالة المزود إلى ${newStatus === 'BLACKLISTED' ? 'قائمة سوداء' : 'نشط'}?`, onConfirm: async () => {
- try { await api.patch(`/service-providers/${sp.id}/status`, { status: newStatus }); fetchServiceProviders(); } catch (err: any) { alert(err.response?.data?.message || 'Failed'); }
+ setConfirmModal({ title: t('confirm.changeStatus'), message: t('confirm.changeStatusMsg', { status: newStatus === 'BLACKLISTED' ? 'Blacklisted / قائمة سوداء' : 'Active / نشط' }), onConfirm: async () => {
+ try { await api.patch(`/service-providers/${sp.id}/status`, { status: newStatus }); fetchServiceProviders(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.operationFailed'), 'error'); }
  setConfirmModal(null);
  }});
  }}
- className={`px-3 py-1 rounded text-base font-bold transition-all ${sp.status === 'BLACKLISTED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+ className={`px-3 py-1 rounded text-sm font-bold transition-all ${sp.status === 'BLACKLISTED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
  {sp.status}
  </button>
  </td>

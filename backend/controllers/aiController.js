@@ -17,8 +17,26 @@ const isQuotaError = (err) => {
     );
 };
 
-const AI_QUOTA_MSG = 'الذكاء الاصطناعي غير متاح مؤقتاً (تجاوز الحصة المجانية). يمكنك المتابعة يدوياً. / AI temporarily unavailable (free quota exceeded). You can continue manually.';
+// ── Helper: retry with exponential backoff for rate limits ─────────────────────
+const retryWithBackoff = async (fn, maxRetries = 3) => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            if (isQuotaError(err) && attempt < maxRetries) {
+                const delay = Math.pow(2, attempt) * 1500; // 1.5s, 3s, 6s
+                console.log(`[AI] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})...`);
+                await new Promise(r => setTimeout(r, delay));
+            } else {
+                throw err;
+            }
+        }
+    }
+};
+
+const AI_QUOTA_MSG = 'الذكاء الاصطناعي غير متاح مؤقتاً (تجاوز الحصة). يرجى المحاولة بعد دقيقة. / AI temporarily unavailable (rate limited). Please try again in a minute.';
 const AI_NO_KEY_MSG = 'مفتاح الذكاء الاصطناعي غير مهيأ. / GEMINI_API_KEY is not configured.';
+
 
 // ── enhanceText ───────────────────────────────────────────────────────────────
 const enhanceText = async (req, res) => {
@@ -68,7 +86,7 @@ const enhanceText = async (req, res) => {
             prompt = `أعد صياغة النص التالي ليكون أكثر احترافية ورسمية ومناسب لبيئة العمل (HSE): "${text}". الرد باللغة العربية ومباشر.`;
         }
 
-        const result = await model.generateContent(prompt);
+        const result = await retryWithBackoff(() => model.generateContent(prompt));
         const enhancedText = result.response.text().trim();
         res.json({ enhancedText });
 
@@ -127,7 +145,7 @@ Question: "${userQuestion}"
 
 Respond concisely with bullet points. Reply in the same language as the question.`;
 
-        const result = await model.generateContent(prompt);
+        const result = await retryWithBackoff(() => model.generateContent(prompt));
         const answer = result.response.text();
         res.json({ answer, reply: answer });
 

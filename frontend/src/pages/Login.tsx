@@ -96,7 +96,7 @@ const Login = () => {
     setError('');
     const englishRegex = /^[A-Za-z\s]+$/;
     if (!englishRegex.test(regFirstName) || !englishRegex.test(regLastName)) {
-      setError('Names must be in English letters only.');
+      setError(t('errors.namesEnglishOnly'));
       return;
     }
     setLoading(true);

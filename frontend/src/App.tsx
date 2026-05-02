@@ -1,23 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import Layout from './pages/Layout';
-import Dashboard from './pages/Dashboard';
-import TicketWizard from './pages/TicketWizard';
-import TicketDetail from './pages/TicketDetail';
-import Settings from './pages/Settings';
-import Analytics from './pages/Analytics';
+import { ToastProvider } from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingFallback from './components/LoadingFallback';
+
+// ─── Lazy-loaded pages ────────────────────────────────────────────────────────
+// Each page becomes its own chunk — only downloaded when the route is visited.
+const Login         = React.lazy(() => import('./pages/Login'));
+const Layout        = React.lazy(() => import('./pages/Layout'));
+const Dashboard     = React.lazy(() => import('./pages/Dashboard'));
+const TicketWizard  = React.lazy(() => import('./pages/TicketWizard'));
+const TicketDetail  = React.lazy(() => import('./pages/TicketDetail'));
+const Settings      = React.lazy(() => import('./pages/Settings'));
+const Analytics     = React.lazy(() => import('./pages/Analytics'));
+
+// ─── Light-weight, always-bundled components ──────────────────────────────────
 import OfflineSyncManager from './components/OfflineSyncManager';
 import SessionTimeoutManager from './components/SessionTimeoutManager';
-import ErrorBoundary from './components/ErrorBoundary';
 
 // Protect routes based on auth status
 const ProtectedRoute = () => {
  const { user, isLoading } = useAuth();
 
- if (isLoading) return <div>Loading...</div>;
+ if (isLoading) return <LoadingFallback />;
  if (!user) return <Navigate to="/login" replace />;
 
  return <Outlet />;
@@ -34,7 +41,9 @@ function App() {
  return (
  <BrowserRouter>
  <AuthProvider>
+ <ToastProvider>
  <ErrorBoundary>
+ <Suspense fallback={<LoadingFallback />}>
  <Routes>
  <Route path="/login" element={<Login />} />
 
@@ -52,9 +61,11 @@ function App() {
 
  <Route path="*" element={<Navigate to="/login" replace />} />
  </Routes>
+ </Suspense>
  </ErrorBoundary>
  <OfflineSyncManager />
  <SessionTimeoutManager />
+ </ToastProvider>
  </AuthProvider>
  </BrowserRouter>
  );
