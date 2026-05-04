@@ -99,21 +99,21 @@ const getTicketDuration = (ticket: Ticket): string => {
   return `${totalMins}m`;
 };
 
-// Stage labels shown below each ticket card
-const STAGE_CONFIG: Record<string, { ar: string; en: string; color: string; bg: string }> = {
-  OPEN:                   { ar: '• ينتظر مراجعة الكنترولر',          en: '• Awaiting Controller Review',          color: '#3b82f6', bg: '#eff6ff' },
-  SUBMITTED:              { ar: '• ينتظر مراجعة الكنترولر',          en: '• Awaiting Controller Review',          color: '#3b82f6', bg: '#eff6ff' },
-  ASSIGNED_TO_HR:         { ar: '• بانتظار إكمال الموارد البشرية (GOSI)',  en: '• Awaiting HR to complete GOSI',          color: '#0f766e', bg: '#f0fdfa' },
-  HR_COMPLETED:           { ar: '• انتهت HR — بانتظار توجيه الكنترولر', en: '• HR Done — Awaiting Controller Routing', color: '#0891b2', bg: '#ecfeff' },
-  ASSIGNED:               { ar: '• ينتظر رد ممثل القسم',             en: '• Awaiting Department Response',        color: '#f59e0b', bg: '#fffbeb' },
-  RETURNED_TO_REPORTER:   { ar: '• مرجعة للمبلغ لتصحيح البيانات',    en: '• Returned to Reporter for Correction',  color: '#f97316', bg: '#fff7ed' },
-  RETURNED_TO_DEPARTMENT: { ar: '• مرجعة للقسم لتعديل الرد',       en: '• Returned to Dept for Revision',       color: '#f97316', bg: '#fff7ed' },
-  UNDER_REVIEW:           { ar: '• ينتظر موافقة الكنترولر على الرد',   en: '• Awaiting Controller Approval of Reply', color: '#6366f1', bg: '#f0f9ff' },
-  UNDER_INVESTIGATION:    { ar: '• يحتاج RCA — تحليل سبب جذري',      en: '• RCA Required — Root Cause Analysis',   color: '#8b5cf6', bg: '#f5f3ff' },
-  PENDING_REMINDER:       { ar: '• بانتظار تذكير مجدول',              en: '• Pending Scheduled Reminder',           color: '#eab308', bg: '#fefce8' },
-  ESCALATED:              { ar: '• مصعَّد — ينتظر مدير السلامة',       en: '• Escalated — Awaiting Safety Manager',  color: '#ef4444', bg: '#fef2f2' },
-  CLOSED:                 { ar: '• مغلقة — تم إنجاز جميع الإجراءات',   en: '• Closed — All Actions Completed',        color: '#10b981', bg: '#ecfdf5' },
-  CLOSED_REJECTED:        { ar: '• مغلقة — مرفوضة',                    en: '• Closed — Rejected',                     color: '#f43f5e', bg: '#fff1f2' },
+// Stage colors shown below each ticket card (labels moved to i18n: oc.stageDesc.*)
+const STAGE_COLORS: Record<string, { color: string; bg: string }> = {
+  OPEN:                   { color: '#3b82f6', bg: '#eff6ff' },
+  SUBMITTED:              { color: '#3b82f6', bg: '#eff6ff' },
+  ASSIGNED_TO_HR:         { color: '#0f766e', bg: '#f0fdfa' },
+  HR_COMPLETED:           { color: '#0891b2', bg: '#ecfeff' },
+  ASSIGNED:               { color: '#f59e0b', bg: '#fffbeb' },
+  RETURNED_TO_REPORTER:   { color: '#f97316', bg: '#fff7ed' },
+  RETURNED_TO_DEPARTMENT: { color: '#f97316', bg: '#fff7ed' },
+  UNDER_REVIEW:           { color: '#6366f1', bg: '#f0f9ff' },
+  UNDER_INVESTIGATION:    { color: '#8b5cf6', bg: '#f5f3ff' },
+  PENDING_REMINDER:       { color: '#eab308', bg: '#fefce8' },
+  ESCALATED:              { color: '#ef4444', bg: '#fef2f2' },
+  CLOSED:                 { color: '#10b981', bg: '#ecfdf5' },
+  CLOSED_REJECTED:        { color: '#f43f5e', bg: '#fff1f2' },
 };
 
 
@@ -265,7 +265,7 @@ const Dashboard = () => {
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-black text-white leading-tight">{t('oc.dashboard.title')}</h1>
-              <p className="text-blue-200/80 text-xs mt-0.5">{t('oc.dashboard.subtitle')}</p>
+              <p className="text-blue-100 text-xs mt-0.5">{t('oc.dashboard.subtitle')}</p>
             </div>
           </div>
           <button
@@ -289,7 +289,7 @@ const Dashboard = () => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
-              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
                 {isRtl ? 'نصيحة توعوية' : 'Safety Tip'}
               </p>
               <span className="ltr:ml-auto rtl:mr-auto text-[9px] text-amber-400 group-hover:text-amber-500 transition-colors">
@@ -449,20 +449,20 @@ const Dashboard = () => {
                           {ticket.ticketNo}
                         </span>
 
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${statusCfg.chip}`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${statusCfg.chip}`}>
                           <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusCfg.accent }} />
                           {t(`status.${ticket.status}`, statusCfg.label)}
                         </span>
 
                         {ticket.hasInjury && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 bg-gradient-to-br from-rose-50 to-red-50 text-rose-700 ring-1 ring-rose-200">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold shrink-0 bg-gradient-to-br from-rose-50 to-red-50 text-rose-700 ring-1 ring-rose-200">
                             <AlertTriangle size={9} />
                             {t('oc.injury', 'Injury')}
                           </span>
                         )}
 
                         {priorityCfg && (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${priorityCfg.chipCls}`}>
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 ${priorityCfg.chipCls}`}>
                             {t(`priority.${ticket.priority}`, priorityCfg.label)}
                           </span>
                         )}
@@ -516,13 +516,13 @@ const Dashboard = () => {
                   </div>
 
                   {/* Stage label */}
-                  {STAGE_CONFIG[ticket.status] && (
+                  {STAGE_COLORS[ticket.status] && (
                     <div className="px-1 pb-1">
                       <span
-                        className="inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full"
-                        style={{ color: STAGE_CONFIG[ticket.status].color, background: STAGE_CONFIG[ticket.status].bg }}
+                        className="inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full"
+                        style={{ color: STAGE_COLORS[ticket.status].color, background: STAGE_COLORS[ticket.status].bg }}
                       >
-                        {i18n.dir() === 'rtl' ? STAGE_CONFIG[ticket.status].ar : STAGE_CONFIG[ticket.status].en}
+                        {t(`oc.stageDesc.${ticket.status}`, '')}
                       </span>
                     </div>
                   )}

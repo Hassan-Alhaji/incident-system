@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
-  AlertTriangle, Globe, Mail, ShieldCheck, Loader2,
+  AlertTriangle, Globe, Mail, Loader2,
   UserPlus, LogIn, Phone, Lightbulb, ArrowLeft, CheckCircle2,
 } from 'lucide-react';
 import api from '../utils/api';
@@ -146,12 +146,17 @@ const Login = () => {
 
         {/* Top logo */}
         <div className="relative flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/35 flex-shrink-0">
-            <ShieldCheck className="text-white" size={20} />
+          <div className="w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-lg p-1.5 flex-shrink-0">
+            <img
+              src="/smc-logo.png"
+              alt="Saudi Motorsport"
+              className="w-full h-full object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">SMC Incident Reporting</p>
-            <p className="text-slate-500 text-[10px] font-medium tracking-wider uppercase">HSE Management Platform</p>
+            <p className="text-white font-bold text-sm leading-tight">Saudi Motorsport</p>
+            <p className="text-slate-400 text-[10px] font-medium tracking-wider uppercase">HSE Incident Platform</p>
           </div>
         </div>
 
@@ -219,11 +224,16 @@ const Login = () => {
 
           {/* Mobile logo */}
           <div className="lg:hidden text-center mb-10">
-            <div className="w-14 h-14 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-blue-600/25">
-              <ShieldCheck className="text-white" size={28} />
+            <div className="w-24 h-24 mx-auto flex items-center justify-center mb-3">
+              <img
+                src="/smc-logo.png"
+                alt="Saudi Motorsport"
+                className="w-full h-full object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             </div>
-            <h1 className="text-2xl font-black text-slate-900">SMC Incident</h1>
-            <p className="text-slate-500 text-sm mt-1">HSE Reporting Platform</p>
+            <h1 className="text-xl font-black text-slate-900">Saudi Motorsport</h1>
+            <p className="text-slate-500 text-sm mt-1">HSE Incident Platform</p>
           </div>
 
           {/* ── Email step ── */}
@@ -430,9 +440,9 @@ const Login = () => {
                     <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="tel" value={regMobile}
-                      onChange={(e) => setRegMobile(e.target.value)}
+                      onChange={(e) => setRegMobile(e.target.value.replace(/[^0-9+]/g, ''))}
                       placeholder="+966 5XX XXX XXX"
-                      className={`${inputClass} pl-10`} required dir="ltr"
+                      className={`${inputClass} pl-10`} required dir="ltr" inputMode="numeric"
                     />
                   </div>
                 </div>

@@ -59,6 +59,9 @@ model Notification {
   link      String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([read])
 }
 
 model Ticket {
@@ -99,6 +102,15 @@ model Ticket {
   serviceProvider     ServiceProvider?     @relation(fields: [serviceProviderId], references: [id])
   zoneId              String?
   zone                Zone?                @relation(fields: [zoneId], references: [id])
+
+  @@index([status])
+  @@index([userGroup])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([departmentId])
+  @@index([serviceProviderId])
+  @@index([zoneId])
+  @@index([createdAt])
 }
 
 model Zone {
@@ -124,6 +136,8 @@ model Attachment {
   data      Bytes?
   createdAt DateTime @default(now())
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
 }
 
 model ActivityLog {
@@ -135,6 +149,9 @@ model ActivityLog {
   createdAt DateTime @default(now())
   actor     User?    @relation(fields: [actorId], references: [id])
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@index([actorId])
 }
 
 model OffCircuitReport {
@@ -249,6 +266,10 @@ model ActionPlan {
   updatedAt       DateTime             @updatedAt
   ticket          Ticket               @relation(fields: [ticketId], references: [id])
   attachments     ActionPlanAttachment[]
+
+  @@index([ticketId])
+  @@index([departmentId])
+  @@index([status])
 }
 
 // Evidence attachments for Action Plans
@@ -263,6 +284,8 @@ model ActionPlanAttachment {
   data            Bytes?
   createdAt       DateTime     @default(now())
   actionPlan      ActionPlan   @relation(fields: [actionPlanId], references: [id], onDelete: Cascade)
+
+  @@index([actionPlanId])
 }
 
 // Reminders for pending actions
@@ -279,6 +302,8 @@ model Reminder {
   updatedAt       DateTime     @updatedAt
   ticket          Ticket       @relation(fields: [ticketId], references: [id])
   createdBy       User         @relation(fields: [createdById], references: [id])
+
+  @@index([ticketId])
 }
 
 model Department {

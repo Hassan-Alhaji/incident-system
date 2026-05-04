@@ -268,6 +268,21 @@
       "PENDING_REMINDER": "Pending Reminder",
       "UNDER_INVESTIGATION": "Under Investigation"
     },
+    "stageDesc": {
+      "OPEN": "• Awaiting Controller Review",
+      "SUBMITTED": "• Awaiting Controller Review",
+      "ASSIGNED_TO_HR": "• Awaiting HR to complete GOSI",
+      "HR_COMPLETED": "• HR Done — Awaiting Controller Routing",
+      "ASSIGNED": "• Awaiting Department Response",
+      "RETURNED_TO_REPORTER": "• Returned to Reporter for Correction",
+      "RETURNED_TO_DEPARTMENT": "• Returned to Dept for Revision",
+      "UNDER_REVIEW": "• Awaiting Controller Approval of Reply",
+      "UNDER_INVESTIGATION": "• RCA Required — Root Cause Analysis",
+      "PENDING_REMINDER": "• Pending Scheduled Reminder",
+      "ESCALATED": "• Escalated — Awaiting Safety Manager",
+      "CLOSED": "• Closed — All Actions Completed",
+      "CLOSED_REJECTED": "• Closed — Rejected"
+    },
     "statusShort": {
       "OPEN": "Open",
       "SUPERVISOR_REVIEW": "Review",
@@ -292,7 +307,7 @@
       "SAFETY": "Safety",
       "OBSERVATION": "Observation",
       "OBSERVATION_desc": "Unsafe condition or act",
-      "ACCIDENT_desc": "Damage to property or persons",
+      "ACCIDENT_desc": "Damage to persons or property",
       "SECURITY": "Security",
       "SECURITY_desc": "Security breaches or violations"
     },
@@ -333,6 +348,8 @@
       "submit": "Submit Report",
       "submitting": "Submitting...",
       "submitSuccess": "Report Submitted Successfully!",
+      "thankYouTitle": "Thank you for keeping us safe! \ud83d\ude4f",
+      "thankYouBody": "Your report helps us improve workplace safety for everyone. Our team will review it and take appropriate action.",
       "redirecting": "Redirecting to ticket details...",
       "requiredFields": "Please fill the required fields:",
       "likelihood": "Likelihood (1-5)",

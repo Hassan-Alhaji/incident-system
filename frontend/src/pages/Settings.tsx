@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import {
  Plus, Trash2, Edit2, Users, CheckCircle, XCircle, AlertCircle, AlertTriangle,
- Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase
+ Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase, Wrench
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import ZoneDrawerMap from '../components/ZoneDrawerMap';
@@ -41,7 +41,11 @@ const Settings = () => {
  const [showModal, setShowModal] = useState(false);
  const [editingUser, setEditingUser] = useState<string | null>(null);
  const [search, setSearch] = useState('');
- const [activeTab, setActiveTab] = useState<'users' | 'zones' | 'departments' | 'providers'>('users');
+ const [activeTab, setActiveTab] = useState<'users' | 'zones' | 'departments' | 'providers' | 'system'>('users');
+
+ // Maintenance Mode
+ const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
+ const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
  const [form, setForm] = useState({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canCloseTickets: false, canPerformRCA: false, canManageUsers: false });
 
@@ -71,7 +75,26 @@ const Settings = () => {
  if (activeTab === 'zones') fetchZones();
  if (activeTab === 'departments') fetchDepartments();
  if (activeTab === 'providers') fetchServiceProviders();
+ if (activeTab === 'system') fetchMaintenanceStatus();
  }, [activeTab]);
+
+ const fetchMaintenanceStatus = async () => {
+  try { const res = await api.get('/maintenance'); setMaintenanceEnabled(res.data.enabled === true); } catch (e) {}
+ };
+
+ const toggleMaintenance = async () => {
+  setMaintenanceLoading(true);
+  try {
+   const newState = !maintenanceEnabled;
+   await api.put('/maintenance', { enabled: newState });
+   setMaintenanceEnabled(newState);
+   showToast(newState ? 'Maintenance mode ENABLED — users will see the maintenance page' : 'Maintenance mode DISABLED — platform is live', newState ? 'warning' : 'success');
+  } catch (err: any) {
+   showToast(err.response?.data?.message || 'Failed to update maintenance mode', 'error');
+  } finally {
+   setMaintenanceLoading(false);
+  }
+ };
 
  const fetchZones = async () => {
  try { const res = await api.get('/zones'); setZones(res.data); } catch (e) {}
@@ -307,6 +330,11 @@ const Settings = () => {
  <button onClick={() => setActiveTab('providers')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Briefcase size={13} /> Providers
  </button>
+ {(user?.role === 'ADMIN' || user?.role === 'OC_HSE_MANAGER' || user?.canManageUsers) && (
+ <button onClick={() => setActiveTab('system')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'system' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Wrench size={13} /> System
+ </button>
+ )}
  </div>
 
  {activeTab === 'users' && (
@@ -494,8 +522,8 @@ const Settings = () => {
 
  <div>
  <label className="block text-base font-medium text-gray-800 mb-1">Mobile Number *</label>
- <input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })}
- placeholder="+966500000000" dir="ltr" required
+ <input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/[^0-9+]/g, '') })}
+ placeholder="+966500000000" dir="ltr" required type="tel" inputMode="numeric"
  className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
  </div>
 
@@ -724,7 +752,7 @@ const Settings = () => {
  <div className="grid md:grid-cols-3 gap-3">
  <div><label className="block text-base text-gray-800 mb-1">Name</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
  <div><label className="block text-base text-gray-800 mb-1">Email</label><input type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.email} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, email: e.target.value}})} /></div>
- <div><label className="block text-base text-gray-800 mb-1">Mobile</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.mobile} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, mobile: e.target.value}})} /></div>
+ <div><label className="block text-base text-gray-800 mb-1">Mobile</label><input type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.mobile} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, mobile: e.target.value.replace(/[^0-9+]/g, '')}})} /></div>
  </div>
  </div>
 
@@ -739,7 +767,7 @@ const Settings = () => {
  <div className="grid md:grid-cols-3 gap-2 flex-1">
  <input placeholder="Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].email = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
- <input placeholder="Mobile" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].mobile = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
+ <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  </div>
  {departmentFormData.representatives.length > 1 && (
  <button onClick={() => { const newReps = [...departmentFormData.representatives]; newReps.splice(idx, 1); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} className="p-2 text-gray-800 hover:text-red-400 bg-white rounded-lg border border-gray-200"><Trash2 size={16}/></button>
@@ -789,7 +817,7 @@ const Settings = () => {
  <div className="grid md:grid-cols-3 gap-2 flex-1">
  <input placeholder="Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].name = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].email = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
- <input placeholder="Mobile" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].mobile = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
+ <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setProviderFormData({...providerFormData, representatives: newReps}); }} />
  </div>
  {providerFormData.representatives.length > 1 && (
  <button onClick={() => { const newReps = [...providerFormData.representatives]; newReps.splice(idx, 1); setProviderFormData({...providerFormData, representatives: newReps}); }} className="p-2 text-gray-800 hover:text-red-400 bg-white rounded-lg border border-gray-200"><Trash2 size={16}/></button>
@@ -800,6 +828,58 @@ const Settings = () => {
  </div>
  
  <button onClick={handleProviderSubmit} disabled={!providerFormData.name || !providerFormData.commercialRegistrationNumber || !providerFormData.responsibleDepartmentId} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">{editingProviderId ? 'Update Provider (تحديث المزود)' : 'Create Provider & Provision Users'}</button>
+ </div>
+ </div>
+ </div>
+ )}
+
+ {/* System / Maintenance Tab */}
+ {activeTab === 'system' && (
+ <div className="space-y-4 animate-in fade-in">
+ <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
+ <div className="flex items-center gap-3"><Wrench className="text-amber-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">System Controls</h3><p className="text-xs text-gray-500">Manage maintenance mode and platform settings.</p></div></div>
+ </div>
+
+ {/* Maintenance Mode Card */}
+ <div className={`border rounded-2xl p-5 transition-all ${maintenanceEnabled ? 'bg-red-50 border-red-200 shadow-lg shadow-red-100/50' : 'bg-white border-gray-200 shadow-sm'}`}>
+ <div className="flex items-start gap-4">
+ <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${maintenanceEnabled ? 'bg-red-500 shadow-lg shadow-red-500/30' : 'bg-gray-100'}`}>
+ <Wrench size={22} className={maintenanceEnabled ? 'text-white' : 'text-gray-400'} />
+ </div>
+ <div className="flex-1">
+ <div className="flex items-center gap-2 mb-1">
+ <h3 className={`font-bold text-base ${maintenanceEnabled ? 'text-red-700' : 'text-gray-800'}`}>Maintenance Mode</h3>
+ <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${maintenanceEnabled ? 'bg-red-500 text-white' : 'bg-emerald-100 text-emerald-600 border border-emerald-200'}`}>
+ {maintenanceEnabled ? 'ACTIVE' : 'OFF'}
+ </span>
+ </div>
+ <p className={`text-xs leading-relaxed mb-4 ${maintenanceEnabled ? 'text-red-600' : 'text-gray-500'}`}>
+ {maintenanceEnabled
+ ? '⚠️ The platform is currently in maintenance mode. All non-admin users see the maintenance page and cannot access the system.'
+ : 'When enabled, all non-admin users will see a maintenance page. Only ADMIN users can access the platform.'}
+ </p>
+ <button
+ onClick={toggleMaintenance}
+ disabled={maintenanceLoading}
+ className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
+ maintenanceEnabled
+ ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20'
+ : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
+ }`}
+ >
+ {maintenanceLoading ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
+ {maintenanceEnabled ? 'Disable Maintenance (Go Live)' : 'Enable Maintenance Mode'}
+ </button>
+ </div>
+ </div>
+ </div>
+
+ {/* Contact Info */}
+ <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+ <p className="text-xs text-gray-500 mb-2 font-medium">During maintenance, users will be shown this contact:</p>
+ <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+ <ShieldCheck size={14} className="text-blue-500" />
+ <span className="text-sm font-bold text-blue-700" dir="ltr">safety@saudimotorsport.com</span>
  </div>
  </div>
  </div>

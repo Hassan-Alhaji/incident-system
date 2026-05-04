@@ -195,10 +195,16 @@ const TicketWizard = () => {
   };
 
   if (submitted) return (
-    <div className="flex flex-col items-center justify-center py-20 space-y-4">
-      <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center animate-bounce"><CheckCircle size={40} className="text-emerald-500" /></div>
-      <h2 className="text-xl font-bold text-gray-800">{t('oc.wizard.submitSuccess', 'Report Submitted Successfully!')}</h2>
-      <p className="text-gray-500">{t('oc.wizard.redirecting', 'Redirecting...')}</p>
+    <div className="flex flex-col items-center justify-center py-16 space-y-5">
+      <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center animate-bounce shadow-lg shadow-emerald-200">
+        <CheckCircle size={48} className="text-emerald-500" />
+      </div>
+      <h2 className="text-2xl font-black text-gray-800 text-center">{t('oc.wizard.submitSuccess', 'Report Submitted Successfully!')}</h2>
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl p-5 max-w-sm text-center space-y-2 shadow-sm">
+        <p className="text-blue-800 font-bold text-sm">{t('oc.wizard.thankYouTitle', 'Thank you for keeping us safe! 🙏')}</p>
+        <p className="text-blue-600 text-xs leading-relaxed">{t('oc.wizard.thankYouBody', 'Your report helps us improve workplace safety for everyone. Our team will review it and take appropriate action.')}</p>
+      </div>
+      <p className="text-gray-400 text-sm animate-pulse">{t('oc.wizard.redirecting', 'Redirecting...')}</p>
     </div>
   );
 
@@ -231,8 +237,8 @@ const TicketWizard = () => {
             {INCIDENT_TYPES.map(type => {
               const selected = incidentType === type.key;
               return (
-                <button key={type.key} onClick={() => setIncidentType(type.key)} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? `${type.bg} ${type.border} ${type.color} shadow-md` : 'bg-white border-gray-100 text-gray-600 hover:shadow-sm'}`}>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selected ? `${type.bg} ${type.color}` : 'bg-gray-50 text-gray-400'}`}>{type.icon}</div>
+                <button key={type.key} onClick={() => setIncidentType(type.key)} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? `${type.bg} ${type.border} ${type.color} shadow-md ring-2 ring-offset-1 ${type.key === 'OBSERVATION' ? 'ring-blue-300' : type.key === 'ACCIDENT' ? 'ring-red-300' : 'ring-violet-300'}` : `bg-white ${type.border} text-gray-700 hover:shadow-sm hover:${type.bg}`}`}>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${type.bg} ${type.color}`}>{type.icon}</div>
                   <div>
                     <span className="font-bold text-base">{t(`oc.incidentTypes.${type.key}`, type.key)}</span>
                     <p className="text-xs mt-0.5 opacity-70">{t(`oc.incidentTypes.${type.key}_desc`, '')}</p>
@@ -345,7 +351,7 @@ const TicketWizard = () => {
                     <div className="flex items-center justify-between"><span className="text-sm font-bold text-red-600">{t('oc.wizard.injuredPerson', 'Injured Person')} #{idx + 1}</span><button onClick={() => removeInjured(idx)} className="text-gray-400 hover:text-red-500"><Trash2 size={14} /></button></div>
                     <select value={p.type} onChange={e => updateInjured(idx, 'type', e.target.value)} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm"><option value="EMPLOYEE">{t('oc.wizard.employee', 'Employee')}</option><option value="CONTRACTOR">{t('oc.wizard.contractor', 'Contractor')}</option><option value="OTHER">{t('oc.wizard.other', 'Other')}</option></select>
                     <input placeholder={t('oc.wizard.injuredName', 'Name') + ' *'} value={p.name} onChange={e => updateInjured(idx, 'name', e.target.value)} className={`w-full bg-white border ${showErrors && !p.name.trim() ? 'border-red-300' : 'border-gray-200'} rounded-lg px-3 py-2 text-sm`} />
-                    <input placeholder={t('oc.wizard.contactNumber', 'Mobile') + ' *'} value={p.mobile} dir="ltr" onChange={e => updateInjured(idx, 'mobile', e.target.value)} className={`w-full bg-white border ${showErrors && !p.mobile.trim() ? 'border-red-300' : 'border-gray-200'} rounded-lg px-3 py-2 text-sm`} />
+                    <input placeholder={t('oc.wizard.contactNumber', 'Mobile') + ' *'} value={p.mobile} dir="ltr" type="tel" inputMode="numeric" onChange={e => updateInjured(idx, 'mobile', e.target.value.replace(/[^0-9+]/g, ''))} className={`w-full bg-white border ${showErrors && !p.mobile.trim() ? 'border-red-300' : 'border-gray-200'} rounded-lg px-3 py-2 text-sm`} />
                     {p.type === 'EMPLOYEE' && (
                       <select value={p.dept} onChange={e => updateInjured(idx, 'dept', e.target.value)} className={`w-full bg-white border ${showErrors && !p.dept ? 'border-red-300' : 'border-gray-200'} rounded-lg px-3 py-2 text-sm`}>
                         <option value="">{t('oc.wizard.department', 'Department')} *</option>
@@ -372,7 +378,7 @@ const TicketWizard = () => {
               <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                 <input placeholder={t('oc.wizard.witnessName', 'Name')} value={w.name} onChange={e => updateWitness(idx, 'name', e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 <div className="flex gap-2">
-                  <input placeholder={t('oc.wizard.witnessMobile', 'Mobile')} value={w.mobile} dir="ltr" onChange={e => updateWitness(idx, 'mobile', e.target.value)} className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  <input placeholder={t('oc.wizard.witnessMobile', 'Mobile')} value={w.mobile} dir="ltr" type="tel" inputMode="numeric" onChange={e => updateWitness(idx, 'mobile', e.target.value.replace(/[^0-9+]/g, ''))} className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                   <button onClick={() => removeWitness(idx)} className="text-gray-400 hover:text-red-500 p-2"><Trash2 size={14} /></button>
                 </div>
               </div>

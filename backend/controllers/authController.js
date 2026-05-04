@@ -2,6 +2,16 @@ const prisma = require('../prismaClient');
 const { generateToken } = require('../utils/authUtils');
 const { sendOTP } = require('../utils/emailService');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+// Check if maintenance mode is enabled
+const isMaintenanceOn = () => {
+    try {
+        const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'maintenance.json'), 'utf-8'));
+        return data.enabled === true;
+    } catch { return false; }
+};
 
 // @desc    Request OTP for login
 // @route   POST /api/auth/otp/request
@@ -35,6 +45,11 @@ const requestEmailOtp = async (req, res) => {
         // Return error if user is not found
         if (!user) {
             return res.status(404).json({ code: 'EMAIL_NOT_FOUND', message: 'Email is not registered.' });
+        }
+
+        // Block non-admin login during maintenance
+        if (isMaintenanceOn() && user.role !== 'ADMIN') {
+            return res.status(503).json({ code: 'MAINTENANCE_MODE', message: 'The platform is currently under maintenance. Only administrators can access the system.' });
         }
 
         if (user.status === 'SUSPENDED') {
@@ -96,6 +111,11 @@ const verifyEmailOtp = async (req, res) => {
             return res.status(400).json({ message: 'Invalid code' });
         }
 
+        // Block non-admin verify during maintenance
+        if (isMaintenanceOn() && user.role !== 'ADMIN') {
+            return res.status(503).json({ message: 'The platform is under maintenance. Only administrators can login.' });
+        }
+
 
         if (new Date() > user.otpExpires) {
             return res.status(400).json({ message: 'Code expired' });
@@ -126,6 +146,7 @@ const verifyEmailOtp = async (req, res) => {
             role: updatedUser.role,
             canCloseTickets: updatedUser.canCloseTickets,
             canPerformRCA: updatedUser.canPerformRCA,
+            canManageUsers: updatedUser.canManageUsers,
             token: generateToken(updatedUser.id, updatedUser.role),
         });
 

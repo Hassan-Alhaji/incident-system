@@ -232,10 +232,18 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
       }}>
         
         {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #0f4c81', paddingBottom: 16, marginBottom: 24 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '24pt', color: '#0f4c81', fontWeight: 900 }}>Incident Report</h1>
-            <div style={{ color: '#64748b', fontSize: '10pt', marginTop: 4 }}>SMC HSE Platform</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #0f4c81', paddingBottom: 16, marginBottom: 24, gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <img
+              src="/smc-logo.png"
+              alt="Saudi Motorsport"
+              style={{ height: 64, width: 'auto', objectFit: 'contain' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            <div>
+              <h1 style={{ margin: 0, fontSize: '22pt', color: '#0f4c81', fontWeight: 900 }}>Incident Report</h1>
+              <div style={{ color: '#64748b', fontSize: '10pt', marginTop: 4 }}>Saudi Motorsport — HSE Platform</div>
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '9pt', color: '#94a3b8', marginBottom: 4 }}>
@@ -621,7 +629,13 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
         )}
 
         {/* AUTHORIZATION SEAL */}
-        <div style={{ marginTop: 32, border: '2px solid #1e3a5f', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+        <div style={{ marginTop: 32, border: '2px solid #1e3a5f', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', gap: 16 }}>
+          <img
+            src="/smc-logo.png"
+            alt="Saudi Motorsport"
+            style={{ height: 56, width: 'auto', objectFit: 'contain', flexShrink: 0 }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '12pt', fontWeight: 900, color: '#1e3a5f', marginBottom: 4 }}>Authorized by SMC HSE Department</div>
             <div style={{ display: 'flex', gap: 16, fontSize: '9pt', color: '#64748b' }}>

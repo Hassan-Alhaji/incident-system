@@ -128,13 +128,18 @@ const Layout = () => {
         {/* Logo */}
         <div className="px-5 py-5 border-b border-slate-800/70">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/35">
-              <ShieldCheck size={18} className="text-white" />
+            <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-700/20 p-1.5">
+              <img
+                src="/smc-logo.png"
+                alt="Saudi Motorsport"
+                className="w-full h-full object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             </div>
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm leading-tight truncate">SMC Incident</p>
-              <p className="text-slate-500 text-[10px] font-medium tracking-widest uppercase mt-0.5">
-                HSE Platform
+              <p className="text-white font-bold text-sm leading-tight truncate">SMC HSE</p>
+              <p className="text-slate-400 text-[10px] font-medium tracking-widest uppercase mt-0.5">
+                Incident Platform
               </p>
             </div>
           </div>
@@ -193,10 +198,15 @@ const Layout = () => {
 
           {/* Mobile: brand */}
           <div className="flex lg:hidden items-center gap-2.5 flex-1">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shadow-blue-600/30">
-              <ShieldCheck size={16} className="text-white" />
+            <div className="w-9 h-9 bg-white border border-slate-200 rounded-lg flex items-center justify-center p-1 shadow-sm">
+              <img
+                src="/smc-logo.png"
+                alt="SMC"
+                className="w-full h-full object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
             </div>
-            <span className="font-bold text-slate-900 text-sm">SMC Incident</span>
+            <span className="font-bold text-slate-900 text-sm">SMC HSE</span>
           </div>
 
           {/* Desktop: spacer */}
@@ -217,7 +227,7 @@ const Layout = () => {
             {/* Mobile logout */}
             <button
               onClick={() => { logout(); navigate('/login'); }}
-              className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+              className="lg:hidden h-10 w-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
             >
               <LogOut size={15} />
             </button>
@@ -238,14 +248,14 @@ const Layout = () => {
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 transition-all relative
-                    ${active ? 'text-blue-600' : 'text-slate-400'}`}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 min-h-[56px] transition-all relative
+                    ${active ? 'text-blue-600' : 'text-slate-500'}`}
                 >
                   {active && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-b-full" />
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-blue-600 rounded-b-full" />
                   )}
                   {item.icon}
-                  <span className="text-[9px] font-semibold">{item.label}</span>
+                  <span className="text-[11px] font-semibold leading-none">{item.label}</span>
                 </button>
               );
             })}

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const dotenv = require('dotenv');
@@ -30,17 +31,9 @@ app.use(cors({
 }));
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-            imgSrc: ["'self'", "data:", "blob:", "https:"],
-            connectSrc: ["'self'", "http://localhost:3000", "http://localhost:5173", process.env.FRONTEND_URL || '*']
-        }
-    }
+    contentSecurityPolicy: false
 }));
+app.use(compression()); // Gzip/Brotli compress all responses
 app.use(morgan(isProd ? 'combined' : 'dev'));
 const path = require('path');
 // Skip JSON parsing for multipart uploads so Multer gets the raw stream
@@ -100,6 +93,7 @@ app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
+app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 app.get('/', (req, res) => {
     res.json({
         message: 'Incident System API is running',

@@ -275,6 +275,21 @@
       "PENDING_REMINDER": "بانتظار تذكير",
       "UNDER_INVESTIGATION": "قيد التحقيق (RCA)"
     },
+    "stageDesc": {
+      "OPEN": "• ينتظر مراجعة الكنترولر",
+      "SUBMITTED": "• ينتظر مراجعة الكنترولر",
+      "ASSIGNED_TO_HR": "• بانتظار إكمال الموارد البشرية (GOSI)",
+      "HR_COMPLETED": "• انتهت HR — بانتظار توجيه الكنترولر",
+      "ASSIGNED": "• ينتظر رد ممثل القسم",
+      "RETURNED_TO_REPORTER": "• مرجعة للمبلغ لتصحيح البيانات",
+      "RETURNED_TO_DEPARTMENT": "• مرجعة للقسم لتعديل الرد",
+      "UNDER_REVIEW": "• ينتظر موافقة الكنترولر على الرد",
+      "UNDER_INVESTIGATION": "• يحتاج RCA — تحليل سبب جذري",
+      "PENDING_REMINDER": "• بانتظار تذكير مجدول",
+      "ESCALATED": "• مصعَّد — ينتظر مدير السلامة",
+      "CLOSED": "• مغلقة — تم إنجاز جميع الإجراءات",
+      "CLOSED_REJECTED": "• مغلقة — مرفوضة"
+    },
     "statusShort": {
       "OPEN": "مفتوحة",
       "HSE_REVIEW": "مراجعة HSE",
@@ -299,7 +314,7 @@
       "SAFETY": "سلامة",
       "OBSERVATION": "ملاحظة",
       "OBSERVATION_desc": "رصد حالة غير آمنة",
-      "ACCIDENT_desc": "تضرر ممتلكات أو أفراد",
+      "ACCIDENT_desc": "تضرر أفراد أو ممتلكات",
       "SECURITY": "أمني",
       "SECURITY_desc": "مخالفات أو اختراقات أمنية"
     },
@@ -340,6 +355,8 @@
       "submit": "إرسال البلاغ",
       "submitting": "جاري الإرسال...",
       "submitSuccess": "تم إرسال البلاغ بنجاح!",
+      "thankYouTitle": "شكراً لحرصك على سلامتنا! \ud83d\ude4f",
+      "thankYouBody": "بلاغك يساهم في تحسين بيئة العمل وسلامة الجميع. سيقوم فريقنا بمراجعته واتخاذ الإجراء المناسب.",
       "redirecting": "جاري التوجيه لتفاصيل التذكرة...",
       "requiredFields": "يرجى تعبئة الحقول المطلوبة:",
       "likelihood": "الاحتمالية (1 - 5)",

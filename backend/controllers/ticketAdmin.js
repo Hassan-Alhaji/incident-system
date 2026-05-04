@@ -90,7 +90,19 @@ const classifyPyramid = (t) => {
 const getAnalytics = async (req, res) => {
     try {
         if (!ROLES.ALL.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
+
+        // Date range filter from query params
+        const { from, to } = req.query;
         const where = { userGroup: 'OFF_CIRCUIT' };
+        if (from || to) {
+            where.createdAt = {};
+            if (from) where.createdAt.gte = new Date(from);
+            if (to) {
+                const endDate = new Date(to);
+                endDate.setHours(23, 59, 59, 999); // Include the entire "to" day
+                where.createdAt.lte = endDate;
+            }
+        }
 
         // Fetch everything in parallel ────────────────────────────────────────
         const [tickets, actionPlans, departments, serviceProviders] = await Promise.all([

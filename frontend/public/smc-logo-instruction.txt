@@ -1,0 +1,13 @@
+احفظ شعار Saudi Motorsport في هذا المجلد باسم: smc-logo.png
+Save the Saudi Motorsport logo in this folder as: smc-logo.png
+
+Required path:
+C:\Users\al3re\.gemini\antigravity\scratch\Incident_System\frontend\public\smc-logo.png
+
+Once saved, the platform will use it automatically in:
+- Login page (left brand panel + mobile header)
+- Sidebar (desktop)
+- Top header (mobile)
+- PDF Print Report (header + signature seal)
+
+Recommended size: 600×340px PNG (transparent background)

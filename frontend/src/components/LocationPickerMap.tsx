@@ -199,7 +199,7 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({
         <button
           onClick={e => { e.preventDefault(); handleLocateMe(); }}
           disabled={isLocating}
-          className="absolute top-3 right-3 z-[400] bg-white border border-gray-300 shadow-lg p-2 rounded-lg text-blue-500 hover:bg-slate-100 flex items-center gap-1.5 transition-all text-sm font-medium"
+          className="absolute top-3 right-3 z-[400] bg-white border border-gray-300 shadow-lg min-h-[44px] px-3 py-2 rounded-lg text-blue-600 hover:bg-slate-100 flex items-center gap-1.5 transition-all text-sm font-semibold"
           title={t('map.locateMe')}
         >
           {isLocating ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={16} />}
