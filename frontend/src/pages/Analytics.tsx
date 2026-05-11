@@ -8,6 +8,7 @@ import {
   Send, Bot, Download, Filter, X, ChevronRight, ChevronLeft, Briefcase, ChevronDown
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
+import AnalyticsMap from '../components/AnalyticsMap';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmtNum = (n: number) => (n || 0).toLocaleString('en-US');
@@ -459,6 +460,21 @@ const Analytics = () => {
         </div>
       </div>
 
+      {/* ── MAP SECTION ── */}
+      {data.mapCases && data.mapCases.length > 0 && (
+        <Section title={isRtl ? 'خريطة البلاغات المباشرة' : 'Live Incidents Map'} icon={<MapPin size={16} />}>
+          <div className="mb-3 flex gap-4 flex-wrap text-xs font-bold text-slate-600 items-center justify-center bg-slate-50 py-2 rounded-lg">
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm"></span> {isRtl ? 'رئيسي (Major/Fatal)' : 'Major'}</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-orange-500 border-2 border-white shadow-sm"></span> {isRtl ? 'مؤثر (Significant)' : 'Significant'}</div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500 border-2 border-white shadow-sm"></span> {isRtl ? 'بسيط (Minor)' : 'Minor'}</div>
+            <div className="w-px h-4 bg-slate-300 mx-2 hidden sm:block"></div>
+            <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-blue-400 border-2 border-white shadow-sm flex items-center justify-center"><div className="w-1.5 h-1.5 bg-white rounded-full"></div></span> {isRtl ? 'مفتوحة (Open)' : 'Open'}</div>
+            <div className="flex items-center gap-1.5"><span className="w-4 h-4 rounded-full bg-blue-400 border-2 border-slate-700 shadow-sm flex items-center justify-center text-[8px] text-white font-black opacity-80">✓</span> {isRtl ? 'مغلقة (Closed)' : 'Closed'}</div>
+          </div>
+          <AnalyticsMap cases={data.mapCases} isRtl={isRtl} />
+        </Section>
+      )}
+
       {/* ── 1. KPI HERO ROW ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Days Without LTI */}
@@ -502,6 +518,8 @@ const Analytics = () => {
           <p className="text-xs font-bold text-slate-600 mt-2 uppercase tracking-wider">{t('analytics.kpi.recordedInjuries', 'Recorded Injuries')}</p>
         </div>
       </div>
+
+
 
       {/* ── 2. REPORTING CULTURE INDEX (RCI) ── */}
       <Section title={t('analytics.rci.title', 'Reporting Culture Index (RCI)')} subtitle={t('analytics.rci.subtitle', 'Key indicator of safety culture health')} icon={<Sparkles size={16} />}>

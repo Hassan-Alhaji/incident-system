@@ -10,7 +10,7 @@ const createActionPlan = async (req, res) => {
 
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-        if (!['ASSIGNED','RETURNED_TO_DEPARTMENT'].includes(ticket.status)) {
+        if (!['ASSIGNED','RETURNED_TO_DEPARTMENT','ASSIGNED_TO_HR'].includes(ticket.status)) {
             return res.status(400).json({ message: 'Ticket not in assignable state' });
         }
 

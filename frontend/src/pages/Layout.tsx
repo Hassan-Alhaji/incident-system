@@ -11,7 +11,7 @@ import NotificationBell from '../components/NotificationBell';
 const OC_ROLES = [
   'OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER',
   'HSE_CONTROLLER', 'ADMIN', 'DEP_REP', 'DEP_MANAGER', 'SERVICE_PROVIDER_REP',
-  'SAFETY_MANAGER',
+  'SAFETY_MANAGER', 'HR_REP',
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -24,6 +24,7 @@ const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrator',
   DEP_REP: 'Department Rep',
   DEP_MANAGER: 'Dept. Manager',
+  HR_REP: 'HR Representative',
   SERVICE_PROVIDER_REP: 'Service Provider',
 };
 

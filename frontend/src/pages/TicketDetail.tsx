@@ -3,13 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
-import { formatDate, formatDateTime } from '../utils/formatDate';
+import { STATUS_CONFIG } from '../utils/statusConfig';
+import { formatDate } from '../utils/formatDate';
 import { ArrowLeft, Clock, AlertTriangle, CheckCircle, Send, Loader2, User, Search, Paperclip, Check, X, Bell, Sparkles, Download } from 'lucide-react';
 import { ActionPlanSection, RCASection, ReminderSection, MagicWandButton } from '../components/TicketSections';
 import { useToast } from '../components/Toast';
 import TicketPrintReport from '../components/TicketPrintReport';
 
-import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
 
 const TicketDetail = () => {
     const { id } = useParams();
@@ -229,9 +229,9 @@ const TicketDetail = () => {
     const hasEmployeeInjury = injuredPersons.some((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
     const hasContractorInjury = injuredPersons.some((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
     const hrDept = departments.find(d => d.name.toLowerCase().includes('hr') || d.nameAr?.includes('موارد'));
-    const isForcedHR = hasEmployeeInjury && !!hrDept;
 
-    const statusColors: Record<string, string> = { SUBMITTED: 'bg-blue-100 text-blue-700', ASSIGNED_TO_HR: 'bg-teal-100 text-teal-700', HR_COMPLETED: 'bg-cyan-100 text-cyan-700', ASSIGNED: 'bg-amber-100 text-amber-700', UNDER_REVIEW: 'bg-purple-100 text-purple-700', PENDING_REMINDER: 'bg-orange-100 text-orange-700', UNDER_INVESTIGATION: 'bg-indigo-100 text-indigo-700', ESCALATED: 'bg-red-100 text-red-700', CLOSED: 'bg-emerald-100 text-emerald-700', RETURNED_TO_REPORTER: 'bg-rose-100 text-rose-700', RETURNED_TO_DEPARTMENT: 'bg-pink-100 text-pink-700' };
+
+
 
     return (
         <>
@@ -243,7 +243,7 @@ const TicketDetail = () => {
                     <div>
                         <div className="flex items-center gap-2">
                             <h1 className="text-xl font-bold">{ticket.ticketNo}</h1>
-                            <span className={`px-2 py-1 rounded-md text-xs font-bold ${statusColors[ticket.status] || 'bg-gray-100'}`}>{t(`status.${ticket.status}`, ticket.status) as string}</span>
+                            <span className={`px-2 py-1 rounded-md text-xs font-bold ${STATUS_CONFIG[ticket.status]?.chip || 'bg-gray-100'}`}>{t(`status.${ticket.status}`, ticket.status) as string}</span>
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{t(`oc.incidentTypes.${ticket.type}`, ticket.type) as string} • {formatDate(ticket.createdAt)}</p>
                     </div>
@@ -363,10 +363,15 @@ const TicketDetail = () => {
                             </div>
                         )}
 
-                        {/* HR Pending notice for all roles when ASSIGNED_TO_HR */}
-                        {!oc.hrFilledBy && ticket.status === 'ASSIGNED_TO_HR' && (
+                        {/* HR Pending notice — shown to OTHERS waiting; HR sees a call-to-action instead */}
+                        {!oc.hrFilledBy && ticket.status === 'ASSIGNED_TO_HR' && !isHrRep && (
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                                 <p className="text-xs text-amber-700 font-semibold text-center">⏳ {isRtl ? 'بانتظار إكمال الموارد البشرية لبيانات التأمينات (GOSI)...' : 'Waiting for HR to complete GOSI data...'}</p>
+                            </div>
+                        )}
+                        {!oc.hrFilledBy && ticket.status === 'ASSIGNED_TO_HR' && isHrRep && (
+                            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-4">
+                                <p className="text-xs text-teal-700 font-semibold text-center">📋 {isRtl ? 'الرجاء إكمال بيانات التأمينات (GOSI) أدناه لكل موظف مصاب' : 'Please complete the GOSI data below for each injured employee'}</p>
                             </div>
                         )}
 
@@ -388,7 +393,9 @@ const TicketDetail = () => {
                                     {/* Per-person GOSI display or form */}
                                     {hasEmployeeInjury && (() => {
                                         const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
-                                        const isEditable = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
+                                        const isEditable =
+                                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
+                                            (isHrRep  && ticket.status === 'ASSIGNED_TO_HR');
                                         
                                         return (
                                             <div className="col-span-1 space-y-3">
@@ -417,29 +424,29 @@ const TicketDetail = () => {
                                                                     </div>
                                                                     <div>
                                                                         <label className="block text-[10px] font-bold text-slate-600 mb-1">{isRtl ? 'الرقم الوظيفي' : 'Employee ID'} <span className="text-red-500">*</span></label>
-                                                                        <input placeholder={isRtl ? 'أدخل الرقم الوظيفي هنا...' : 'Enter Employee ID...'} value={pg.gosiEmployeeId} onChange={e => updateGosi('gosiEmployeeId', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-lg text-xs transition-all" dir="ltr" />
+                                                                        <input id={`gosiEmployeeId-${i}`} name={`gosiEmployeeId-${i}`} placeholder={isRtl ? 'أدخل الرقم الوظيفي هنا...' : 'Enter Employee ID...'} value={pg.gosiEmployeeId} onChange={e => updateGosi('gosiEmployeeId', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-lg text-xs transition-all" dir="ltr" />
                                                                     </div>
                                                                     <div className="bg-white border border-slate-200 p-3 rounded-lg space-y-3">
                                                                         <label className="flex items-center gap-2 cursor-pointer">
-                                                                            <input type="checkbox" checked={pg.gosiSubmitted === true} onChange={e => updateGosi('gosiSubmitted', e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
+                                                                            <input id={`gosiSubmitted-${i}`} name={`gosiSubmitted-${i}`} type="checkbox" checked={pg.gosiSubmitted === true} onChange={e => updateGosi('gosiSubmitted', e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
                                                                             <span className="text-xs font-bold text-slate-700">{t('ticketActions.gosiSubmitted', 'Was GOSI informed?')}</span>
                                                                         </label>
                                                                         {pg.gosiSubmitted === true && (
                                                                             <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-200">
                                                                                 <div>
                                                                                     <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reportDate', 'Report Date')} <span className="text-red-500">*</span></label>
-                                                                                    <input type="date" min={(() => { try { return new Date(ticket.offCircuitReport?.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10); } catch(e) { return ''; } })()} value={pg.gosiReportDate} onChange={e => updateGosi('gosiReportDate', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
+                                                                                    <input id={`gosiReportDate-${i}`} name={`gosiReportDate-${i}`} type="date" min={(() => { try { return new Date(ticket.offCircuitReport?.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10); } catch(e) { return ''; } })()} value={pg.gosiReportDate} onChange={e => updateGosi('gosiReportDate', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
                                                                                 </div>
                                                                                 <div>
                                                                                     <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.gosiNo', 'GOSI Number')} <span className="text-red-500">*</span></label>
-                                                                                    <input placeholder={t('ticketActions.gosiNo', 'GOSI No.')} value={pg.gosiReportNumber} onChange={e => updateGosi('gosiReportNumber', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" dir="ltr" />
+                                                                                    <input id={`gosiReportNumber-${i}`} name={`gosiReportNumber-${i}`} placeholder={t('ticketActions.gosiNo', 'GOSI No.')} value={pg.gosiReportNumber} onChange={e => updateGosi('gosiReportNumber', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" dir="ltr" />
                                                                                 </div>
                                                                             </div>
                                                                         )}
                                                                         {pg.gosiSubmitted === false && (
                                                                             <div className="pt-2 border-t border-slate-200">
                                                                                 <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reason', 'Reason for not reporting')} <span className="text-red-500">*</span></label>
-                                                                                <input placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={pg.gosiNoReason} onChange={e => updateGosi('gosiNoReason', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
+                                                                                <input id={`gosiNoReason-${i}`} name={`gosiNoReason-${i}`} placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={pg.gosiNoReason} onChange={e => updateGosi('gosiNoReason', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -568,8 +575,8 @@ const TicketDetail = () => {
                             </div>
                         )}
 
-                        {/* ActionPlanSection: only for the department filling it, or controllers reviewing after submission */}
-                        {(isDepRep || (ticket.actionPlans?.length > 0)) && (
+                        {/* ActionPlanSection: dept filling, HR filling (for employee injury cases), or anyone reviewing */}
+                        {(isDepRep || isHrRep || (ticket.actionPlans?.length > 0)) && (
                             <ActionPlanSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
                         )}
                         <RCASection ticket={ticket} onRefresh={() => fetchTicket(true)} />
@@ -705,7 +712,7 @@ const TicketDetail = () => {
                                             <span className="text-xs font-bold text-gray-500">{t('ticketActions.notes', 'Notes')}</span>
                                             <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_ASSIGN_NOTES" onEnhanced={setControllerNotes} />
                                         </div>
-                                        <textarea placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[120px]" rows={5} />
+                                        <textarea id="controllerNotes" name="controllerNotes" placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[120px]" rows={5} />
                                     </div>
                                     {/* Show HR auto-routing notice if employee injured */}
                                     {hasEmployeeInjury && (
@@ -720,7 +727,7 @@ const TicketDetail = () => {
                                     {!hasEmployeeInjury && (
                                         <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-2">
                                             <p className="text-xs font-bold text-gray-500">{t('ticketActions.routeToDept', 'Route to Department')}</p>
-                                            <select value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.map(d => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
+                                            <select id="targetDepartmentId" name="targetDepartmentId" value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.map(d => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
                                         </div>
                                     )}
                                     {(!severityLevel || !controllerNotes.trim()) && (
@@ -791,35 +798,6 @@ const TicketDetail = () => {
                                 </div>
                             )}
 
-                            {/* CONTROLLER: HR_COMPLETED — route to responsible dept */}
-                            {isController && ticket.status === 'HR_COMPLETED' && (
-                                <div className="space-y-3">
-                                    <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-3">
-                                        <p className="text-xs font-bold text-cyan-800">✅ {isRtl ? 'أكملت الموارد البشرية بيانات GOSI. يرجى توجيه التذكرة الآن إلى القسم المسؤول عن الحادث لكتابة خطط العمل.' : 'HR has completed GOSI data. Please route the ticket to the responsible department for action plans.'}</p>
-                                    </div>
-                                    <div className="p-3 bg-white border rounded-lg space-y-2">
-                                        <p className="text-xs font-bold text-gray-500">{t('ticketActions.routeToDept', 'Route to Responsible Department')}</p>
-                                        <select value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border rounded text-sm"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.filter(d => !d.name.toLowerCase().includes('hr') && !d.nameAr?.includes('موارد')).map(d => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
-                                    </div>
-                                    <div className="border border-gray-300 rounded-lg bg-white">
-                                        <div className="px-2 pt-2 text-xs font-bold text-gray-500">{t('ticketActions.notes', 'Notes')}</div>
-                                        <textarea placeholder={t('ticketActions.notesPlaceholder', 'Notes for the department...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[100px]" rows={4} />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            onClick={() => confirmThen(() => handleControllerAction('RETURN_HR'), isRtl ? 'إرجاع للموارد البشرية' : 'Return to HR', isRtl ? 'ستُرجع التذكرة للموارد البشرية لتصحيح البيانات.' : 'Ticket will be returned to HR for corrections.', 'danger')}
-                                            disabled={actionLoading || !controllerNotes.trim()}
-                                            className="bg-rose-50 border border-rose-200 text-rose-700 py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-rose-100"
-                                        >↩ {isRtl ? 'إرجاع لـ HR' : 'Return to HR'}</button>
-                                        <button
-                                            onClick={() => { if (!targetDepartmentId || !controllerNotes.trim()) return; const deptName = departments.find(d => d.id === targetDepartmentId)?.name || targetDepartmentId; confirmThen(() => handleControllerAction('ASSIGN'), isRtl ? 'توجيه للقسم المختص' : 'Route to Department', isRtl ? `سيتم توجيه التذكرة إلى "${deptName}" لكتابة خطط العمل.` : `Ticket will be routed to "${deptName}" for action plans.`, 'primary'); }}
-                                            disabled={actionLoading || !targetDepartmentId || !controllerNotes.trim()}
-                                            className="bg-blue-600 text-white py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-blue-700"
-                                        >✓ {isRtl ? 'توجيه للقسم' : 'Route to Dept'}</button>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* DEPARTMENT REP ACTION */}
                             {isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && (
                                 <div className="space-y-3 bg-white p-4 border border-slate-200 shadow-sm rounded-xl">
@@ -848,8 +826,8 @@ const TicketDetail = () => {
                                             <p className="text-[10px] text-amber-600 bg-amber-50 border-t border-amber-100 px-3 py-1.5 flex items-center gap-1.5">
                                                 <span className="font-black">!</span>
                                                 {isRtl
-                                                    ? 'اكتب ملاحظة هنا لتفعيل زر "إرجاع للقسم" — لا يمكن الإرجاع بدون توضيح السبب للقسم.'
-                                                    : 'Write a note here to enable "Return to Dept" — the department must know why it\'s being returned.'}
+                                                    ? 'اكتب ملاحظة هنا لتفعيل "إرجاع للقسم" أو "الانتقال إلى RCA" — يجب توضيح السبب أو التوجيه المطلوب.'
+                                                    : 'Write a note here to enable "Return to Dept" or "Proceed to RCA" — you must provide a reason or instruction.'}
                                             </p>
                                         )}
                                     </div>
@@ -890,7 +868,8 @@ const TicketDetail = () => {
                                             oc.rcaRequired && !oc.rcaCompleted ? (
                                                 <button
                                                     onClick={() => confirmThen(() => handleFinalReview('PROCEED_RCA'), isRtl ? 'الانتقال إلى تحليل السبب الجذري' : 'Proceed to RCA', isRtl ? 'ستنتقل التذكرة إلى مرحلة تحليل السبب الجذري. يجب إكمال التحليل قبل الإغلاق.' : 'The ticket will move to Root Cause Analysis phase. Analysis must be completed before closure.', 'primary')}
-                                                    className="col-span-2 bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold transition-all hover:bg-indigo-700 flex items-center justify-center gap-2"
+                                                    disabled={!controllerNotes}
+                                                    className="col-span-2 bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-indigo-700 flex items-center justify-center gap-2"
                                                 >
                                                     📋 {isRtl ? 'الانتقال إلى RCA' : 'Proceed to RCA'}
                                                 </button>
@@ -946,18 +925,27 @@ const TicketDetail = () => {
                                 </div>
                             )}
 
-                            {/* No actions message */}
-                            {!(
-                                (isReporter && ['RETURNED_TO_REPORTER', 'PENDING_REMINDER'].includes(ticket.status)) ||
-                                (isController && ['SUBMITTED', 'UNDER_REVIEW'].includes(ticket.status)) ||
-                                (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
-                                (isSafetyManager && ticket.status === 'ESCALATED')
-                            ) && ticket.status !== 'CLOSED' && (
-                                <div className="text-center py-6 px-4">
-                                    <p className="text-sm text-slate-500 font-medium bg-slate-100 rounded-lg py-3 inline-block px-6">
-                                        {isRtl ? 'لا توجد إجراءات مطلوبة منك في هذه المرحلة، البلاغ بانتظار طرف آخر.' : 'No pending actions required from you at this stage.'}
+                            {/* No actions message / RCA Pending Message */}
+                            {isController && ticket.status === 'UNDER_INVESTIGATION' ? (
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center shadow-sm">
+                                    <span className="text-indigo-500 text-2xl block mb-2">📋</span>
+                                    <p className="text-sm font-bold text-indigo-800">
+                                        {isRtl ? 'أكمل تحليل السبب الجذري (RCA) أعلاه أولاً ليتاح لك إغلاق التذكرة.' : 'Complete the Root Cause Analysis (RCA) above first to enable ticket closure.'}
                                     </p>
                                 </div>
+                            ) : (
+                                !(
+                                    (isReporter && ['RETURNED_TO_REPORTER', 'PENDING_REMINDER'].includes(ticket.status)) ||
+                                    (isController && ['SUBMITTED', 'UNDER_REVIEW'].includes(ticket.status)) ||
+                                    (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
+                                    (isSafetyManager && ticket.status === 'ESCALATED')
+                                ) && ticket.status !== 'CLOSED' && (
+                                    <div className="text-center py-6 px-4">
+                                        <p className="text-sm text-slate-500 font-medium bg-slate-100 rounded-lg py-3 inline-block px-6">
+                                            {isRtl ? 'لا توجد إجراءات مطلوبة منك في هذه المرحلة، البلاغ بانتظار طرف آخر.' : 'No pending actions required from you at this stage.'}
+                                        </p>
+                                    </div>
+                                )
                             )}
                             {ticket.status === 'CLOSED' && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm font-bold text-center border border-emerald-200"><CheckCircle className="mx-auto mb-1" size={24} /> {t('ticketActions.ticketClosed', 'Ticket Closed')}</div>}
                         </div>
@@ -1053,7 +1041,7 @@ const TicketDetail = () => {
             )}
         </div>
 
-        {showPrint && <TicketPrintReport ticket={ticket} onClose={() => setShowPrint(false)} autoPrint />}
+        {showPrint && <TicketPrintReport ticket={ticket} onClose={() => setShowPrint(false)} />}
         </>
     );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -93,9 +93,9 @@ interface ActionPlan {
 }
 
 const PLAN_DEFS = [
-  { type: 'IMMEDIATE', labelAr: 'فوري', labelEn: 'Immediate', required: true, headerCls: 'bg-red-50 border-red-200', badgeCls: 'bg-red-100 text-red-700', saveCls: 'bg-red-600 hover:bg-red-700' },
-  { type: 'SHORT_TERM', labelAr: 'قصير المدى', labelEn: 'Short-Term', required: true, headerCls: 'bg-amber-50 border-amber-200', badgeCls: 'bg-amber-100 text-amber-700', saveCls: 'bg-amber-600 hover:bg-amber-700' },
-  { type: 'LONG_TERM', labelAr: 'بعيد المدى', labelEn: 'Long-Term', required: false, headerCls: 'bg-blue-50 border-blue-200', badgeCls: 'bg-blue-100 text-blue-700', saveCls: 'bg-blue-600 hover:bg-blue-700' },
+  { type: 'IMMEDIATE', labelAr: 'إجراء فوري', labelEn: 'Immediate Action', required: true, descAr: 'إجراءات سريعة لإيقاف الخطر فوراً (مثل: الإسعافات الأولية، عزل المنطقة).', descEn: 'Quick actions to stop the hazard immediately (e.g., first aid, barricading area).', headerCls: 'bg-red-50 border-red-200', badgeCls: 'bg-red-100 text-red-700', saveCls: 'bg-red-600 hover:bg-red-700' },
+  { type: 'SHORT_TERM', labelAr: 'خطة قصيرة المدى', labelEn: 'Short-Term Plan', required: false, descAr: 'إجراءات مؤقتة لمعالجة المشكلة خلال الأيام القادمة حتى يتم تطبيق حل جذري.', descEn: 'Temporary measures to address the issue in the coming days until a permanent fix is applied.', headerCls: 'bg-amber-50 border-amber-200', badgeCls: 'bg-amber-100 text-amber-700', saveCls: 'bg-amber-600 hover:bg-amber-700' },
+  { type: 'LONG_TERM', labelAr: 'خطة بعيدة المدى', labelEn: 'Long-Term Plan', required: false, descAr: 'حلول جذرية لضمان عدم تكرار الحادث مستقبلاً (مثل: تغيير سياسات، تركيب معدات جديدة).', descEn: 'Permanent solutions to ensure the incident never recurs (e.g., policy changes, installing new equipment).', headerCls: 'bg-blue-50 border-blue-200', badgeCls: 'bg-blue-100 text-blue-700', saveCls: 'bg-blue-600 hover:bg-blue-700' },
 ];
 
 export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () => void }) => {
@@ -107,8 +107,13 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
 
   const role = user?.role || '';
   const isDepRep = ['DEP_REP', 'DEP_MANAGER'].includes(role);
+  const isHrRep  = role === 'HR_REP';
   const isReviewer = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role);
-  const canEdit = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
+  // DEP_REP edits when assigned/returned to their dept.
+  // HR_REP edits when assigned to HR OR controller returned the HR-handled ticket for revision.
+  const canEdit =
+    (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
+    (isHrRep  && ['ASSIGNED_TO_HR', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status));
 
   const [forms, setForms] = useState<Record<string, { desc: string; date: string }>>(() => {
     const init: Record<string, { desc: string; date: string }> = {};
@@ -127,6 +132,9 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const [bulkReviewing, setBulkReviewing] = useState(false); // loading state for bulk review
   // pending local files per plan type — shown as preview before save
   const [pendingFiles, setPendingFiles] = useState<Record<string, File[]>>({});
+  // Refs to file inputs per plan type — used to open the picker programmatically
+  // (more reliable than relying on <label>-wraps-<input> across browsers)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // pending attachment-delete confirmation (replaces native confirm() dialog)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -183,8 +191,8 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
         showToast(`${isRtl ? pd.labelAr : pd.labelEn}: ${t('errors.planDescRequired')}`, 'warning');
         return;
       }
-      if (pd.required && !form.date) {
-        showToast(`${isRtl ? pd.labelAr : pd.labelEn}: ${t('errors.planDateRequired')}`, 'warning');
+      if (form.desc.trim() && !form.date) {
+        showToast(`${isRtl ? pd.labelAr : pd.labelEn}: ${t('errors.planDateRequired', isRtl ? 'التاريخ مطلوب إذا قمت بكتابة وصف' : 'Date is required if you provide a description')}`, 'warning');
         return;
       }
     }
@@ -221,15 +229,6 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
     setPendingFiles(pf => ({ ...pf, [type]: (pf[type] || []).filter((_, i) => i !== idx) }));
   };
 
-  const handleReview = async (planId: string, status: string) => {
-    try {
-      await api.put(`/action-plans/${planId}`, { status, reviewNotes: reviewNote });
-      showToast(status === 'APPROVED' ? t('errors.planApproved') : t('errors.planRejected'),
-        status === 'APPROVED' ? 'success' : 'warning');
-      setReviewNote(''); setShowRejectNotes(false);
-      onRefresh();
-    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
-  };
 
   // Bulk approve/reject all submitted plans at once
   const handleBulkReview = async (status: string) => {
@@ -278,7 +277,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
             {savedCount} / {PLAN_DEFS.length}
           </span>
           {!requiredOk && canEdit && (
-            <span className="text-[10px] text-amber-600 font-medium">{isRtl ? 'الفوري والقصير مطلوبان' : 'Immediate & Short-Term Required'}</span>
+            <span className="text-[10px] text-amber-600 font-medium">{isRtl ? 'الإجراء الفوري مطلوب' : 'Immediate Plan Required'}</span>
           )}
         </div>
       </div>
@@ -297,11 +296,14 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
             <div key={pd.type} className={`border rounded-xl overflow-hidden ${borderCls}`}>
               {/* Card header */}
               <div className={`px-3 py-2 flex items-center justify-between ${pd.headerCls}`}>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-black px-3 py-1 rounded-full ${pd.badgeCls}`}>
-                    {isRtl ? pd.labelAr : pd.labelEn}
-                  </span>
-                  {pd.required && <span className="text-xs text-red-500 font-bold">{isRtl ? '* مطلوب' : '* Required'}</span>}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-black px-3 py-1 rounded-full ${pd.badgeCls}`}>
+                      {isRtl ? pd.labelAr : pd.labelEn}
+                    </span>
+                    {pd.required && <span className="text-xs text-red-500 font-bold">{isRtl ? '* مطلوب' : '* Required'}</span>}
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium max-w-lg mt-0.5 leading-relaxed">{isRtl ? pd.descAr : pd.descEn}</p>
                 </div>
                 {isSaved && (
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' :
@@ -329,6 +331,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                         />
                       </div>
                       <textarea
+                        id={`action-plan-desc-${pd.type}`} name={`action-plan-desc-${pd.type}`}
                         value={form.desc}
                         onChange={e => setForms(f => ({ ...f, [pd.type]: { ...f[pd.type], desc: e.target.value } }))}
                         placeholder={isRtl ? `اكتب تفاصيل خطة العمل ${pd.labelAr}...` : `Write details for ${pd.labelEn} plan...`}
@@ -340,6 +343,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                     <div className="flex items-center gap-3 mt-4">
                       <label className="text-sm font-bold text-gray-700 whitespace-nowrap">{isRtl ? 'التاريخ المستهدف' : 'Target Date'} {pd.required ? <span className="text-red-500">*</span> : ''}:</label>
                       <input
+                        id={`action-plan-date-${pd.type}`} name={`action-plan-date-${pd.type}`}
                         type="date"
                         min={new Date().toISOString().split('T')[0]}
                         value={form.date}
@@ -355,22 +359,38 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                         <span className="text-xs font-bold text-teal-700">
                           {isRtl ? '📎 المرفقات (اختياري)' : '📎 Attachments (Optional)'}
                         </span>
-                        <label className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 hover:border-teal-400 text-teal-700 text-xs font-bold py-1.5 px-3 rounded-lg cursor-pointer transition-all shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            console.log('[Upload] Click', pd.type, 'ref:', !!fileInputRefs.current[pd.type]);
+                            const inp = fileInputRefs.current[pd.type];
+                            if (!inp) { showToast(`No ref for ${pd.type}`, 'error'); return; }
+                            inp.click();
+                          }}
+                          className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 hover:border-teal-400 text-teal-700 text-xs font-bold py-1.5 px-3 rounded-lg cursor-pointer transition-all shadow-sm"
+                        >
                           {(uploading === ex?.id || saving === pd.type) ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                           {isRtl ? 'اختر ملف' : 'Choose File'}
-                          <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xlsx,.eml" className="hidden"
-                            onChange={e => {
-                              if (!e.target.files?.length) return;
-                              if (isSaved) {
-                                // already saved → add to pending so they upload on next save
-                                addPendingFiles(pd.type, e.target.files);
-                              } else {
-                                addPendingFiles(pd.type, e.target.files);
-                              }
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
+                        </button>
+                        {/* Hidden file input — opened programmatically via ref */}
+                        <input
+                          ref={(el) => { fileInputRefs.current[pd.type] = el; }}
+                          type="file"
+                          multiple
+                          accept="image/*,.pdf,.doc,.docx,.xlsx,.eml"
+                          style={{ display: 'none' }}
+                          onChange={e => {
+                            const fileList = e.target.files;
+                            console.log('[Upload] onChange', pd.type, 'files:', fileList?.length);
+                            if (!fileList || fileList.length === 0) {
+                              showToast(`No files selected for ${pd.type}`, 'warning');
+                              return;
+                            }
+                            addPendingFiles(pd.type, fileList);
+                            showToast(`✅ Added ${fileList.length} file(s) to ${pd.type}`, 'success');
+                            e.target.value = '';
+                          }}
+                        />
                       </div>
 
                       {/* Saved attachments from server */}
@@ -393,8 +413,8 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                                 {/* Delete button — DEP_REP only */}
                                 {canEdit && (
                                   <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(att.id); }}
-                                    className="absolute top-0.5 right-0.5 z-10 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
-                                    <X size={10} strokeWidth={3} />
+                                    className="absolute top-0.5 right-0.5 z-10 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
+                                    <X size={14} strokeWidth={3} />
                                   </button>
                                 )}
                               </div>
@@ -486,8 +506,8 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                                   {/* Delete — DEP_REP only */}
                                   {canEdit && (
                                     <button onClick={e => { e.preventDefault(); e.stopPropagation(); setConfirmDelete(att.id); }}
-                                      className="absolute top-0.5 right-0.5 z-10 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
-                                      <X size={10} strokeWidth={3} />
+                                      className="absolute top-0.5 right-0.5 z-10 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm">
+                                      <X size={14} strokeWidth={3} />
                                     </button>
                                   )}
                                 </div>
@@ -502,8 +522,12 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                         <label className="inline-flex items-center gap-1.5 text-xs text-teal-600 font-bold cursor-pointer hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-lg transition-all">
                           {uploading === ex!.id ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                           {isRtl ? 'إضافة مرفق' : 'Add Attachment'}
-                          <input type="file" multiple className="hidden"
-                            onChange={e => e.target.files && handleUploadExisting(ex!.id, e.target.files)} />
+                          <input type="file" multiple className="sr-only"
+                            onChange={e => {
+                              const fl = e.target.files;
+                              if (fl) handleUploadExisting(ex!.id, fl);
+                              e.target.value = '';
+                            }} />
                         </label>
                       )}
 
@@ -579,6 +603,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                     {isRtl ? 'ملاحظات الرفض' : 'Rejection Notes'} <span className="text-red-500">*</span>
                   </label>
                   <textarea
+                    id="reviewNote" name="reviewNote"
                     placeholder={isRtl ? 'اكتب سبب الرفض أو الملاحظات هنا...' : 'Write the rejection reason or notes here...'}
                     value={reviewNote}
                     onChange={e => setReviewNote(e.target.value)}
@@ -807,6 +832,7 @@ export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () =
               {canEdit && <MagicWandButton text={q.value} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={q.setter} />}
             </div>
             <textarea
+              id={`rca-q-${q.num}`} name={`rca-q-${q.num}`}
               value={q.value}
               onChange={e => q.setter(e.target.value)}
               disabled={!canEdit}

@@ -127,14 +127,38 @@ const hrAction = async (req, res) => {
         if (contractorNotifyDate) reportUpdate.contractorNotifyDate = new Date(contractorNotifyDate);
         if (contractorNoReason) reportUpdate.contractorNoReason = contractorNoReason;
 
+        // HR is the responsible department for employee-injury tickets — validate they
+        // provided both required action plans before submitting to the controller for approval.
+        const existingPlans = await prisma.actionPlan.findMany({ where: { ticketId: ticket.id }, select: { type: true } });
+        const hasImmediate = existingPlans.some(p => p.type === 'IMMEDIATE');
+        if (!hasImmediate) {
+            return res.status(400).json({
+                message: 'You must add at least an Immediate action plan before submitting.',
+                code: 'MISSING_ACTION_PLANS'
+            });
+        }
+
+        // Auto-assign HR department on the ticket so analytics/tracking attribute this to HR.
+        const hrDept = await prisma.department.findFirst({
+            where: { OR: [{ name: { contains: 'HR', mode: 'insensitive' } }, { nameAr: { contains: 'موارد' } }] },
+            select: { id: true }
+        });
+
         await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: reportUpdate });
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'HR_COMPLETED', activityLogs: { create: { actorId: req.user.id, action: 'HR_GOSI_SUBMITTED', details: 'HR submitted GOSI data. Waiting for controller to route to responsible department.' } } } });
+        await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: {
+                status: 'UNDER_REVIEW',
+                ...(hrDept && !ticket.departmentId ? { departmentId: hrDept.id } : {}),
+                activityLogs: { create: { actorId: req.user.id, action: 'HR_GOSI_SUBMITTED', details: 'HR completed GOSI data + action plans. Awaiting controller final review.' } }
+            }
+        });
 
-        // Notify all controllers
+        // Notify all controllers — HR is done, controller approves like any department response
         const controllers = await prisma.user.findMany({ where: { role: 'HSE_CONTROLLER', status: 'ACTIVE' }, select: { id: true } });
-        for (const c of controllers) await createNotification(c.id, 'HR Response Completed', `Ticket ${ticket.ticketNo}: HR has completed GOSI data. Please route to the responsible department.`, 'DEP_RESPONSE', `/tickets/${ticket.id}`).catch(console.error);
+        for (const c of controllers) await createNotification(c.id, 'HR Response Submitted', `Ticket ${ticket.ticketNo}: HR completed GOSI data and action plans. Ready for your review.`, 'DEP_RESPONSE', `/tickets/${ticket.id}`).catch(console.error);
 
-        res.json({ message: 'GOSI data submitted. Awaiting controller routing.', status: 'HR_COMPLETED' });
+        res.json({ message: 'HR response submitted. Awaiting controller approval.', status: 'UNDER_REVIEW' });
     } catch (error) {
         console.error('HR Action Error:', error);
         res.status(500).json({ message: error.message });
@@ -208,7 +232,7 @@ const controllerFinalReview = async (req, res) => {
 
         if (action === 'PROCEED_RCA') {
             if (!ticket.offCircuitReport?.rcaRequired) return res.status(400).json({ message: 'RCA not required for this ticket' });
-            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_INVESTIGATION', activityLogs: { create: { actorId: req.user.id, action: 'RCA_STARTED', details: 'Proceeding to RCA investigation' } } } });
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_INVESTIGATION', activityLogs: { create: { actorId: req.user.id, action: 'RCA_STARTED', details: `Proceeding to RCA investigation. Notes: ${notes || 'None'}` } } } });
             return res.json({ message: 'Moved to RCA', status: 'UNDER_INVESTIGATION' });
         }
 

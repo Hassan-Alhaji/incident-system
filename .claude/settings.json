@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/al3re/AppData/Local/Temp/claude/c--Users-al3re--gemini-antigravity-scratch-Incident-System/d87ccd15-1aac-496b-89a0-340b6485eb29/tasks/**)"
+    ]
+  }
+}

@@ -111,11 +111,11 @@ const getAnalytics = async (req, res) => {
                 select: {
                     id: true, type: true, status: true, priority: true, hasInjury: true,
                     severityLevel: true, createdAt: true, closedAt: true, createdById: true,
-                    departmentId: true, zoneId: true, serviceProviderId: true,
+                    departmentId: true, zoneId: true, serviceProviderId: true, location: true, ticketNo: true,
                     department: { select: { id: true, name: true, nameAr: true } },
                     zone: { select: { id: true, name: true } },
                     serviceProvider: { select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { name: true, nameAr: true } } } },
-                    offCircuitReport: { select: { isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true } },
+                    offCircuitReport: { select: { isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true, locationLat: true, locationLng: true } },
                 },
             }),
             prisma.actionPlan.findMany({
@@ -450,6 +450,17 @@ const getAnalytics = async (req, res) => {
             // Trends + People
             monthlyTrend,
             topReporters,
+
+            // Map Cases
+            mapCases: tickets.map(t => ({
+                id: t.id,
+                ticketNo: t.ticketNo,
+                status: t.status,
+                severityLevel: t.severityLevel || t.offCircuitReport?.severity || 'MINOR',
+                locationLat: t.offCircuitReport?.locationLat || null,
+                locationLng: t.offCircuitReport?.locationLng || null,
+                location: t.location
+            })),
 
             // Backward-compatible (if any caller still reads these)
             statusDistribution: byStatus,

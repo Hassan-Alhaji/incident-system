@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../utils/api';
 import { resolveAttachmentUrl as resolveUrl } from '../utils/resolveAttachmentUrl';
+import { STATUS_CONFIG } from '../utils/statusConfig';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v: any) => {
@@ -16,17 +17,7 @@ const fmtDateTime = (v: any) => {
 };
 
 // ── lookup maps ─────────────────────────────────────────────────────────────
-const STATUS_LABELS: Record<string, { en: string; color: string }> = {
-  SUBMITTED:              { en: 'Submitted',            color: '#2563eb' },
-  ASSIGNED:               { en: 'Assigned',             color: '#d97706' },
-  UNDER_REVIEW:           { en: 'Under Review',         color: '#7c3aed' },
-  UNDER_INVESTIGATION:    { en: 'Under Investigation',  color: '#4f46e5' },
-  PENDING_REMINDER:       { en: 'Pending Reminder',     color: '#ea580c' },
-  ESCALATED:              { en: 'Escalated',            color: '#dc2626' },
-  CLOSED:                 { en: 'Closed',               color: '#059669' },
-  RETURNED_TO_REPORTER:   { en: 'Returned to Reporter', color: '#be185d' },
-  RETURNED_TO_DEPARTMENT: { en: 'Returned to Dept.',    color: '#9d174d' },
-};
+
 const TYPE_LABELS: Record<string, { en: string }> = {
   ACCIDENT:    { en: 'Accident' },
   NEAR_MISS:   { en: 'Near Miss' },
@@ -249,9 +240,9 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
             <div style={{ fontSize: '9pt', color: '#94a3b8', marginBottom: 4 }}>
               Printed: {new Date().toLocaleDateString('en-GB')}
             </div>
-            {STATUS_LABELS[ticket.status] && (
-              <div style={{ background: STATUS_LABELS[ticket.status].color, color: '#fff', padding: '4px 16px', borderRadius: 99, fontSize: '10pt', fontWeight: 800, display: 'inline-block' }}>
-                {STATUS_LABELS[ticket.status].en}
+            {STATUS_CONFIG[ticket.status] && (
+              <div style={{ background: STATUS_CONFIG[ticket.status].accent, color: '#fff', padding: '4px 16px', borderRadius: 99, fontSize: '10pt', fontWeight: 800, display: 'inline-block' }}>
+                {STATUS_CONFIG[ticket.status].label}
               </div>
             )}
           </div>

@@ -20,13 +20,21 @@ if (!isProd) {
     });
 }
 
-// Middleware
+// Middleware — CORS allows localhost, LAN IPs (for mobile testing), and FRONTEND_URL (production)
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        process.env.FRONTEND_URL
-    ].filter(Boolean),
+    origin: (origin, cb) => {
+        if (!origin) return cb(null, true); // same-origin / curl / server-to-server
+        const allowed = [
+            /^http:\/\/localhost(:\d+)?$/,
+            /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+            /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,           // LAN class C
+            /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,             // LAN class A
+            /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/, // LAN class B
+        ];
+        if (process.env.FRONTEND_URL) allowed.push(process.env.FRONTEND_URL);
+        const ok = allowed.some(r => r instanceof RegExp ? r.test(origin) : r === origin);
+        cb(null, ok);
+    },
     credentials: true
 }));
 app.use(helmet({
