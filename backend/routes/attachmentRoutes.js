@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { getAttachmentContent } = require('../controllers/attachmentController');
 
-// Public route to fetch attachment content by ID
-// Security: Relies on UUID unguessability.
-router.get('/:id/content', getAttachmentContent);
+const { protect } = require('../middleware/authMiddleware');
+
+// Protected route to fetch attachment content by ID
+router.get('/:id/content', protect, getAttachmentContent);
 
 module.exports = router;

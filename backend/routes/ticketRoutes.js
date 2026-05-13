@@ -7,10 +7,10 @@ const fileUpload = multer({ dest: 'uploads/' });
 
 // Import controllers
 const { createTicket, getTickets, getTicketById, reporterReply, uploadAttachments } = require('../controllers/ticketCrud');
-const { controllerAction, hrAction, departmentAction, controllerFinalReview, submitRCA, safetyManagerAction } = require('../controllers/ticketWorkflow');
+const { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction } = require('../controllers/ticketWorkflow');
 const { createActionPlan, getActionPlans, updateActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode } = require('../controllers/actionPlanController');
 
-const { getUsers, createUser, updateUser, deleteUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets } = require('../controllers/ticketAdmin');
+const { getUsers, createUser, updateUser, suspendUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets } = require('../controllers/ticketAdmin');
 
 // ===== TICKET CRUD =====
 router.route('/tickets')
@@ -28,7 +28,6 @@ router.put('/tickets/:id/controller-action', protect, controllerAction);
 router.put('/tickets/:id/hr-action', protect, hrAction);
 router.put('/tickets/:id/department-action', protect, departmentAction);
 router.put('/tickets/:id/controller-review', protect, controllerFinalReview);
-router.put('/tickets/:id/rca', protect, submitRCA);
 router.put('/tickets/:id/safety-manager', protect, safetyManagerAction);
 
 // ===== ATTACHMENTS =====
@@ -49,8 +48,8 @@ router.post('/action-plans/:id/attachments', protect, (req, res, next) => {
     });
 }, uploadActionPlanAttachment);
 
-// Attachment content served without auth — UUID is the access control (like S3 presigned URLs)
-router.get('/action-plan-attachments/:id/content', getActionPlanAttachmentContent);
+// Attachment content served with auth
+router.get('/action-plan-attachments/:id/content', protect, getActionPlanAttachmentContent);
 router.delete('/action-plan-attachments/:id', protect, deleteActionPlanAttachment);
 
 
@@ -74,7 +73,7 @@ router.post('/users/import', protect, fileUpload.single('file'), importUsers);
 
 router.route('/users/:id')
     .put(protect, updateUser)
-    .delete(protect, deleteUser);
+    .delete(protect, suspendUser);
 
 router.patch('/users/:id/status', protect, toggleUserStatus);
 

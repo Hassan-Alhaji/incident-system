@@ -14,7 +14,9 @@ model User {
   password        String?
   name            String
   firstName       String?
+  fatherName      String?
   lastName        String?
+  department      String?
   isProfileCompleted Boolean            @default(false)
   role            Role                  @default(OC_REPORTER)
   userGroup       String                @default("OFF_CIRCUIT")
@@ -84,11 +86,17 @@ model Ticket {
   closedByRole        String?
   closedAt            DateTime?
   hasInjury           Boolean              @default(false)
+  hasFinancialViolation Boolean?
+  violationDescription  String?
+  violationAmount       String?
+  forwardedToFinance    Boolean              @default(false)
   dueDate             DateTime?
   severityLevel       String?              // MAJOR, SIGNIFICANT, MINOR
   serviceProviderId   String?
   departmentId        String?
   department          Department?          @relation("TicketDepartment", fields: [departmentId], references: [id])
+  eventId             String?
+  event               Event?               @relation("TicketEvent", fields: [eventId], references: [id])
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   activityLogs        ActivityLog[]
@@ -219,6 +227,7 @@ model OffCircuitReport {
   hrAssignedAt            DateTime?  // When HR was notified
   hrFilledBy              String?    // HR rep who submitted
   hrFilledAt              DateTime?  // When HR submitted
+  hrNotes                 String?    // Notes from HR to HSE
   responsibleDeptId       String?    // The dept the controller routes to AFTER HR completes
 
   // === RCA Section (Required for all types EXCEPT Observation) ===
@@ -347,10 +356,13 @@ model TicketExport {
 
 model Event {
   id        String   @id @default(uuid())
-  name      String   @unique
-  isActive  Boolean  @default(true)
+  nameEn    String
+  nameAr    String
+  status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  tickets   Ticket[] @relation("TicketEvent")
 }
 
 // ==================== ENUMS ====================
@@ -366,6 +378,7 @@ enum Role {
   SAFETY_MANAGER      // Safety Manager - escalation target, full control
   HR_REP              // HR representative - GOSI handling
   SERVICE_PROVIDER_REP // Contractor company representative
+  FINANCE_REP         // Finance representative - financial violations
 
   // Legacy roles kept for compatibility
   SPORT_MARSHAL
@@ -384,13 +397,10 @@ enum TicketType {
 enum TicketStatus {
   SUBMITTED                // المبلّغ أرسل التقرير
   RETURNED_TO_REPORTER     // أُرجع للمبلّغ لتعديل
-  ASSIGNED_TO_HR           // وُجّه للموارد البشرية لبيانات GOSI
-  HR_COMPLETED             // الموارد البشرية أكملت بيانات GOSI، بانتظار توجيه الكنترولر
   ASSIGNED                 // وُجّه للقسم المعني لخطط العمل
   RETURNED_TO_DEPARTMENT   // أُرجع للقسم من المتحكم
   UNDER_REVIEW             // قيد المراجعة من المتحكم بعد رد القسم
   PENDING_REMINDER         // بانتظار التذكير
-  UNDER_INVESTIGATION      // قيد التحقيق (RCA)
   ESCALATED                // مُصعّد لمدير السلامة
   CLOSED                   // مغلق
 }

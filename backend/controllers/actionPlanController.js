@@ -175,7 +175,7 @@ const getActionPlanAttachmentContent = async (req, res) => {
             const isControllerOrAdmin = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
             if (!isControllerOrAdmin) {
                 let canView = false;
-                const userDeptId = req.user.repDepartmentId || req.user.departmentId;
+                const userDeptId = req.user.repDepartmentId;
 
                 if (['OC_REPORTER', 'REPORTER'].includes(role)) {
                     canView = (ticket.createdById === userId);
@@ -299,7 +299,7 @@ const getTicketQRCode = async (req, res) => {
         
         if (!isControllerOrAdmin) {
             let canView = false;
-            const userDeptId = req.user.repDepartmentId || req.user.departmentId;
+            const userDeptId = req.user.repDepartmentId;
 
             if (['OC_REPORTER', 'REPORTER'].includes(role)) {
                 canView = (ticket.createdById === userId);

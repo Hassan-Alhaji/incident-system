@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const logger = require('../lib/logger').child({ module: 'notificationController' });
 
 const getNotifications = async (req, res) => {
     try {
@@ -9,7 +10,7 @@ const getNotifications = async (req, res) => {
         });
         res.json(notifications);
     } catch (error) {
-        console.error('Error fetching notifications:', error);
+        logger.error({ err: error }, 'Error fetching notifications:');
         res.status(500).json({ message: 'Error fetching notifications' });
     }
 };
@@ -17,6 +18,14 @@ const getNotifications = async (req, res) => {
 const markAsRead = async (req, res) => {
     try {
         const { id } = req.params;
+        const notification = await prisma.notification.findUnique({ where: { id } });
+        
+        if (!notification) return res.status(404).json({ message: 'Notification not found' });
+        
+        if (notification.userId !== req.user.id) {
+            return res.status(403).json({ message: 'Not authorized to mark this notification as read' });
+        }
+
         await prisma.notification.update({
             where: { id },
             data: { read: true }
@@ -52,7 +61,24 @@ const createNotification = async (userId, title, message, type = 'INFO', link = 
             }
         });
     } catch (error) {
-        console.error('Failed to create notification', error);
+        logger.error({ err: error }, 'Failed to create notification');
+    }
+};
+
+// Utility function to bulk create notifications
+const createNotificationsBulk = async (userIds, title, message, type = 'INFO', link = null) => {
+    if (!userIds || userIds.length === 0) return;
+    try {
+        const data = userIds.map(userId => ({
+            userId,
+            title,
+            message,
+            type,
+            link
+        }));
+        await prisma.notification.createMany({ data });
+    } catch (error) {
+        logger.error({ err: error }, 'Failed to bulk create notifications');
     }
 };
 
@@ -60,5 +86,6 @@ module.exports = {
     getNotifications,
     markAsRead,
     markAllAsRead,
-    createNotification
+    createNotification,
+    createNotificationsBulk
 };

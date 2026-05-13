@@ -6,19 +6,11 @@ coverage
 .DS_Store
 .vscode
 .idea
-node_modules
-.env
-dist
-build
-coverage
-.DS_Store
-.vscode
-.idea
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
- 
+
 *_BaseVersion/
 oxygen_Feb/
 backend/test*.pdf
@@ -27,3 +19,8 @@ frontend/playwright-report/
 frontend/test-results/
 task.md
 implementation_plan.md
+
+
+# SQLite dev databases
+*.db
+*.db-journal

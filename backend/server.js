@@ -1,4 +1,5 @@
 const express = require('express');
+const logger = require('./lib/logger');
 const cors = require('cors');
 const compression = require('compression');
 const morgan = require('morgan');
@@ -15,7 +16,7 @@ const isProd = process.env.NODE_ENV === 'production';
 // Debug logging (dev only) — Point #13
 if (!isProd) {
     app.use((req, res, next) => {
-        console.log(`[DEBUG] Incoming Request: ${req.method} ${req.url}`);
+        logger.info(`[DEBUG] Incoming Request: ${req.method} ${req.url}`);
         next();
     });
 }
@@ -42,11 +43,11 @@ app.use(helmet({
     contentSecurityPolicy: isProd ? {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
             imgSrc: ["'self'", "data:", "blob:", "https:"],
-            connectSrc: ["'self'", process.env.FRONTEND_URL || '*']
+            connectSrc: ["'self'", process.env.FRONTEND_URL || "https://*", "https://*.tile.openstreetmap.org"]
         }
     } : false
 }));
@@ -61,14 +62,14 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const { sanitizeInput } = require('./middleware/sanitizeMiddleware');
-app.use(sanitizeInput); // Sanitize all inputs
+app.use('/api', sanitizeInput); // Sanitize API inputs only
 // Serve uploads from absolute path to ensure consistency regardless of CWD
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Rate Limiting — Point #5
+// Rate Limiting
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 9999, // open for UAT testing
+    max: 10, // Max 10 attempts per IP
     message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -86,9 +87,17 @@ const apiLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
+const prisma = require('./prismaClient');
+
 // *** HEALTH CHECK (Top Priority) ***
-app.get('/api/health', (req, res) => {
-    res.status(200).send('OK');
+app.get('/api/health', async (req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.status(200).json({ status: 'OK', database: 'connected' });
+    } catch (error) {
+        logger.error({ err: error }, 'Health check database failure');
+        res.status(503).json({ status: 'ERROR', database: 'disconnected' });
+    }
 });
 
 // Import Routes
@@ -121,24 +130,24 @@ app.get('/', (req, res) => {
 
 // Catch-all for 404s
 app.use((req, res) => {
-    if (!isProd) console.log(`[DEBUG] 404: ${req.method} ${req.url}`);
+    if (!isProd) logger.info(`[DEBUG] 404: ${req.method} ${req.url}`);
     res.status(404).json({ message: 'Route not found', url: req.url });
 });
 
 // Start Server
 if (require.main === module) {
     app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+        logger.info(`Server is running on port ${PORT}`);
 
         // Keep-alive: ping self every 14 minutes to prevent Render free tier sleep
         if (isProd) {
             const https = require('https');
             const SELF_URL = process.env.RENDER_EXTERNAL_URL || `https://incident-system-api.onrender.com`;
             setInterval(() => {
-                https.get(`${SELF_URL}/health`, (res) => {
-                    console.log(`[Keep-Alive] Pinged /health → ${res.statusCode}`);
+                https.get(`${SELF_URL}/api/health`, (res) => {
+                    logger.info(`[Keep-Alive] Pinged /api/health → ${res.statusCode}`);
                 }).on('error', (err) => {
-                    console.warn('[Keep-Alive] Ping failed:', err.message);
+                    logger.warn({ err }, '[Keep-Alive] Ping failed');
                 });
             }, 14 * 60 * 1000); // every 14 minutes
         }

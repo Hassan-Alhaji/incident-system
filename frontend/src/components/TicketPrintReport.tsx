@@ -1,3 +1,4 @@
+import { HAZARD_CATEGORIES, HazardIcon } from './HazardIcons';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../utils/api';

@@ -15,7 +15,14 @@ export const resolveAttachmentUrl = (url: string): string => {
   const cleanUrl = url.replace(/\\/g, '/');
   const apiBase  = api.defaults.baseURL || '';
   const rootUrl  = apiBase.replace(/\/api\/?$/, '');
-  return `${rootUrl}${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+  const finalUrl = `${rootUrl}${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+  
+  const token = localStorage.getItem('token');
+  if (token) {
+    const separator = finalUrl.includes('?') ? '&' : '?';
+    return `${finalUrl}${separator}token=${token}`;
+  }
+  return finalUrl;
 };
 
 export default resolveAttachmentUrl;

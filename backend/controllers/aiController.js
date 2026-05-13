@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const logger = require('../lib/logger').child({ module: 'aiController' });
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy_key_until_configured');
@@ -91,7 +92,7 @@ const enhanceText = async (req, res) => {
         res.json({ enhancedText });
 
     } catch (error) {
-        console.error('AI Enhance Error:', error?.message || error);
+        logger.error({ err: error }, 'AI Enhance Error:');
         if (isQuotaError(error)) {
             return res.status(503).json({ unavailable: true, message: AI_QUOTA_MSG });
         }
@@ -150,7 +151,7 @@ Respond concisely with bullet points. Reply in the same language as the question
         res.json({ answer, reply: answer });
 
     } catch (error) {
-        console.error('AI Analytics Chat Error:', error?.message || error);
+        logger.error({ err: error }, 'AI Analytics Chat Error:');
         if (isQuotaError(error)) {
             return res.status(503).json({ unavailable: true, message: AI_QUOTA_MSG });
         }

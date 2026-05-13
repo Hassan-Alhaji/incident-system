@@ -13,6 +13,7 @@ const OC_ROLE_OPTIONS = [
  { value: 'OC_REPORTER', label: 'Reporter' },
  { value: 'HSE_CONTROLLER', label: 'HSE Controller' },
  { value: 'OC_HSE_MANAGER', label: 'HSE Manager' },
+ { value: 'FINANCE_REP', label: 'Finance Rep' },
 ];
 
 const roleColors: Record<string, string> = {
@@ -21,7 +22,8 @@ const roleColors: Record<string, string> = {
  OC_HSE_MANAGER: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
  DEP_MANAGER: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
  DEP_REP: 'bg-teal-500/15 text-teal-400 border-teal-500/30',
- SERVICE_PROVIDER_REP: 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+ SERVICE_PROVIDER_REP: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+ FINANCE_REP: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
 };
 
 const statusColors: Record<string, string> = {
@@ -70,11 +72,18 @@ const Settings = () => {
  const [providerFormData, setProviderFormData] = useState({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] });
  const [providerError, setProviderError] = useState('');
 
+ const [events, setEvents] = useState<any[]>([]);
+ const [showEventModal, setShowEventModal] = useState(false);
+ const [editingEventId, setEditingEventId] = useState<string | null>(null);
+ const [eventFormData, setEventFormData] = useState({ nameEn: '', nameAr: '', status: 'ACTIVE' });
+ const [eventError, setEventError] = useState('');
+
  useEffect(() => { 
  if (activeTab === 'users') fetchUsers(); 
  if (activeTab === 'zones') fetchZones();
  if (activeTab === 'departments') fetchDepartments();
  if (activeTab === 'providers') fetchServiceProviders();
+ if (activeTab === 'events') fetchEvents();
  if (activeTab === 'system') fetchMaintenanceStatus();
  }, [activeTab]);
 
@@ -104,6 +113,9 @@ const Settings = () => {
  };
  const fetchServiceProviders = async () => {
  try { const res = await api.get('/service-providers'); setServiceProviders(res.data); } catch (e) {}
+ };
+ const fetchEvents = async () => {
+ try { const res = await api.get('/events/all'); setEvents(res.data); } catch (e) {}
  };
 
  const handleZoneSubmit = async () => {
@@ -163,6 +175,27 @@ const Settings = () => {
  };
  const deleteProvider = async (id: string) => {
  setConfirmModal({ title: t('confirm.deleteProvider'), message: t('confirm.deleteProviderMsg'), onConfirm: async () => { try { await api.delete(`/service-providers/${id}`); fetchServiceProviders(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.deleteFailed'), 'error'); } setConfirmModal(null); } });
+ };
+
+ const handleEventSubmit = async () => {
+   setEventError('');
+   try {
+     if (editingEventId) {
+       await api.put(`/events/${editingEventId}`, eventFormData);
+     } else {
+       await api.post('/events', eventFormData);
+     }
+     setShowEventModal(false); setEditingEventId(null); fetchEvents();
+   } catch (err: any) { setEventError(err.response?.data?.message || 'Failed to save event'); }
+ };
+ const openEditEvent = (ev: any) => {
+   setEditingEventId(ev.id);
+   setEventFormData({ nameEn: ev.nameEn || '', nameAr: ev.nameAr || '', status: ev.status || 'ACTIVE' });
+   setEventError('');
+   setShowEventModal(true);
+ };
+ const deleteEvent = async (id: string) => {
+   setConfirmModal({ title: 'Delete Event', message: 'Are you sure you want to delete this event?', onConfirm: async () => { try { await api.delete(`/events/${id}`); fetchEvents(); } catch (err: any) { showToast(err.response?.data?.message || 'Delete failed', 'error'); } setConfirmModal(null); } });
  };
 
  const fetchUsers = async () => {
@@ -330,6 +363,9 @@ const Settings = () => {
  <button onClick={() => setActiveTab('providers')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Briefcase size={13} /> Providers
  </button>
+ <button onClick={() => setActiveTab('events')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'events' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
+ <Calendar size={13} /> Events
+ </button>
  {(user?.role === 'ADMIN' || user?.role === 'OC_HSE_MANAGER' || user?.canManageUsers) && (
  <button onClick={() => setActiveTab('system')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'system' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Wrench size={13} /> System
@@ -496,9 +532,9 @@ const Settings = () => {
  <p className="text-blue-500/70 text-[10px]">⚠ All fields must be in English</p>
 
  <div>
- <label className="block text-base font-medium text-gray-800 mb-1">Full Name *</label>
+ <label className="block text-base font-medium text-gray-800 mb-1">Full Name (First, Second, Last) *</label>
  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
- placeholder="Enter full name (English only)"
+ placeholder="e.g. John William Doe"
  dir="ltr"
  className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
  </div>
@@ -586,7 +622,10 @@ const Settings = () => {
  <div key={z.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 relative group">
  <h4 className="font-bold text-gray-600">{z.name}</h4>
  <p className="text-base text-gray-800 mb-2">{z.description || 'No description'}</p>
- <p className="text-[10px] text-gray-800">Polygon: {Array.isArray(z.coordinates) ? z.coordinates.length : JSON.parse(z.coordinates || '[]').length} points</p>
+ <p className="text-[10px] text-gray-800">Polygon: {(() => {
+   try { return Array.isArray(z.coordinates) ? z.coordinates.length : JSON.parse(z.coordinates || '[]').length; }
+   catch { return 0; }
+ })()} points</p>
  <button onClick={() => deleteZone(z.id)} className="absolute top-2 right-2 p-1.5 text-gray-800 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all bg-white rounded"><Trash2 size={14}/></button>
  </div>
  ))}
@@ -638,6 +677,30 @@ const Settings = () => {
  </tbody>
  </table>
  </div>
+ </div>
+ )}
+
+ {/* Events Tab */}
+ {activeTab === 'events' && (
+ <div className="space-y-4 animate-in fade-in">
+ <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
+ <div className="flex items-center gap-3"><Calendar className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Events Management</h3><p className="text-xs text-gray-500">Manage Dakar Rally, Formula 1, etc.</p></div></div>
+ <button onClick={() => { setEventError(''); setEventFormData({ nameEn: '', nameAr: '', status: 'ACTIVE' }); setEditingEventId(null); setShowEventModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Event</button>
+ </div>
+ {events.length > 0 ? (
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+ {events.map(ev => (
+ <div key={ev.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 relative group">
+ <h4 className="font-bold text-gray-600">{ev.nameEn} / {ev.nameAr}</h4>
+ <p className="text-sm text-gray-500 mb-2">Status: <span className={ev.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}>{ev.status}</span></p>
+ <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+ <button onClick={() => openEditEvent(ev)} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-md transition-colors"><Edit2 size={14} /></button>
+ <button onClick={() => deleteEvent(ev.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md transition-colors"><Trash2 size={14} /></button>
+ </div>
+ </div>
+ ))}
+ </div>
+ ) : (<div className="text-center py-10 bg-white rounded-xl shadow-sm border border-gray-200 text-gray-800">No events defined.</div>)}
  </div>
  )}
 
@@ -710,6 +773,24 @@ const Settings = () => {
  </div>
  )}
 
+ {/* Event Modal */}
+ {showEventModal && (
+ <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+ <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6">
+ <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-bold text-gray-800">{editingEventId ? 'Edit Event' : 'Add New Event'}</h3><button onClick={() => setShowEventModal(false)} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
+ <div className="space-y-4">
+ {eventError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{eventError}</div>}
+ <div><label className="block text-base font-medium text-gray-800 mb-1">Event Name (English) *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={eventFormData.nameEn} onChange={e => setEventFormData({...eventFormData, nameEn: e.target.value})} placeholder="e.g. Dakar Rally" /></div>
+ <div><label className="block text-base font-medium text-gray-800 mb-1">Event Name (Arabic) *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={eventFormData.nameAr} onChange={e => setEventFormData({...eventFormData, nameAr: e.target.value})} placeholder="مثال: رالي داكار" /></div>
+ <div><label className="block text-base font-medium text-gray-800 mb-1">Status</label><select className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={eventFormData.status} onChange={e => setEventFormData({...eventFormData, status: e.target.value})}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option></select></div>
+ </div>
+ <div className="flex gap-2 mt-6 justify-end">
+ <button onClick={handleEventSubmit} disabled={!eventFormData.nameEn || !eventFormData.nameAr} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white text-base disabled:opacity-50">{editingEventId ? 'Save Changes' : 'Create Event'}</button>
+ </div>
+ </div>
+ </div>
+ )}
+
  {/* Zone Modal */}
  {showZoneModal && (
  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -750,7 +831,7 @@ const Settings = () => {
  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
  <h4 className="text-base font-bold text-blue-500 mb-3 border-b border-gray-200 pb-2">Department Manager</h4>
  <div className="grid md:grid-cols-3 gap-3">
- <div><label className="block text-base text-gray-800 mb-1">Name</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
+ <div><label className="block text-base text-gray-800 mb-1">Full Name (First Second Last)</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
  <div><label className="block text-base text-gray-800 mb-1">Email</label><input type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.email} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, email: e.target.value}})} /></div>
  <div><label className="block text-base text-gray-800 mb-1">Mobile</label><input type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.mobile} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, mobile: e.target.value.replace(/[^0-9+]/g, '')}})} /></div>
  </div>
@@ -765,7 +846,7 @@ const Settings = () => {
  {departmentFormData.representatives.map((rep, idx) => (
  <div key={idx} className="flex gap-2 items-start">
  <div className="grid md:grid-cols-3 gap-2 flex-1">
- <input placeholder="Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
+ <input placeholder="Full Name (First Second Last)" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].email = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  </div>
@@ -815,7 +896,7 @@ const Settings = () => {
  {providerFormData.representatives.map((rep, idx) => (
  <div key={idx} className="flex gap-2 items-start">
  <div className="grid md:grid-cols-3 gap-2 flex-1">
- <input placeholder="Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].name = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
+ <input placeholder="Full Name (First Second Last)" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].name = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].email = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
  <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setProviderFormData({...providerFormData, representatives: newReps}); }} />
  </div>

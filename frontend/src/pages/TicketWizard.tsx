@@ -51,7 +51,6 @@ interface Witness { name: string; mobile: string; }
 
 const INCIDENT_TYPES = [
   { key: 'OBSERVATION', icon: <Eye size={22} />, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-  { key: 'ACCIDENT', icon: <AlertTriangle size={22} />, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
   { key: 'SECURITY', icon: <ShieldAlert size={22} />, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200' },
 ];
 
@@ -85,6 +84,8 @@ const TicketWizard = () => {
   const [zones, setZones] = useState<any[]>([]);
   const [whatHappened, setWhatHappened] = useState('');
   const [lateReportReason, setLateReportReason] = useState('');
+  const [eventId, setEventId] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
 
   // Step 3: Injuries & Witnesses
   const [hasInjury, setHasInjury] = useState(false);
@@ -110,7 +111,43 @@ const TicketWizard = () => {
     api.get('/service-providers').then(r => setServiceProviders(r.data)).catch(console.error);
     api.get('/departments').then(r => setDepartments(r.data)).catch(console.error);
     api.get('/zones').then(r => setZones(r.data)).catch(console.error);
+    api.get('/events').then(r => setEvents(r.data)).catch(console.error);
   }, []);
+
+  // --- DRAFT SAVING ---
+  useEffect(() => {
+    const draft = localStorage.getItem('ticket_wizard_draft');
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed.incidentType) setIncidentType(parsed.incidentType);
+        if (parsed.incidentDate) setIncidentDate(parsed.incidentDate);
+        if (parsed.incidentTime) setIncidentTime(parsed.incidentTime);
+        if (parsed.locationLat) setLocationLat(parsed.locationLat);
+        if (parsed.locationLng) setLocationLng(parsed.locationLng);
+        if (parsed.locationAddress) setLocationAddress(parsed.locationAddress);
+        if (parsed.locationDescription) setLocationDescription(parsed.locationDescription);
+        if (parsed.zoneId) setZoneId(parsed.zoneId);
+        if (parsed.zoneName) setZoneName(parsed.zoneName);
+        if (parsed.whatHappened) setWhatHappened(parsed.whatHappened);
+        if (parsed.eventId) setEventId(parsed.eventId);
+        if (parsed.lateReportReason) setLateReportReason(parsed.lateReportReason);
+        if (parsed.hasInjury) setHasInjury(parsed.hasInjury);
+
+      } catch (e) { console.error('Error loading draft', e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!submitted) {
+      const draft = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId }; // Omitted injuredPersons & witnesses for privacy
+      const timeoutId = setTimeout(() => {
+        localStorage.setItem('ticket_wizard_draft', JSON.stringify(draft));
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, submitted]);
+
 
   const handleLocationConfirm = (lat: number, lng: number, address: string, zone?: { id: string; name: string } | null) => {
     setLocationLat(lat);
@@ -128,8 +165,28 @@ const TicketWizard = () => {
   const updateWitness = (i: number, field: keyof Witness, val: string) => { const u = [...witnesses]; u[i] = { ...u[i], [field]: val }; setWitnesses(u); };
   const removeWitness = (i: number) => setWitnesses(witnesses.filter((_, idx) => idx !== i));
 
-  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]); };
-  const handleCamera = () => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'; input.onchange = (e: any) => { if (e.target.files) setFiles([...files, ...Array.from(e.target.files as FileList)]); }; input.click(); };
+  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => { 
+    if (e.target.files) {
+      const maxBytes = 10 * 1024 * 1024; // 10MB
+      const allFiles = Array.from(e.target.files);
+      const validFiles = allFiles.filter(f => f.size <= maxBytes);
+      if (validFiles.length < allFiles.length) showToast(t('errors.fileTooLarge', 'Some files skipped (exceeds 10MB).'), 'warning');
+      setFiles([...files, ...validFiles]);
+    }
+  };
+  const handleCamera = () => { 
+    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment'; 
+    input.onchange = (e: any) => { 
+      if (e.target.files) {
+        const maxBytes = 10 * 1024 * 1024;
+        const allFiles = Array.from(e.target.files as FileList);
+        const validFiles = allFiles.filter(f => f.size <= maxBytes);
+        if (validFiles.length < allFiles.length) showToast(t('errors.fileTooLarge', 'File is too large (exceeds 10MB).'), 'warning');
+        setFiles([...files, ...validFiles]);
+      }
+    }; 
+    input.click(); 
+  };
 
   const canProceed = () => {
     if (step === 1) {
@@ -138,26 +195,32 @@ const TicketWizard = () => {
     }
     if (step === 2) {
       if (!incidentDate || !incidentTime) { showToast(t('oc.wizard.missingDate', 'Please provide incident date and time.'), 'warning'); return false; }
+      const dt = new Date(`${incidentDate}T${incidentTime}`);
+      if (dt.getTime() > Date.now()) { showToast(t('oc.wizard.futureDate', 'Future dates are not allowed. Please enter a valid past time.'), 'warning'); return false; }
+      
       if (!locationLat) { showToast(t('oc.wizard.missingLocation', 'Please confirm the location on the map.'), 'warning'); return false; }
       if (!whatHappened.trim()) { showToast(t('oc.wizard.missingDesc', 'Please describe what happened.'), 'warning'); return false; }
       if (isLateReport() && !lateReportReason.trim()) { showToast(t('oc.wizard.missingLateReason', 'Please provide a reason for the late report.'), 'warning'); return false; }
       return true;
     }
     if (step === 3) {
-      if (files.length === 0) {
-        showToast(t('oc.wizard.missingFiles', 'You must attach at least one image or supporting document.'), 'warning');
-        return false;
-      }
-      if (incidentType === 'ACCIDENT' && !hasInjury) { showToast(t('errors.accidentMustHaveInjury'), 'warning'); return false; }
-      if (incidentType === 'ACCIDENT' && injuredPersons.length === 0) { showToast(t('errors.addInjuredPersons'), 'warning'); return false; }
-      
       if (hasInjury) {
         if (injuredPersons.length === 0) { showToast(t('errors.addAtLeastOneInjured'), 'warning'); return false; }
         for (const p of injuredPersons) {
           if (!p.name.trim() || !p.mobile.trim()) { showToast(t('errors.fillInjuredNameMobile'), 'warning'); return false; }
+          if (p.mobile.trim().length < 9) { showToast(t('errors.mobileLength', 'Mobile number must be at least 9 digits.'), 'warning'); return false; }
           if (p.type === 'EMPLOYEE' && !p.dept) { showToast(t('errors.selectInjuredDept'), 'warning'); return false; }
           if (p.type === 'CONTRACTOR' && !p.company) { showToast(t('errors.selectInjuredCompany'), 'warning'); return false; }
         }
+      }
+      for (const w of witnesses) {
+        if (!w.name.trim() || !w.mobile.trim()) { showToast(t('errors.fillWitnessInfo', 'Please fill name and mobile for all witnesses, or remove them.'), 'warning'); return false; }
+        if (w.mobile.trim().length < 9) { showToast(t('errors.mobileLength', 'Mobile number must be at least 9 digits.'), 'warning'); return false; }
+      }
+      
+      if (files.length === 0) {
+        showToast(isRtl ? 'الرجاء إرفاق الصور المطلوبة.' : 'Attachments are strictly required.', 'warning');
+        return false;
       }
     }
     if (step === 4) {
@@ -169,13 +232,6 @@ const TicketWizard = () => {
   const handleNext = () => { 
     if (canProceed()) { 
       setShowErrors(false); 
-      // If moving to step 3 and it's an ACCIDENT, force hasInjury to true
-      if (step === 2 && incidentType === 'ACCIDENT') {
-        setHasInjury(true);
-        if (injuredPersons.length === 0) {
-          setInjuredPersons([{ name: '', mobile: '', type: 'EMPLOYEE', dept: '', company: '' }]);
-        }
-      }
       setStep(step + 1); 
     } else {
       setShowErrors(true);
@@ -185,12 +241,13 @@ const TicketWizard = () => {
   const handleSubmit = async () => {
     setSubmitting(true); setError('');
     try {
-      const payload = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons: hasInjury ? injuredPersons : [], witnesses, lateReportReason: isLateReport() ? lateReportReason : null, serviceProviderId: selectedServiceProviderId || null, zoneId: zoneId || null };
+      const payload = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons: hasInjury ? injuredPersons : [], witnesses, lateReportReason: isLateReport() ? lateReportReason : null, serviceProviderId: selectedServiceProviderId || null, zoneId: zoneId || null, eventId: eventId || null };
       const res = await api.post('/tickets', payload);
       const ticketId = res.data.id;
       if (files.length > 0) { const fd = new FormData(); files.forEach(f => fd.append('files', f)); await api.post(`/tickets/${ticketId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       setSubmittedId(ticketId); setSubmitted(true);
-      setTimeout(() => navigate(`/tickets/${ticketId}`), 3000);
+      localStorage.removeItem('ticket_wizard_draft');
+      setTimeout(() => navigate(`/tickets/${ticketId}`), 5000);
     } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); } finally { setSubmitting(false); }
   };
 
@@ -199,7 +256,7 @@ const TicketWizard = () => {
       <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center animate-bounce shadow-lg shadow-emerald-200">
         <CheckCircle size={48} className="text-emerald-500" />
       </div>
-      <h2 className="text-2xl font-black text-gray-800 text-center">{t('oc.wizard.submitSuccess', 'Report Submitted Successfully!')}</h2>
+      <h2 className="text-2xl font-black text-gray-800 text-center">{t('oc.wizard.submitSuccess', 'Your report has been successfully submitted. Thank you.')}</h2>
       <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 rounded-2xl p-5 max-w-sm text-center space-y-2 shadow-sm">
         <p className="text-blue-800 font-bold text-sm">{t('oc.wizard.thankYouTitle', 'Thank you for keeping us safe! 🙏')}</p>
         <p className="text-blue-600 text-xs leading-relaxed">{t('oc.wizard.thankYouBody', 'Your report helps us improve workplace safety for everyone. Our team will review it and take appropriate action.')}</p>
@@ -237,7 +294,7 @@ const TicketWizard = () => {
             {INCIDENT_TYPES.map(type => {
               const selected = incidentType === type.key;
               return (
-                <button key={type.key} onClick={() => setIncidentType(type.key)} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? `${type.bg} ${type.border} ${type.color} shadow-md ring-2 ring-offset-1 ${type.key === 'OBSERVATION' ? 'ring-blue-300' : type.key === 'ACCIDENT' ? 'ring-red-300' : 'ring-violet-300'}` : `bg-white ${type.border} text-gray-700 hover:shadow-sm hover:${type.bg}`}`}>
+                <button key={type.key} onClick={() => setIncidentType(type.key)} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? `${type.bg} ${type.border} ${type.color} shadow-md ring-2 ring-offset-1 ${type.key === 'OBSERVATION' ? 'ring-blue-300' : 'ring-violet-300'}` : `bg-white ${type.border} text-gray-700 hover:shadow-sm hover:${type.bg}`}`}>
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${type.bg} ${type.color}`}>{type.icon}</div>
                   <div>
                     <span className="font-bold text-base">{t(`oc.incidentTypes.${type.key}`, type.key)}</span>
@@ -299,6 +356,16 @@ const TicketWizard = () => {
           </div>
 
           <div>
+            <label className="block text-sm font-medium mb-1.5 text-gray-700">{t('oc.wizard.relatedEvent', 'Is this report related to a specific event? (Optional)')}</label>
+            <select value={eventId || ''} onChange={e => setEventId(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800">
+              <option value="">{t('oc.wizard.noEvent', '-- Select Event (Optional) --')}</option>
+              {events.map(ev => (
+                <option key={ev.id} value={ev.id}>{isRtl ? ev.nameAr : ev.nameEn}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className={`block text-sm font-medium mb-1.5 ${showErrors && !whatHappened.trim() ? 'text-red-500' : 'text-gray-700'}`}>{t('oc.wizard.whatHappened', 'What Happened?')} *</label>
             <textarea value={whatHappened} onChange={e => setWhatHappened(e.target.value)} rows={8} placeholder={t('oc.wizard.whatHappenedPlaceholder', 'Describe the incident...')} className={`w-full bg-white border rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 resize-y min-h-[200px] ${showErrors && !whatHappened.trim() ? 'border-red-300' : 'border-gray-200'}`} />
           </div>
@@ -331,7 +398,6 @@ const TicketWizard = () => {
             <div className="flex items-center justify-between">
               <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><AlertTriangle size={16} className="text-red-500" />{t('oc.wizard.hasInjury', 'Any Injuries?')}</label>
               <button 
-                disabled={incidentType === 'ACCIDENT'}
                 onClick={() => { 
                 const newState = !hasInjury;
                 setHasInjury(newState); 
@@ -340,7 +406,7 @@ const TicketWizard = () => {
                 } else if (!newState) {
                   setInjuredPersons([]); 
                 }
-              }} className={`w-12 h-7 rounded-full transition-all relative ${hasInjury ? 'bg-red-500' : 'bg-gray-200'} ${incidentType === 'ACCIDENT' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              }} className={`w-12 h-7 rounded-full transition-all relative ${hasInjury ? 'bg-red-500' : 'bg-gray-200'}`}>
                 <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${hasInjury ? 'right-1' : 'left-1'}`} />
               </button>
             </div>
@@ -411,6 +477,10 @@ const TicketWizard = () => {
                 </span>
               </div>
               <div className="flex flex-col border-b border-gray-100 pb-2">
+                <span className="text-gray-500 text-xs mb-0.5">{t('oc.wizard.relatedEvent', 'Event')}</span>
+                <span className="text-gray-800 font-medium">{eventId && events.find(e => e.id === eventId) ? (isRtl ? events.find(e => e.id === eventId)?.nameAr : events.find(e => e.id === eventId)?.nameEn) : 'None'}</span>
+              </div>
+              <div className="flex flex-col border-b border-gray-100 pb-2">
                 <span className="text-gray-500 text-xs mb-0.5">{t('oc.wizard.whatHappened', 'Description')}</span>
                 <span className="text-gray-800 font-medium whitespace-pre-wrap">{whatHappened}</span>
               </div>
@@ -467,6 +537,7 @@ const TicketWizard = () => {
           <button onClick={handleSubmit} disabled={submitting} className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all">{submitting ? <Loader2 className="animate-spin" size={18} /> : <Check size={16} />}{submitting ? t('oc.wizard.submitting', 'Submitting...') : t('oc.wizard.submit', 'Submit Report')}</button>
         )}
       </div>
+
     </div>
   );
 };

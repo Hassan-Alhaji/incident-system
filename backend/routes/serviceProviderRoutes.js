@@ -10,9 +10,18 @@ async function provisionUser(data, role) {
     let user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) {
         const hashedPassword = await bcrypt.hash('Password123!', 10);
+        
+        const parts = data.name.trim().split(/\s+/);
+        const firstName = parts[0] || '';
+        const lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
+        const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+        
         user = await prisma.user.create({
             data: {
                 name: data.name,
+                firstName,
+                fatherName,
+                lastName,
                 email: data.email,
                 mobile: data.mobile || null,
                 password: hashedPassword,

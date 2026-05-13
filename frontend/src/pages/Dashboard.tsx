@@ -83,13 +83,10 @@ const getTicketDuration = (ticket: Ticket): string => {
 const STAGE_COLORS: Record<string, { color: string; bg: string }> = {
   OPEN:                   { color: '#3b82f6', bg: '#eff6ff' },
   SUBMITTED:              { color: '#3b82f6', bg: '#eff6ff' },
-  ASSIGNED_TO_HR:         { color: '#0f766e', bg: '#f0fdfa' },
-  HR_COMPLETED:           { color: '#0891b2', bg: '#ecfeff' },
-  ASSIGNED:               { color: '#f59e0b', bg: '#fffbeb' },
+    ASSIGNED:               { color: '#f59e0b', bg: '#fffbeb' },
   RETURNED_TO_REPORTER:   { color: '#f97316', bg: '#fff7ed' },
   RETURNED_TO_DEPARTMENT: { color: '#f97316', bg: '#fff7ed' },
   UNDER_REVIEW:           { color: '#6366f1', bg: '#f0f9ff' },
-  UNDER_INVESTIGATION:    { color: '#8b5cf6', bg: '#f5f3ff' },
   PENDING_REMINDER:       { color: '#eab308', bg: '#fefce8' },
   ESCALATED:              { color: '#ef4444', bg: '#fef2f2' },
   CLOSED:                 { color: '#10b981', bg: '#ecfdf5' },
@@ -190,26 +187,17 @@ const Dashboard = () => {
   const total         = tickets.length;
   const activeCount   = tickets.filter(t => !['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
   const closedCount   = tickets.filter(t =>  ['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
-  const investigCount = tickets.filter(t => t.status === 'UNDER_INVESTIGATION').length;
   const injuryCount   = tickets.filter(t => t.hasInjury).length;
-
-  const statCards = isDepRepOrManager
-    ? [
-        { label: 'Total',    value: total,       gradient: 'from-indigo-500 to-blue-600',  softBg: 'from-indigo-50 to-blue-50',  icon: <ClipboardList size={18} /> },
-        { label: 'Active',   value: activeCount, gradient: 'from-amber-500 to-orange-500', softBg: 'from-amber-50 to-orange-50', icon: <ActivityIcon size={18} /> },
-        { label: 'Closed',   value: closedCount, gradient: 'from-emerald-500 to-teal-600', softBg: 'from-emerald-50 to-teal-50', icon: <CheckCircle size={18} /> },
-        { label: 'Injuries', value: injuryCount, gradient: 'from-rose-500 to-red-600',     softBg: 'from-rose-50 to-red-50',     icon: <AlertTriangle size={18} /> },
-      ]
-    : [
-        { label: 'Total',         value: total,         gradient: 'from-indigo-500 to-blue-600',   softBg: 'from-indigo-50 to-blue-50',  icon: <ClipboardList size={18} /> },
-        { label: 'Active',        value: activeCount,   gradient: 'from-blue-500 to-cyan-500',     softBg: 'from-blue-50 to-cyan-50',    icon: <ActivityIcon size={18} /> },
-        { label: 'Investigating', value: investigCount, gradient: 'from-violet-500 to-purple-600', softBg: 'from-violet-50 to-purple-50', icon: <TrendingUp size={18} /> },
-        { label: 'Closed',        value: closedCount,   gradient: 'from-emerald-500 to-teal-600',  softBg: 'from-emerald-50 to-teal-50', icon: <CheckCircle size={18} /> },
-      ];
+  const statCards = [
+    { label: 'Total',    value: total,       gradient: 'from-indigo-500 to-blue-600',  softBg: 'from-indigo-50 to-blue-50',  icon: <ClipboardList size={18} /> },
+    { label: 'Active',   value: activeCount, gradient: 'from-amber-500 to-orange-500', softBg: 'from-amber-50 to-orange-50', icon: <ActivityIcon size={18} /> },
+    { label: 'Closed',   value: closedCount, gradient: 'from-emerald-500 to-teal-600', softBg: 'from-emerald-50 to-teal-50', icon: <CheckCircle size={18} /> },
+    { label: 'Injuries', value: injuryCount, gradient: 'from-rose-500 to-red-600',     softBg: 'from-rose-50 to-red-50',     icon: <AlertTriangle size={18} /> },
+  ];
 
   const statuses = [
     'ALL', 'SUBMITTED', 'ASSIGNED', 'UNDER_REVIEW',
-    'UNDER_INVESTIGATION', 'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER',
+    'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER',
     'ESCALATED', 'CLOSED',
   ];
 

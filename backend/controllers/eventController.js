@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const logger = require('../lib/logger').child({ module: 'eventController' });
 const prisma = new PrismaClient();
 
 // Get all events
@@ -8,7 +9,7 @@ exports.getEvents = async (req, res) => {
         const where = {};
 
         if (active === 'true') {
-            where.isActive = true;
+            where.status = 'ACTIVE';
         }
 
         const events = await prisma.event.findMany({
@@ -18,7 +19,7 @@ exports.getEvents = async (req, res) => {
 
         res.json(events);
     } catch (error) {
-        console.error('Error fetching events:', error);
+        logger.error({ err: error }, 'Error fetching events:');
         res.status(500).json({ error: 'Failed to fetch events' });
     }
 };
@@ -26,16 +27,17 @@ exports.getEvents = async (req, res) => {
 // Create a new event
 exports.createEvent = async (req, res) => {
     try {
-        const { name, isActive } = req.body;
+        const { nameEn, nameAr, status } = req.body;
 
-        if (!name) {
-            return res.status(400).json({ error: 'Event name is required' });
+        if (!nameEn || !nameAr) {
+            return res.status(400).json({ error: 'Both English and Arabic names are required' });
         }
 
         const event = await prisma.event.create({
             data: {
-                name,
-                isActive: isActive !== undefined ? isActive : true
+                nameEn,
+                nameAr,
+                status: status || 'ACTIVE'
             }
         });
 
@@ -45,7 +47,7 @@ exports.createEvent = async (req, res) => {
         if (error.code === 'P2002') {
             return res.status(400).json({ error: 'Event name must be unique' });
         }
-        console.error('Error creating event:', error);
+        logger.error({ err: error }, 'Error creating event:');
         res.status(500).json({ error: 'Failed to create event' });
     }
 };
@@ -54,19 +56,20 @@ exports.createEvent = async (req, res) => {
 exports.updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, isActive } = req.body;
+        const { nameEn, nameAr, status } = req.body;
 
         const event = await prisma.event.update({
             where: { id },
             data: {
-                ...(name && { name }),
-                ...(isActive !== undefined && { isActive })
+                ...(nameEn && { nameEn }),
+                ...(nameAr && { nameAr }),
+                ...(status && { status })
             }
         });
 
         res.json(event);
     } catch (error) {
-        console.error('Error updating event:', error);
+        logger.error({ err: error }, 'Error updating event:');
         res.status(500).json({ error: 'Failed to update event' });
     }
 };
@@ -82,7 +85,7 @@ exports.deleteEvent = async (req, res) => {
 
         res.json({ message: 'Event deleted successfully' });
     } catch (error) {
-        console.error('Error deleting event:', error);
+        logger.error({ err: error }, 'Error deleting event:');
         res.status(500).json({ error: 'Failed to delete event' });
     }
 };

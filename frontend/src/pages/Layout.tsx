@@ -7,6 +7,7 @@ import {
   AlertTriangle, Settings, BarChart3, ShieldCheck,
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const OC_ROLES = [
   'OC_REPORTER', 'OC_SUPERVISOR', 'OC_SAFETY_INVESTIGATOR', 'OC_HSE_MANAGER',
@@ -237,7 +238,9 @@ const Layout = () => {
 
         {/* Page content */}
         <main className="flex-1 px-4 py-5 lg:px-7 lg:py-6 pb-24 lg:pb-8 max-w-6xl w-full mx-auto">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
 
         {/* ────── Bottom nav (mobile only) ────── */}

@@ -23,9 +23,11 @@ const Login = () => {
   const [testCode, setTestCode] = useState('');
 
   const [regFirstName, setRegFirstName] = useState('');
+  const [regFatherName, setRegFatherName] = useState('');
   const [regLastName, setRegLastName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regMobile, setRegMobile] = useState('');
+  const [regDepartment, setRegDepartment] = useState('');
 
   const isArabic = i18n.language.startsWith('ar');
   const currentLang: 'ar' | 'en' = isArabic ? 'ar' : 'en';
@@ -95,15 +97,17 @@ const Login = () => {
     e.preventDefault();
     setError('');
     const englishRegex = /^[A-Za-z\s]+$/;
-    if (!englishRegex.test(regFirstName) || !englishRegex.test(regLastName)) {
-      setError(t('errors.namesEnglishOnly'));
+    if (!englishRegex.test(regFirstName) || !englishRegex.test(regFatherName) || !englishRegex.test(regLastName)) {
+      setError(t('errors.namesEnglishOnly', 'Names must be in English'));
       return;
     }
     setLoading(true);
     try {
       const response = await api.post('/auth/register', {
         firstName: regFirstName.trim(),
+        fatherName: regFatherName.trim(),
         lastName: regLastName.trim(),
+        department: regDepartment.trim(),
         email: regEmail.trim(),
         mobile: regMobile.trim(),
       });
@@ -396,7 +400,7 @@ const Login = () => {
               )}
 
               <form onSubmit={handleRegister} className="space-y-3.5" dir="ltr">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div dir={isArabic ? 'rtl' : 'ltr'}>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                       {isArabic ? 'الاسم الأول *' : 'First Name *'}
@@ -409,6 +413,16 @@ const Login = () => {
                   </div>
                   <div dir={isArabic ? 'rtl' : 'ltr'}>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                      {isArabic ? 'اسم الأب *' : 'Father Name *'}
+                    </label>
+                    <input
+                      type="text" value={regFatherName}
+                      onChange={(e) => setRegFatherName(e.target.value)}
+                      placeholder="William" className={inputClass} required dir="ltr"
+                    />
+                  </div>
+                  <div dir={isArabic ? 'rtl' : 'ltr'}>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
                       {isArabic ? 'الاسم الأخير *' : 'Last Name *'}
                     </label>
                     <input
@@ -417,6 +431,16 @@ const Login = () => {
                       placeholder="Doe" className={inputClass} required dir="ltr"
                     />
                   </div>
+                </div>
+                <div dir={isArabic ? 'rtl' : 'ltr'}>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    {isArabic ? 'القسم *' : 'Department *'}
+                  </label>
+                  <input
+                    type="text" value={regDepartment}
+                    onChange={(e) => setRegDepartment(e.target.value)}
+                    placeholder="e.g. IT, HSE, HR" className={inputClass} required dir="ltr"
+                  />
                 </div>
                 <div dir={isArabic ? 'rtl' : 'ltr'}>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">

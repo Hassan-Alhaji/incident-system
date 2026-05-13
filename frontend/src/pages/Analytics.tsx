@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import AnalyticsMap from '../components/AnalyticsMap';
+import { AIChatSidebar, Section, ProgressBar, ServiceProviderCard, TYPE_COLORS } from '../components/analytics';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmtNum = (n: number) => (n || 0).toLocaleString('en-US');
@@ -31,25 +32,7 @@ const INSIGHT_STYLE: Record<string, { color: string; bg: string; border: string;
   POSITIVE: { color: '#065f46', bg: '#ecfdf5', border: '#6ee7b7', icon: <CheckCircle size={14} /> },
 };
 
-// ── reusable mini components ──────────────────────────────────────────────────
-const Section: React.FC<{ title: string; subtitle?: string; icon: React.ReactNode; children: React.ReactNode }> = ({ title, subtitle, icon, children }) => (
-  <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-    <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <h3 className="text-sm font-bold text-slate-800 truncate">{title}</h3>
-        {subtitle && <p className="text-[11px] text-slate-400 truncate">{subtitle}</p>}
-      </div>
-    </div>
-    <div className="p-5">{children}</div>
-  </div>
-);
-
-const ProgressBar: React.FC<{ value: number; color?: string; height?: number }> = ({ value, color, height = 8 }) => (
-  <div className="w-full bg-slate-100 rounded-full overflow-hidden" style={{ height }}>
-    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, value)}%`, background: color || pctColor(value) }} />
-  </div>
-);
+// Reusable Section, ProgressBar, ServiceProviderCard imported from ../components/analytics
 
 // Circular gauge for RCI
 const RCIGauge: React.FC<{ value: number; level: string, t: any }> = ({ value, level, t }) => {
@@ -76,103 +59,6 @@ const RCIGauge: React.FC<{ value: number; level: string, t: any }> = ({ value, l
   );
 };
 
-// ── TYPE COLOR MAP for violation breakdown ───────────────────────────────────
-const TYPE_COLORS: Record<string, { bg: string; text: string; label: string; labelAr: string }> = {
-  NEAR_MISS:            { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Near Miss', labelAr: 'شبه حادثة' },
-  UNSAFE_ACT:           { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Unsafe Act', labelAr: 'تصرف غير آمن' },
-  UNSAFE_CONDITION:     { bg: 'bg-red-100', text: 'text-red-800', label: 'Unsafe Condition', labelAr: 'حالة غير آمنة' },
-  FIRE:                 { bg: 'bg-red-200', text: 'text-red-900', label: 'Fire', labelAr: 'حريق' },
-  ENVIRONMENTAL:        { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Environmental', labelAr: 'بيئي' },
-  PROPERTY_DAMAGE:      { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Property Damage', labelAr: 'أضرار ممتلكات' },
-  FIRST_AID:            { bg: 'bg-pink-100', text: 'text-pink-800', label: 'First Aid', labelAr: 'إسعافات أولية' },
-  MEDICAL_TREATMENT:    { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Medical Treatment', labelAr: 'علاج طبي' },
-  LOST_TIME_INJURY:     { bg: 'bg-rose-200', text: 'text-rose-900', label: 'Lost Time Injury', labelAr: 'إصابة وقت ضائع' },
-  FATALITY:             { bg: 'bg-gray-800', text: 'text-white', label: 'Fatality', labelAr: 'وفاة' },
-  OBSERVATION:          { bg: 'bg-teal-100', text: 'text-teal-800', label: 'Observation', labelAr: 'ملاحظة' },
-  VEHICLE_INCIDENT:     { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Vehicle Incident', labelAr: 'حادث مركبة' },
-  OTHER:                { bg: 'bg-slate-100', text: 'text-slate-800', label: 'Other', labelAr: 'أخرى' },
-};
-
-const ServiceProviderCard: React.FC<{ sp: any; rank: number; t: any; isRtl: boolean }> = ({ sp, rank, t, isRtl }) => {
-  const [expanded, setExpanded] = useState(false);
-  const types = Object.entries(sp.byType || {}).sort((a: any, b: any) => b[1] - a[1]);
-  const maxTypeCount = types.length > 0 ? (types[0][1] as number) : 1;
-
-  // Rank badge color
-  const rankColors = ['from-red-600 to-rose-700', 'from-orange-500 to-amber-600', 'from-amber-400 to-yellow-500'];
-  const rankColor = rank <= 3 ? rankColors[rank - 1] : 'from-slate-400 to-slate-500';
-
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden transition-all hover:shadow-md">
-      {/* Header — clickable */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-slate-50 to-white hover:from-slate-100 hover:to-slate-50 transition-colors text-left"
-      >
-        <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${rankColor} text-white flex items-center justify-center font-black text-sm flex-shrink-0 shadow-sm`}>
-          {rank}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-slate-800 truncate">{sp.name}</p>
-          <p className="text-[11px] text-slate-500 truncate">
-            {isRtl ? sp.departmentAr || sp.department : sp.department}
-            {sp.crNumber && <span className="text-slate-400 mx-1">•</span>}
-            {sp.crNumber && <span className="font-mono text-slate-400">{t('analytics.spv.cr', 'CR')}: {sp.crNumber}</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {sp.hasInjury > 0 && (
-            <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-              🩹 {sp.hasInjury}
-            </span>
-          )}
-          <span className="text-2xl font-black text-red-600">{sp.totalViolations}</span>
-          <ChevronDown size={16} className={`text-slate-400 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        </div>
-      </button>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-2 bg-slate-50/50 border-t border-slate-100 space-y-3 animate-in fade-in slide-in-from-top-2">
-          {/* Provider info row */}
-          <div className="flex flex-wrap gap-2">
-            <span className="text-[11px] bg-blue-50 text-blue-700 font-bold px-2.5 py-1 rounded-lg border border-blue-100">
-              📋 {t('analytics.spv.dept', 'Dept')}: {isRtl ? sp.departmentAr || sp.department : sp.department}
-            </span>
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${sp.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
-              {sp.status === 'ACTIVE' ? '🟢' : '🔴'} {sp.status}
-            </span>
-            <span className="text-[11px] bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-lg border border-slate-200">
-              {t('analytics.spv.total', 'Total')}: {sp.totalViolations} {t('analytics.spv.violations', 'violations')}
-            </span>
-          </div>
-
-          {/* Violation type breakdown */}
-          <div>
-            <p className="text-xs font-bold text-slate-700 mb-2">{t('analytics.spv.byType', 'Violations by Type')}:</p>
-            <div className="space-y-1.5">
-              {types.map(([typeKey, count]: any) => {
-                const tc = TYPE_COLORS[typeKey] || TYPE_COLORS.OTHER;
-                const pct = (count / maxTypeCount) * 100;
-                return (
-                  <div key={typeKey} className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${tc.bg} ${tc.text} min-w-[100px] text-center flex-shrink-0`}>
-                      {isRtl ? tc.labelAr : tc.label}
-                    </span>
-                    <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                      <div className={`h-full rounded-full ${tc.bg}`} style={{ width: `${pct}%`, minWidth: count > 0 ? '8px' : '0' }} />
-                    </div>
-                    <span className="text-xs font-black text-slate-700 w-6 text-right flex-shrink-0">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const Analytics = () => {
   const { t, i18n } = useTranslation();
@@ -233,41 +119,6 @@ const Analytics = () => {
 
   const [aiUnavailable, setAiUnavailable] = useState(false);
 
-  const handleAiSend = async () => {
-    if (!aiInput.trim() || aiLoading) return;
-    const userMsg = aiInput.trim();
-    setAiInput('');
-    setAiHistory(h => [...h, { role: 'user', text: userMsg }]);
-    setAiLoading(true);
-    try {
-      const res = await api.post('/ai/analytics-chat', {
-        question: userMsg,
-        context: JSON.stringify(data),
-        dateFrom: applied.from,
-        dateTo: applied.to,
-      });
-      setAiHistory(h => [...h, { role: 'ai', text: res.data.answer }]);
-    } catch (err: any) {
-      const status = err.response?.status;
-      const data = err.response?.data;
-      if (status === 503 || data?.unavailable) {
-        setAiUnavailable(true);
-        setAiHistory(h => [...h, {
-          role: 'ai',
-          text: isRtl
-            ? '⚠️ الذكاء الاصطناعي غير متاح مؤقتاً بسبب تجاوز الحصة المجانية. يرجى المحاولة لاحقاً.'
-            : '⚠️ AI is temporarily unavailable (free quota exceeded). Please try again later.'
-        }]);
-      } else {
-        setAiHistory(h => [...h, { role: 'ai', text: t('analytics.ai.error', '⚠️ Sorry, could not get a response. Please try again.') }]);
-      }
-    } finally {
-      setAiLoading(false);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    }
-  };
-
-
   if (loading) return (
     <div className="flex justify-center py-24">
       <Loader2 className="animate-spin text-blue-600" size={32} />
@@ -304,92 +155,7 @@ const Analytics = () => {
   return (
     <div className={`space-y-5 pb-8 relative ${isRtl ? 'font-arabic dir-rtl' : 'font-sans dir-ltr'}`}>
 
-      {/* ── AI Chat Sidebar Panel ── */}
-      <div className={`fixed top-0 ${isRtl ? 'left-0' : 'right-0'} h-full w-full sm:w-96 bg-slate-50 border-${isRtl ? 'r' : 'l'} border-slate-200 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${aiOpen ? 'translate-x-0' : (isRtl ? '-translate-x-full' : 'translate-x-full')} flex flex-col`}>
-        <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-              <Bot size={18} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white leading-tight">{t('analytics.ai.title', 'HSE AI Assistant')}</h3>
-              <p className="text-[10px] text-violet-200">{t('analytics.ai.subtitle', 'Ask anything about your safety data')}</p>
-            </div>
-          </div>
-          <button onClick={() => setAiOpen(false)} className="w-8 h-8 rounded-full bg-black/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-black/20 transition-all">
-            {isRtl ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {aiHistory.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-              <Sparkles size={32} className="mb-3 text-violet-300" />
-              <p className="text-sm font-semibold">{t('analytics.ai.welcome', 'Ask me about your HSE statistics!')}</p>
-              <div className="mt-5 flex flex-wrap gap-2 justify-center">
-                {[
-                  t('analytics.ai.q1', 'What is the top incident type?'), 
-                  t('analytics.ai.q2', 'Which department has the most delays?'), 
-                  t('analytics.ai.q3', 'How is our RCI score?')
-                ].map(q => (
-                  <button key={q} onClick={() => { setAiInput(q); }}
-                    className="text-[11px] bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-full hover:bg-violet-50 transition-all shadow-sm">
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {aiHistory.map((m, i) => (
-            <div key={i} className={`flex gap-3 ${m.role === 'user' ? (isRtl ? 'justify-start' : 'justify-end') : (isRtl ? 'justify-end flex-row-reverse' : 'justify-start')}`}>
-              {m.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm"><Bot size={16} className="text-white" /></div>}
-              <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                m.role === 'user'
-                  ? `bg-blue-600 text-white ${isRtl ? 'rounded-tl-sm' : 'rounded-tr-sm'} shadow-md`
-                  : `bg-white border border-slate-200 text-slate-700 ${isRtl ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
-              }`}>
-                {m.text}
-              </div>
-            </div>
-          ))}
-          {aiLoading && (
-            <div className={`flex gap-3 ${isRtl ? 'justify-end flex-row-reverse' : 'justify-start'}`}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-sm"><Bot size={16} className="text-white" /></div>
-              <div className={`bg-white border border-slate-200 px-4 py-2.5 rounded-2xl ${isRtl ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`}>
-                <Loader2 size={16} className="animate-spin text-violet-500" />
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className="p-4 bg-white border-t border-slate-200 shrink-0">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1 focus-within:ring-2 focus-within:ring-violet-400 transition-all">
-            <input
-              value={aiInput} onChange={e => setAiInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAiSend()}
-              placeholder={t('analytics.ai.placeholder', 'Ask about incidents, trends...')}
-              className="flex-1 text-sm bg-transparent px-2 py-2 focus:outline-none"
-            />
-            <button
-              onClick={handleAiSend} disabled={!aiInput.trim() || aiLoading}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
-                !aiInput.trim() || aiLoading ? 'bg-slate-200 text-slate-400' : 'bg-violet-600 text-white hover:bg-violet-700 shadow-md'
-              }`}
-            >
-              <Send size={16} className={isRtl ? 'rotate-180' : ''} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Backdrop for mobile */}
-      {aiOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 sm:hidden"
-          onClick={() => setAiOpen(false)}
-        />
-      )}
+      <AIChatSidebar data={data} applied={applied} isOpen={aiOpen} onClose={() => setAiOpen(false)} />
 
       {/* ── Date range filter bar ── */}
       <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
@@ -428,12 +194,7 @@ const Analytics = () => {
 
         <button
           onClick={() => !aiUnavailable && setAiOpen(o => !o)}
-          disabled={aiUnavailable}
-          title={aiUnavailable ? (isRtl ? 'الذكاء الاصطناعي غير متاح (تجاوز الحصة)' : 'AI unavailable (quota exceeded)') : ''}
-          className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm ${
-            aiUnavailable
-              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : aiOpen
+          className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm ${aiOpen
                 ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-300'
                 : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 text-white'
           }`}

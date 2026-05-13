@@ -20,3 +20,17 @@ i18n
  });
 
 export default i18n;
+
+// Enable Hot Reloading (HMR) for Vite
+if (import.meta.hot) {
+  import.meta.hot.accept('./locales/en.json', (newEn) => {
+    if (newEn) {
+      i18n.addResourceBundle('en', 'translation', newEn.default, true, true);
+    }
+  });
+  import.meta.hot.accept('./locales/ar.json', (newAr) => {
+    if (newAr) {
+      i18n.addResourceBundle('ar', 'translation', newAr.default, true, true);
+    }
+  });
+}

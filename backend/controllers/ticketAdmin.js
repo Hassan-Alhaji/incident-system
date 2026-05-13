@@ -2,6 +2,7 @@ const prisma = require('../prismaClient');
 const xlsx = require('xlsx');
 const fs = require('fs');
 const { ROLES, ADMIN_ROLES } = require('./ticketCrud');
+const logger = require('../lib/logger').child({ module: 'ticketAdmin' });
 
 const OC_USER_ROLES = ['OC_REPORTER','HSE_CONTROLLER','DEP_REP','DEP_MANAGER','SAFETY_MANAGER','OC_HSE_MANAGER','HR_REP','SERVICE_PROVIDER_REP'];
 
@@ -24,8 +25,13 @@ const createUser = async (req, res) => {
         if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) return res.status(400).json({ message: 'Email exists' });
+        const parts = name.trim().split(/\s+/);
+        const firstName = parts[0] || '';
+        const lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
+        const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+
         const user = await prisma.user.create({
-            data: { name, email, password: '', role: role || 'OC_REPORTER', userGroup: 'OFF_CIRCUIT', mobile: mobile || null, status: 'ACTIVE', canCloseTickets: canCloseTickets || false, canPerformRCA: canPerformRCA || false }
+            data: { name, firstName, fatherName, lastName, email, password: '', role: role || 'OC_REPORTER', userGroup: 'OFF_CIRCUIT', mobile: mobile || null, status: 'ACTIVE', canCloseTickets: canCloseTickets || false, canPerformRCA: canPerformRCA || false }
         });
         res.status(201).json({ message: 'User created', user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     } catch (error) { res.status(500).json({ message: error.message }); }
@@ -36,7 +42,13 @@ const updateUser = async (req, res) => {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const { name, email, role, mobile, canCloseTickets, canPerformRCA } = req.body;
         const data = {};
-        if (name) data.name = name;
+        if (name) {
+            data.name = name;
+            const parts = name.trim().split(/\s+/);
+            data.firstName = parts[0] || '';
+            data.lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
+            data.fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+        }
         if (email) data.email = email;
         if (role) data.role = role;
         if (mobile !== undefined) data.mobile = mobile;
@@ -48,11 +60,11 @@ const updateUser = async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Error updating user' }); }
 };
 
-const deleteUser = async (req, res) => {
+const suspendUser = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const openTickets = await prisma.ticket.count({ where: { OR: [{ createdById: req.params.id, status: { not: 'CLOSED' } }, { assignedToId: req.params.id, status: { not: 'CLOSED' } }] } });
-        if (openTickets > 0) return res.status(400).json({ message: `Cannot delete: ${openTickets} open ticket(s)` });
+        if (openTickets > 0) return res.status(400).json({ message: `Cannot suspend: ${openTickets} open ticket(s)` });
         await prisma.user.update({ where: { id: req.params.id }, data: { status: 'SUSPENDED' } });
         res.json({ message: 'User deactivated' });
     } catch (error) { res.status(500).json({ message: 'Error' }); }
@@ -79,12 +91,28 @@ const PYRAMID_RATIO = { lti: 1, medical: 10, nearMiss: 30, observation: 100 }; /
 const classifyPyramid = (t) => {
     const type = t.type || '';
     const sev  = t.severityLevel || '';
-    if (type === 'FATALITY' || sev === 'FATAL') return 'fatality';
-    if (type === 'LOST_TIME_INJURY' || (t.hasInjury && HIGH_SEVERITY.has(sev))) return 'lti';
-    if (['MEDICAL_TREATMENT', 'FIRST_AID'].includes(type) || (t.hasInjury && LOW_SEVERITY.has(sev))) return 'medical';
-    if (type === 'NEAR_MISS' || (type === 'ACCIDENT' && !t.hasInjury)) return 'nearMiss';
-    if (['OBSERVATION', 'UNSAFE_ACT', 'UNSAFE_CONDITION'].includes(type)) return 'observation';
-    return 'other';
+
+    // Security incidents don't typically count in the HSE safety pyramid
+    if (type === 'SECURITY') return 'other';
+
+    // 1. Fatality
+    if (sev === 'FATAL' || type === 'FATALITY') return 'fatality';
+
+    // 2. Injuries / Actual Incidents
+    if (t.hasInjury || type === 'ACCIDENT') {
+        if (HIGH_SEVERITY.has(sev)) return 'lti';
+        return 'medical';
+    }
+
+    // 3. Proactive / No Injury
+    // A high-severity observation without injury is considered a Near-Miss
+    if (HIGH_SEVERITY.has(sev) || type === 'NEAR_MISS') return 'nearMiss';
+
+    // Normal observation
+    if (type === 'OBSERVATION' || ['UNSAFE_ACT', 'UNSAFE_CONDITION'].includes(type)) return 'observation';
+
+    // Fallback
+    return 'observation';
 };
 
 const getAnalytics = async (req, res) => {
@@ -498,7 +526,7 @@ const getAnalytics = async (req, res) => {
             })(),
         });
     } catch (error) {
-        console.error('Analytics Error:', error);
+        logger.error({ err: error }, 'Analytics Error:');
         res.status(500).json({ message: 'Failed' });
     }
 };
@@ -522,22 +550,41 @@ const importUsers = async (req, res) => {
     if (!req.file) return res.status(400).json({ message: 'No file' });
     if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
     try {
-        const wb = xlsx.readFile(req.file.path); fs.unlinkSync(req.file.path);
+        const wb = xlsx.readFile(req.file.path);
         const data = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
         let added = 0, skipped = 0; const errors = [];
         for (const row of data) {
             const email = row['email']?.toString().trim();
             const name = row['name']?.toString().trim();
-            if (!email || !name) { errors.push(`Missing: ${JSON.stringify(row)}`); continue; }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const nameRegex = /^[a-zA-Z\s\-']+$/;
+            
+            if (!email || !name) { errors.push(`Missing data: ${JSON.stringify(row)}`); continue; }
+            if (!emailRegex.test(email)) { errors.push(`Invalid email format: ${email}`); continue; }
+            if (!nameRegex.test(name)) { errors.push(`Invalid name format (English letters only): ${name}`); continue; }
+            
             const mappedRole = ROLE_MAP[row['role']?.toString().trim().toUpperCase()];
             if (!mappedRole) { errors.push(`Invalid role for ${email}`); continue; }
             const existing = await prisma.user.findUnique({ where: { email } });
             if (existing) { skipped++; continue; }
-            await prisma.user.create({ data: { name, email, password: '', role: mappedRole, userGroup: 'OFF_CIRCUIT', mobile: row['mobile']?.toString() || null, status: 'ACTIVE' } });
+            
+            const parts = name.split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
+            const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+            
+            await prisma.user.create({ data: { name, firstName, fatherName, lastName, email, password: '', role: mappedRole, userGroup: 'OFF_CIRCUIT', mobile: row['mobile']?.toString() || null, status: 'ACTIVE' } });
             added++;
         }
         res.json({ message: 'Done', summary: { total: data.length, added, skipped, errors } });
-    } catch (error) { res.status(500).json({ message: 'Error' }); }
+    } catch (error) {
+        logger.error({ err: error }, 'Import Error:');
+        res.status(500).json({ message: 'Error processing Excel file' });
+    } finally {
+        if (req.file && req.file.path) {
+            try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore cleanup error */ }
+        }
+    }
 };
 
 const exportTickets = async (req, res) => {
@@ -626,4 +673,4 @@ const exportTickets = async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Failed' }); }
 };
 
-module.exports = { getUsers, createUser, updateUser, deleteUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets };
+module.exports = { getUsers, createUser, updateUser, suspendUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets };

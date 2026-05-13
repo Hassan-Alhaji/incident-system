@@ -4,6 +4,7 @@ const { sendOTP } = require('../utils/emailService');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../lib/logger').child({ module: 'authController' });
 
 // Check if maintenance mode is enabled
 const isMaintenanceOn = () => {
@@ -22,8 +23,8 @@ const requestEmailOtp = async (req, res) => {
 
     try {
         step = 1; // Validate Input
-        if (!email) {
-            return res.status(400).json({ message: 'Email is required' });
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ message: 'Valid email is required' });
         }
 
         step = 2; // Find/Create User
@@ -70,7 +71,7 @@ const requestEmailOtp = async (req, res) => {
         });
 
         step = 5; // Send Email (fire-and-forget — don't block response)
-        sendOTP(email, otpCode).catch(e => console.error('Email failed:', e));
+        sendOTP(email, otpCode).catch(e => logger.error({ err: e }, 'Email failed:'));
 
         // Return success immediately
         const response = {
@@ -86,7 +87,7 @@ const requestEmailOtp = async (req, res) => {
         res.json(response);
 
     } catch (error) {
-        console.error(`Error at step ${step}:`, error);
+        logger.error({ err: error, step }, `Auth error at step ${step}`);
         res.status(500).json({
             message: `Login Failed at Step ${step}: ${error.message || 'Unknown error'}`,
             step
@@ -151,7 +152,7 @@ const verifyEmailOtp = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error);
+        logger.error({ err: error }, 'Unhandled error');
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -160,12 +161,23 @@ const verifyEmailOtp = async (req, res) => {
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = async (req, res) => {
-    const { firstName, lastName, email, mobile } = req.body;
+    const { firstName, fatherName, lastName, email, mobile, department } = req.body;
 
     try {
         // Validation
-        if (!firstName || !lastName || !email || !mobile) {
-            return res.status(400).json({ message: 'First name, last name, email, and mobile number are required' });
+        if (!firstName || !fatherName || !lastName || !email || !mobile || !department) {
+            return res.status(400).json({ message: 'First name, father name, last name, department, email, and mobile number are required' });
+        }
+
+        // Strict RegEx to block symbols/scripts (only Arabic/English letters and spaces allowed)
+        const nameRegex = /^[\p{L}\s]+$/u;
+        if (!nameRegex.test(firstName) || !nameRegex.test(fatherName) || !nameRegex.test(lastName)) {
+            return res.status(400).json({ message: 'Names can only contain letters and spaces. Symbols are not allowed.' });
+        }
+
+        // Strict Email validation
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({ message: 'Invalid email format.' });
         }
 
         // Check if user already exists
@@ -186,9 +198,11 @@ const registerUser = async (req, res) => {
         // Admin must approve before they can login
         const user = await prisma.user.create({
             data: {
-                name: `${firstName} ${lastName}`,
+                name: `${firstName} ${fatherName} ${lastName}`,
                 firstName,
+                fatherName,
                 lastName,
+                department,
                 email,
                 mobile: mobile || null,
                 password: '',
@@ -208,7 +222,7 @@ const registerUser = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Auth] Register Error:', error);
+        logger.error({ err: error }, '[Auth] Register Error:');
         if (error.code === 'P2002') {
             return res.status(400).json({ message: 'Email or mobile already in use.' });
         }
