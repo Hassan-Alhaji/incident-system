@@ -139,14 +139,14 @@ const TicketWizard = () => {
   }, []);
 
   useEffect(() => {
-    if (!submitted) {
+    if (!submitted && !submitting) {
       const draft = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId }; // Omitted injuredPersons & witnesses for privacy
       const timeoutId = setTimeout(() => {
         localStorage.setItem('ticket_wizard_draft', JSON.stringify(draft));
-      }, 500);
+      }, 1500);
       return () => clearTimeout(timeoutId);
     }
-  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, submitted]);
+  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, submitted, submitting]);
 
 
   const handleLocationConfirm = (lat: number, lng: number, address: string, zone?: { id: string; name: string } | null) => {

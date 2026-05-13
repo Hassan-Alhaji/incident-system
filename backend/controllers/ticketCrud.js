@@ -10,7 +10,8 @@ const ROLES = {
     DEP_MANAGER: ['DEP_MANAGER'],
     SAFETY_MANAGER: ['SAFETY_MANAGER', 'OC_HSE_MANAGER'],
     HR: ['HR_REP'],
-    ALL: ['OC_REPORTER','HSE_CONTROLLER','DEP_REP','DEP_MANAGER','SAFETY_MANAGER','OC_HSE_MANAGER','HR_REP','SERVICE_PROVIDER_REP','ADMIN']
+    FINANCE: ['FINANCE_REP'],
+    ALL: ['OC_REPORTER','HSE_CONTROLLER','DEP_REP','DEP_MANAGER','SAFETY_MANAGER','OC_HSE_MANAGER','HR_REP','SERVICE_PROVIDER_REP','FINANCE_REP','ADMIN']
 };
 
 const ADMIN_ROLES = ['ADMIN', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'HSE_CONTROLLER'];
@@ -146,6 +147,8 @@ const getTickets = async (req, res) => {
             where.OR = [{ assignedToId: userId }, { hasInjury: true }];
         } else if (role === 'SERVICE_PROVIDER_REP') {
             where.OR = [{ assignedToId: userId }, { serviceProviderId: req.user.serviceProviderId }].filter(Boolean);
+        } else if (ROLES.FINANCE.includes(role)) {
+            where.forwardedToFinance = true;
         } else if (!['ADMIN','HSE_CONTROLLER','SAFETY_MANAGER','OC_HSE_MANAGER'].includes(role)) {
             return res.status(403).json({ message: 'Not authorized' });
         }
@@ -188,7 +191,7 @@ const getTickets = async (req, res) => {
         const stats = { total, open, closed, escalated, injuries };
 
         // Mask confidential PII for non-authorized roles
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP'].includes(role);
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(role);
         const sanitizedTickets = tickets.map(t => {
             if (!isConfidentialViewer && t.createdById !== userId) {
                 if (t.createdBy) t.createdBy = { id: t.createdBy.id, role: t.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
@@ -255,6 +258,8 @@ const getTicketById = async (req, res) => {
                 canView = (ticket.assignedToId === userId) || (ticket.hasInjury === true);
             } else if (role === 'SERVICE_PROVIDER_REP') {
                 canView = (ticket.assignedToId === userId) || (ticket.serviceProviderId === req.user.serviceProviderId);
+            } else if (ROLES.FINANCE.includes(role)) {
+                canView = (ticket.forwardedToFinance === true);
             }
 
             if (!canView) {
@@ -262,7 +267,7 @@ const getTicketById = async (req, res) => {
             }
         }
 
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP'].includes(role) || ticket.createdById === userId;
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(role) || ticket.createdById === userId;
         if (!isConfidentialViewer) {
             if (ticket.createdBy) {
                 ticket.createdBy = { 
@@ -316,7 +321,7 @@ const reporterReply = async (req, res) => {
 
         const updated = await prisma.ticket.findUnique({ where: { id }, include: { offCircuitReport: true, createdBy: { select: { id: true, name: true, role: true, email: true, mobile: true, department: true } }, activityLogs: { include: { actor: { select: { name: true, role: true } } }, orderBy: { createdAt: 'desc' } }, attachments: true } });
         
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP'].includes(req.user.role) || updated.createdById === req.user.id;
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(req.user.role) || updated.createdById === req.user.id;
         if (!isConfidentialViewer && updated) {
             if (updated.createdBy) updated.createdBy = { id: updated.createdBy.id, role: updated.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
             updated.reporterName = 'Confidential';

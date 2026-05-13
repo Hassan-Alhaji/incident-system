@@ -378,7 +378,7 @@ enum Role {
   SAFETY_MANAGER      // Safety Manager - escalation target, full control
   HR_REP              // HR representative - GOSI handling
   SERVICE_PROVIDER_REP // Contractor company representative
-  FINANCE_REP         // Finance representative - financial violations
+  FINANCE_REP         // Finance department representative
 
   // Legacy roles kept for compatibility
   SPORT_MARSHAL
