@@ -1,6 +1,8 @@
 const prisma = require('../prismaClient');
 const crypto = require('crypto');
 const qrcode = require('qrcode');
+const { createNotification, createNotificationsBulk } = require('./notificationController');
+const logger = require('../lib/logger').child({ module: 'actionPlanController' });
 
 // ===== CREATE ACTION PLAN =====
 const createActionPlan = async (req, res) => {
@@ -10,7 +12,7 @@ const createActionPlan = async (req, res) => {
 
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-        if (!['ASSIGNED','RETURNED_TO_DEPARTMENT','ASSIGNED_TO_HR'].includes(ticket.status)) {
+        if (!['ASSIGNED','RETURNED_TO_DEPARTMENT',].includes(ticket.status)) {
             return res.status(400).json({ message: 'Ticket not in assignable state' });
         }
 
@@ -39,12 +41,12 @@ const createActionPlan = async (req, res) => {
         });
 
         await prisma.activityLog.create({
-            data: { ticketId, actorId: req.user.id, action: 'ACTION_PLAN_CREATED', details: `${type} action plan submitted` }
+            data: { ticketId, actorId: req.user.id, action: 'STAGE_PLAN_CREATED', details: `${type} action plan submitted` }
         });
 
         res.status(201).json(plan);
     } catch (error) {
-        console.error('Create Action Plan Error:', error);
+        logger.error({ err: error }, 'Create Action Plan Error:');
         res.status(500).json({ message: error.message });
     }
 };
@@ -66,13 +68,24 @@ const getActionPlans = async (req, res) => {
 // ===== UPDATE ACTION PLAN =====
 const updateActionPlan = async (req, res) => {
     try {
-        const { description, status, reviewNotes } = req.body;
+        const { description, status, reviewNotes, targetDate } = req.body;
         const plan = await prisma.actionPlan.findUnique({ where: { id: req.params.id } });
         if (!plan) return res.status(404).json({ message: 'Action plan not found' });
 
+        const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(req.user.role);
+        const isDeptRep = req.user.role === 'DEP_REP' && req.user.repDepartmentId === plan.departmentId;
+
+        if (!isControllerRole && !isDeptRep) {
+            return res.status(403).json({ message: 'Not authorized to modify this action plan' });
+        }
+
         const updateData = {};
         if (description) updateData.description = description;
+        if (targetDate) updateData.targetDate = new Date(targetDate);
         if (status) {
+            if ((status === 'APPROVED' || status === 'REJECTED') && !isControllerRole) {
+                return res.status(403).json({ message: 'Not authorized to review action plans' });
+            }
             updateData.status = status;
             if (status === 'APPROVED' || status === 'REJECTED') {
                 updateData.reviewedBy = req.user.name;
@@ -88,7 +101,7 @@ const updateActionPlan = async (req, res) => {
         });
 
         await prisma.activityLog.create({
-            data: { ticketId: plan.ticketId, actorId: req.user.id, action: 'ACTION_PLAN_UPDATED', details: `${plan.type} plan ${status || 'updated'}` }
+            data: { ticketId: plan.ticketId, actorId: req.user.id, action: 'STAGE_PLAN_UPDATED', details: `${plan.type} plan ${status || 'updated'}` }
         });
 
         res.json(updated);
@@ -131,7 +144,7 @@ const uploadActionPlanAttachment = async (req, res) => {
 
         res.json({ message: `${files.length} file(s) uploaded`, attachments: created });
     } catch (error) {
-        console.error('Upload AP Attachment Error:', error);
+        logger.error({ err: error }, 'Upload AP Attachment Error:');
         res.status(500).json({ message: error.message });
     }
 };
@@ -140,15 +153,55 @@ const uploadActionPlanAttachment = async (req, res) => {
 const getActionPlanAttachmentContent = async (req, res) => {
     try {
         // Try by direct ID first (new uploads), then fallback by URL for old mismatched records
-        let att = await prisma.actionPlanAttachment.findUnique({ where: { id: req.params.id } });
+        let att = await prisma.actionPlanAttachment.findUnique({ 
+            where: { id: req.params.id },
+            include: { actionPlan: { include: { ticket: true } } }
+        });
         if (!att) {
             att = await prisma.actionPlanAttachment.findFirst({
-                where: { url: { contains: req.params.id } }
+                where: { url: { contains: req.params.id } },
+                include: { actionPlan: { include: { ticket: true } } }
             });
         }
         if (!att || !att.data) return res.status(404).json({ message: 'Not found' });
-        res.setHeader('Content-Type', att.mimeType || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `inline; filename="${att.name}"`);
+
+        // IDOR Protection: Verify user is authorized to view this attachment
+        const role = req.user.role;
+        const userId = req.user.id;
+        const ticket = att.actionPlan?.ticket;
+        const plan = att.actionPlan;
+        
+        if (ticket) {
+            const isControllerOrAdmin = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
+            if (!isControllerOrAdmin) {
+                let canView = false;
+                const userDeptId = req.user.repDepartmentId || req.user.departmentId;
+
+                if (['OC_REPORTER', 'REPORTER'].includes(role)) {
+                    canView = (ticket.createdById === userId);
+                } else if (role === 'DEP_REP') {
+                    canView = (ticket.assignedToId === userId) || (ticket.departmentId === userDeptId) || (plan.departmentId === userDeptId);
+                } else if (role === 'DEP_MANAGER') {
+                    canView = (ticket.assignedToId === userId) || (ticket.status === 'ESCALATED' && ticket.departmentId === userDeptId);
+                } else if (role === 'HR_REP') {
+                    canView = (ticket.assignedToId === userId) || (ticket.hasInjury === true);
+                } else if (role === 'SERVICE_PROVIDER_REP') {
+                    canView = (ticket.assignedToId === userId) || (ticket.serviceProviderId === req.user.serviceProviderId);
+                }
+
+                if (!canView) {
+                    return res.status(403).json({ message: 'Not authorized to view this attachment' });
+                }
+            }
+        }
+        const safeInlineMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        const isSafeInline = safeInlineMimeTypes.includes(att.mimeType);
+        const disposition = isSafeInline ? 'inline' : 'attachment';
+
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'none'; sandbox;");
+        res.setHeader('Content-Type', isSafeInline ? att.mimeType : 'application/octet-stream');
+        res.setHeader('Content-Disposition', `${disposition}; filename="${att.name || 'attachment'}"`);
         res.setHeader('Cache-Control', 'private, max-age=3600');
         res.send(att.data);
     } catch (error) {
@@ -191,7 +244,21 @@ const getReminders = async (req, res) => {
 const completeReminder = async (req, res) => {
     try {
         const { completedNote } = req.body;
-        const reminder = await prisma.reminder.update({
+        const reminder = await prisma.reminder.findUnique({
+            where: { id: req.params.id },
+            include: { ticket: true }
+        });
+
+        if (!reminder) return res.status(404).json({ message: 'Reminder not found' });
+
+        const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(req.user.role);
+        const isDeptRep = req.user.role === 'DEP_REP' && req.user.repDepartmentId === reminder.ticket.departmentId;
+
+        if (!isControllerRole && !isDeptRep) {
+            return res.status(403).json({ message: 'Not authorized to complete this reminder' });
+        }
+
+        const updatedReminder = await prisma.reminder.update({
             where: { id: req.params.id },
             data: { isCompleted: true, completedAt: new Date(), completedNote }
         });
@@ -202,7 +269,17 @@ const completeReminder = async (req, res) => {
             data: { status: 'UNDER_REVIEW', activityLogs: { create: { actorId: req.user.id, action: 'REMINDER_COMPLETED', details: completedNote || 'Reminder completed' } } }
         });
 
-        res.json({ message: 'Reminder completed, ticket back to review', reminder });
+        // Notify the controller who created the reminder, or all controllers if unknown
+        if (reminder.createdById) {
+            await createNotification(reminder.createdById, 'Reminder Completed', `The department has completed the reminder for Ticket ${reminder.ticket.ticketNo}. It is now ready for your review.`, 'INFO', `/tickets/${reminder.ticketId}`);
+        } else {
+            const controllers = await prisma.user.findMany({ where: { role: { in: ['HSE_CONTROLLER', 'SAFETY_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+            if (controllers.length > 0) {
+                await createNotificationsBulk(controllers.map(c => c.id), 'Reminder Completed', `The department has completed a reminder for Ticket ${reminder.ticket.ticketNo}. It is now ready for your review.`, 'INFO', `/tickets/${reminder.ticketId}`);
+            }
+        }
+
+        res.json({ message: 'Reminder completed, ticket back to review', reminder: updatedReminder });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -213,9 +290,33 @@ const getTicketQRCode = async (req, res) => {
     try {
         const ticket = await prisma.ticket.findUnique({
             where: { id: req.params.id },
-            select: { ticketNo: true, status: true, type: true, createdAt: true, severityLevel: true }
+            select: { ticketNo: true, status: true, type: true, createdAt: true, severityLevel: true, createdById: true, assignedToId: true, departmentId: true, serviceProviderId: true, hasInjury: true }
         });
         if (!ticket) return res.status(404).json({ message: 'Not found' });
+
+        const { role, id: userId } = req.user;
+        const isControllerOrAdmin = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
+        
+        if (!isControllerOrAdmin) {
+            let canView = false;
+            const userDeptId = req.user.repDepartmentId || req.user.departmentId;
+
+            if (['OC_REPORTER', 'REPORTER'].includes(role)) {
+                canView = (ticket.createdById === userId);
+            } else if (role === 'DEP_REP') {
+                canView = (ticket.assignedToId === userId) || (ticket.departmentId === userDeptId);
+            } else if (role === 'DEP_MANAGER') {
+                canView = (ticket.assignedToId === userId) || (ticket.status === 'ESCALATED' && ticket.departmentId === userDeptId);
+            } else if (role === 'HR_REP') {
+                canView = (ticket.assignedToId === userId) || (ticket.hasInjury === true);
+            } else if (role === 'SERVICE_PROVIDER_REP') {
+                canView = (ticket.assignedToId === userId) || (ticket.serviceProviderId === req.user.serviceProviderId);
+            }
+
+            if (!canView) {
+                return res.status(403).json({ message: 'Not authorized to view this ticket' });
+            }
+        }
 
         const text = [
             'SMC HSE Platform',
@@ -239,12 +340,24 @@ const getTicketQRCode = async (req, res) => {
 // ===== DELETE ACTION PLAN ATTACHMENT =====
 const deleteActionPlanAttachment = async (req, res) => {
     try {
-        const att = await prisma.actionPlanAttachment.findUnique({ where: { id: req.params.id } });
+        const att = await prisma.actionPlanAttachment.findUnique({ 
+            where: { id: req.params.id },
+            include: { actionPlan: true }
+        });
         if (!att) return res.status(404).json({ message: 'Attachment not found' });
+
+        const plan = att.actionPlan;
+        const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(req.user.role);
+        const isDeptRep = req.user.role === 'DEP_REP' && req.user.repDepartmentId === plan.departmentId;
+
+        if (!isControllerRole && !isDeptRep) {
+            return res.status(403).json({ message: 'Not authorized to delete this attachment' });
+        }
+
         await prisma.actionPlanAttachment.delete({ where: { id: req.params.id } });
         res.json({ message: 'Attachment deleted' });
     } catch (error) {
-        console.error('Delete AP Attachment Error:', error);
+        logger.error({ err: error }, 'Delete AP Attachment Error:');
         res.status(500).json({ message: error.message });
     }
 };
