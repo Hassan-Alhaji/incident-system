@@ -417,6 +417,7 @@ enum TicketStatus {
   UNDER_REVIEW             // قيد المراجعة من المتحكم بعد رد القسم
   PENDING_REMINDER         // بانتظار التذكير
   ESCALATED                // مُصعّد لمدير السلامة
+  ASSIGNED_TO_HR           // حالة قديمة متوافقة مع البيانات السابقة
   CLOSED                   // مغلق
 }
 
