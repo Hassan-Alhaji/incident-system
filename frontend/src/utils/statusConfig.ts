@@ -2,7 +2,7 @@ export const STATUS_CONFIG: Record<string, { label: string; accent: string; chip
   // Active backend statuses
   SUBMITTED:              { label: 'Submitted',            accent: '#3b82f6', chip: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
   ASSIGNED:               { label: 'Assigned',             accent: '#f59e0b', chip: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
-
+  ASSIGNED_TO_HR:         { label: 'Assigned to HR',       accent: '#8b5cf6', chip: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
   UNDER_REVIEW:           { label: 'Under Review',         accent: '#6366f1', chip: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' },
   RETURNED_TO_REPORTER:   { label: 'Returned to Reporter', accent: '#f97316', chip: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
   RETURNED_TO_DEPARTMENT: { label: 'Returned to Dept',     accent: '#f97316', chip: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200' },
