@@ -26,10 +26,13 @@ model User {
   status          UserStatus            @default(ACTIVE)
   
   // Permissions
-  canCloseTickets Boolean               @default(false)
-  canPerformRCA   Boolean               @default(false)
-  canEscalate     Boolean               @default(false)
-  canManageUsers  Boolean               @default(false)
+  canCloseTickets             Boolean   @default(false)
+  canPerformRCA               Boolean   @default(false)
+  canEscalate                 Boolean   @default(false)
+  canManageUsers              Boolean   @default(false)
+  canManageEvents             Boolean   @default(false)
+  canManageServiceProviders   Boolean   @default(false)
+  canViewAnalytics            Boolean   @default(false)
 
   otpCode         String?
   otpExpires      DateTime?
@@ -331,8 +334,13 @@ model Department {
 
 model ServiceProvider {
   id                           String     @id @default(uuid())
-  name                         String
+  name                         String     // English name (legacy primary)
+  nameAr                       String?    // Arabic name
   commercialRegistrationNumber String     @unique
+  // Primary representative contact (denormalised for forms/reports)
+  representativeName           String?
+  representativeEmail          String?
+  representativeMobile         String?
   status                       String     @default("ACTIVE")
   responsibleDepartmentId      String
   department                   Department @relation(fields: [responsibleDepartmentId], references: [id])
@@ -389,9 +397,16 @@ enum Role {
 }
 
 enum TicketType {
-  OBSERVATION      // ملاحظة
-  ACCIDENT         // حادث
-  SECURITY         // أمني
+  OBSERVATION
+  ACCIDENT
+  SECURITY
+  VIOLATION
+  NEAR_MISS
+  INJURY
+  HEALTH
+  PROPERTY_DAMAGE
+  SECURITY_BREACH
+  OTHER
 }
 
 enum TicketStatus {

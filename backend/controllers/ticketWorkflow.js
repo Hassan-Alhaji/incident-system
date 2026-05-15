@@ -2,6 +2,12 @@ const prisma = require('../prismaClient');
 const { createNotification, createNotificationsBulk } = require('./notificationController');
 const logger = require('../lib/logger').child({ module: 'ticketWorkflow' });
 
+const safeParseJSON = (data, fallback = []) => {
+    if (!data) return fallback;
+    try { return typeof data === 'string' ? JSON.parse(data) : data; }
+    catch { return fallback; }
+};
+
 // ===== CONTROLLER ACTION =====
 const controllerAction = async (req, res) => {
     try {
@@ -15,7 +21,7 @@ const controllerAction = async (req, res) => {
         const { action, notes, severity, targetDepartmentId, newType, typeChangeReason, hazardCategory } = req.body;
 
         if (newType && newType !== ticket.type) {
-            if (!['OBSERVATION','SECURITY','ACCIDENT'].includes(newType)) {
+            if (!['OBSERVATION','SECURITY','ACCIDENT','VIOLATION','NEAR_MISS','INJURY','HEALTH','PROPERTY_DAMAGE','SECURITY_BREACH','OTHER'].includes(newType)) {
                 return res.status(400).json({ message: 'Invalid ticket type provided' });
             }
             if (!typeChangeReason) return res.status(400).json({ message: 'Reason required when changing type' });
@@ -49,7 +55,7 @@ const controllerAction = async (req, res) => {
             if (!notes || !notes.trim()) return res.status(400).json({ message: 'Controller notes required before routing' });
 
             const effectiveType = newType || ticket.type;
-            const rcaRequired = effectiveType !== 'OBSERVATION';
+            const rcaRequired = true; // User requested RCA to always be present for all types
             
             const { rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions } = req.body;
             
@@ -101,12 +107,8 @@ const controllerAction = async (req, res) => {
             
             // Check for employee injury to notify HR automatically
             let hasEmployeeInjury = false;
-            try {
-                if (ticket.offCircuitReport && ticket.offCircuitReport.injuredPersons) {
-                    const injured = JSON.parse(ticket.offCircuitReport.injuredPersons);
-                    hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
-                }
-            } catch (e) {}
+            const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
+            hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
             if (hasEmployeeInjury) {
                 await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { hrAssignedAt: new Date() } });
@@ -137,7 +139,7 @@ const hrAction = async (req, res) => {
 
         const { injuredPersonsGosi, hrNotes } = req.body;
 
-        let injuredPersons = ticket.offCircuitReport?.injuredPersons ? JSON.parse(ticket.offCircuitReport.injuredPersons) : [];
+        let injuredPersons = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
         const employeeInjured = injuredPersons.filter(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
         // Validate per-person GOSI
@@ -198,10 +200,10 @@ const departmentAction = async (req, res) => {
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
-        if (role !== 'DEP_REP' && role !== 'ADMIN') return res.status(403).json({ message: 'Only department reps' });
+        if (!['DEP_REP', 'DEP_MANAGER', 'ADMIN'].includes(role)) return res.status(403).json({ message: 'Only department reps and managers' });
         if (!['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) return res.status(400).json({ message: 'Ticket not in assignable state' });
 
-        if (role === 'DEP_REP') {
+        if (role === 'DEP_REP' || role === 'DEP_MANAGER') {
             const isSameDept = ticket.departmentId && ticket.departmentId === req.user.repDepartmentId;
             if (!isSameDept) return res.status(403).json({ message: 'Not your department ticket' });
         }
@@ -230,7 +232,7 @@ const departmentAction = async (req, res) => {
 // ===== CONTROLLER FINAL REVIEW =====
 const controllerFinalReview = async (req, res) => {
     try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, actionPlans: true } });
+        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, actionPlans: true, serviceProvider: true } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
@@ -242,26 +244,21 @@ const controllerFinalReview = async (req, res) => {
         if (action === 'RETURN_DEPARTMENT') {
             if (!notes) return res.status(400).json({ message: 'Notes required' });
             
-            // Check if this should actually go back to HR instead of Dept Rep
-            let hrDeptId = process.env.HR_DEPARTMENT_ID;
-            if (!hrDeptId) {
-                const hrDept = await prisma.department.findFirst({ where: { OR: [{ name: { contains: 'HR', mode: 'insensitive' } }, { nameAr: { contains: 'موارد' } }] }, select: { id: true } });
-                hrDeptId = hrDept ? hrDept.id : null;
-            }
-            
-            const isHRTicket = ticket.departmentId && ticket.departmentId === hrDeptId;
             const newStatus = 'RETURNED_TO_DEPARTMENT';
+            await prisma.ticket.update({ 
+                where: { id: ticket.id }, 
+                data: { 
+                    status: newStatus, 
+                    offCircuitReport: { update: { controllerNotes: notes, controllerFilledBy: req.user.name, controllerFilledAt: new Date() } },
+                    activityLogs: { create: { actorId: req.user.id, action: newStatus, details: notes } } 
+                } 
+            });
             
-            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: newStatus, activityLogs: { create: { actorId: req.user.id, action: newStatus, details: notes } } } });
-            
-            if (isHRTicket) {
-                const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
-                if (hrReps.length > 0) await createNotificationsBulk(hrReps.map(rep => rep.id), 'Ticket Returned', `Ticket ${ticket.ticketNo} returned by controller for revision. Notes: ${notes}`, 'RETURNED', `/tickets/${ticket.id}`);
-            } else if (ticket.departmentId) {
+            if (ticket.departmentId) {
                 const depReps = await prisma.user.findMany({ where: { repDepartmentId: ticket.departmentId, role: 'DEP_REP', status: 'ACTIVE' }, select: { id: true } });
                 if (depReps.length > 0) await createNotificationsBulk(depReps.map(rep => rep.id), 'Ticket Returned', `Ticket ${ticket.ticketNo} returned for revision. Notes: ${notes}`, 'RETURNED', `/tickets/${ticket.id}`);
             }
-            return res.json({ message: 'Returned to department/HR', status: newStatus });
+            return res.json({ message: 'Returned to department', status: newStatus });
         }
 
         if (action === 'REMIND_HR') {
@@ -275,13 +272,25 @@ const controllerFinalReview = async (req, res) => {
 
         if (action === 'SET_REMINDER') {
             if (!reminderDate || !reminderMessage) return res.status(400).json({ message: 'Reminder date and message required' });
-            await prisma.reminder.create({ data: { ticketId: ticket.id, message: reminderMessage, reminderDate: new Date(reminderDate), createdById: req.user.id } });
+            const reminderDt = new Date(reminderDate);
+            if (isNaN(reminderDt.getTime())) return res.status(400).json({ message: 'Invalid reminder date' });
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            if (reminderDt < today) return res.status(400).json({ message: 'Reminder date must be today or in the future' });
+            await prisma.reminder.create({ data: { ticketId: ticket.id, message: reminderMessage, reminderDate: reminderDt, createdById: req.user.id } });
             await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'PENDING_REMINDER', activityLogs: { create: { actorId: req.user.id, action: 'REMINDER_SET', details: `Reminder: ${reminderMessage} (${reminderDate})` } } } });
             return res.json({ message: 'Reminder set', status: 'PENDING_REMINDER' });
         }
 
         if (action === 'ESCALATE') {
-            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'ESCALATED', escalatedToRole: 'SAFETY_MANAGER', offCircuitReport: { update: { rcaRequired: true } }, activityLogs: { create: { actorId: req.user.id, action: 'ESCALATED', details: notes || 'Escalated to Safety Manager' } } } });
+            await prisma.ticket.update({ 
+                where: { id: ticket.id }, 
+                data: { 
+                    status: 'ESCALATED', 
+                    escalatedToRole: 'SAFETY_MANAGER', 
+                    offCircuitReport: { update: { rcaRequired: true, controllerNotes: notes || 'Escalated to Safety Manager', controllerFilledBy: req.user.name, controllerFilledAt: new Date() } }, 
+                    activityLogs: { create: { actorId: req.user.id, action: 'ESCALATED', details: notes || 'Escalated to Safety Manager' } } 
+                } 
+            });
             const managers = await prisma.user.findMany({ where: { role: { in: ['SAFETY_MANAGER', 'OC_HSE_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
             if (managers.length > 0) await createNotificationsBulk(managers.map(m => m.id), 'Ticket Escalated', `Ticket ${ticket.ticketNo} escalated`, 'ESCALATED', `/tickets/${ticket.id}`);
             return res.json({ message: 'Escalated', status: 'ESCALATED' });
@@ -290,8 +299,15 @@ const controllerFinalReview = async (req, res) => {
         
 
         if (action === 'CLOSE') {
-            const { hasFinancialViolation, violationDescription, violationAmount } = req.body;
-            const isFinViolation = hasFinancialViolation === true || hasFinancialViolation === 'true';
+            const { violationType, violationDescription, violationAmount } = req.body;
+            
+            const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
+            const hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+
+            let finalViolationType = violationType;
+            if (hasEmployeeInjury) {
+                finalViolationType = 'NONE';
+            }
 
             if (ticket.offCircuitReport?.rcaRequired && !ticket.offCircuitReport?.rcaCompleted) return res.status(400).json({ message: 'Cannot close: RCA required but not completed' });
             
@@ -303,13 +319,20 @@ const controllerFinalReview = async (req, res) => {
                 }
             }
 
-            if (hasFinancialViolation === undefined || (!violationDescription && !notes)) {
-                return res.status(400).json({ message: 'Closure reason / violation description is required' });
+            if (!finalViolationType) {
+                return res.status(400).json({ message: 'Violation type is required' });
             }
-            if (isFinViolation && !violationAmount) {
+
+            if (finalViolationType !== 'NONE' && !violationDescription) {
+                return res.status(400).json({ message: 'Violation description is required' });
+            }
+
+            if (finalViolationType === 'FINANCIAL' && !violationAmount) {
                 return res.status(400).json({ message: 'Violation amount is required when there is a financial violation' });
             }
 
+            const isFinViolation = finalViolationType === 'FINANCIAL';
+            const isWarningViolation = finalViolationType === 'WARNING';
             const forwardedToFinance = isFinViolation;
 
             await prisma.ticket.update({ 
@@ -319,16 +342,16 @@ const controllerFinalReview = async (req, res) => {
                     closedBy: req.user.name, 
                     closedByRole: role, 
                     closedAt: new Date(), 
-                    closureReason: violationDescription || notes, 
+                    closureReason: violationDescription || notes || 'Closed', 
                     hasFinancialViolation: isFinViolation,
-                    violationDescription: violationDescription,
+                    violationDescription: violationDescription || null,
                     violationAmount: isFinViolation ? violationAmount : null,
                     forwardedToFinance: isFinViolation,
                     activityLogs: { 
                         create: { 
                             actorId: req.user.id, 
                             action: 'STAGE_CLOSED', 
-                            details: (notes || violationDescription) + (isFinViolation ? ' (Forwarded to Finance)' : '')
+                            details: (notes || violationDescription || 'Closed') + (isFinViolation ? ' (Financial Violation)' : isWarningViolation ? ' (Warning Violation)' : '')
                         } 
                     } 
                 } 
@@ -337,10 +360,22 @@ const controllerFinalReview = async (req, res) => {
                 const closeMsg = "Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.";
                 await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
             }
+            
+            // Notification to Responsible Department (for Warning and Financial)
+            if (ticket.departmentId && (isWarningViolation || isFinViolation)) {
+                const depReps = await prisma.user.findMany({ where: { repDepartmentId: ticket.departmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+                if (depReps.length > 0) {
+                    const notifyType = isFinViolation ? 'Financial Violation' : 'Warning Violation';
+                    await createNotificationsBulk(depReps.map(f => f.id), `Ticket Closed - ${notifyType}`, `Ticket ${ticket.ticketNo} has been closed with a ${notifyType}. Decision: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`);
+                }
+            }
+
             if (forwardedToFinance) {
                 const financeReps = await prisma.user.findMany({ where: { role: 'FINANCE_REP', status: 'ACTIVE' }, select: { id: true } });
                 if (financeReps.length > 0) {
-                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `Ticket ${ticket.ticketNo} has been forwarded to Finance for violation processing. Amount: ${violationAmount}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
+                    const sp = ticket.serviceProvider;
+                    const spDetails = sp ? `${sp.name} (CR: ${sp.commercialRegistrationNumber || 'N/A'})` : 'Unknown Provider';
+                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `A financial violation of ${violationAmount} SAR has been issued against Service Provider: ${spDetails}. Notes: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
                 }
             }
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });
@@ -356,7 +391,7 @@ const controllerFinalReview = async (req, res) => {
 // ===== SAFETY MANAGER ACTIONS =====
 const safetyManagerAction = async (req, res) => {
     try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true } });
+        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, serviceProvider: true } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
         const { role } = req.user;
         if (!['SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role)) return res.status(403).json({ message: 'Only Safety Manager' });
@@ -367,26 +402,65 @@ const safetyManagerAction = async (req, res) => {
         
 
         if (action === 'RETURN') {
-            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'RETURNED_TO_DEPARTMENT', escalatedToRole: null, activityLogs: { create: { actorId: req.user.id, action: 'RETURNED_FROM_ESCALATION', details: notes || 'Returned from escalation' } } } });
-            return res.json({ message: 'Returned to department', status: 'RETURNED_TO_DEPARTMENT' });
+            await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_REVIEW', escalatedToRole: null, activityLogs: { create: { actorId: req.user.id, action: 'RETURNED_FROM_ESCALATION', details: notes || 'Returned to controller' } } } });
+            return res.json({ message: 'Returned to controller', status: 'UNDER_REVIEW' });
+        }
+
+        if (action === 'ESCALATE_DEPT') {
+            const { targetDepartmentId } = req.body;
+            if (!targetDepartmentId) return res.status(400).json({ message: 'Department is required' });
+            const targetDept = await prisma.department.findUnique({ where: { id: targetDepartmentId } });
+            const deptName = targetDept ? (targetDept.nameAr || targetDept.name) : 'Unknown';
+            await prisma.ticket.update({ 
+                where: { id: ticket.id }, 
+                data: { 
+                    status: 'ASSIGNED', 
+                    escalatedToRole: null, 
+                    departmentId: targetDepartmentId, 
+                    offCircuitReport: { update: { controllerNotes: notes || 'Escalated by Safety Manager', controllerFilledBy: req.user.name, controllerFilledAt: new Date(), responsibleDeptId: targetDepartmentId } },
+                    activityLogs: { create: { actorId: req.user.id, action: 'ESCALATED_TO_DEPT', details: `Escalated to department: ${deptName}. Notes: ${notes || ''}` } } 
+                } 
+            });
+            return res.json({ message: 'Escalated to department', status: 'ASSIGNED' });
+        }
+
+        if (action === 'REMIND_HR') {
+            const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
+            if (hrReps.length > 0) {
+                await createNotificationsBulk(hrReps.map(rep => rep.id), 'GOSI Missing', `Reminder: Please confirm the GOSI report for Ticket ${ticket.ticketNo}`, 'INFO', `/tickets/${ticket.id}`);
+            }
+            await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'REMINDER_SET', details: 'Reminded HR to fill GOSI data.' } });
+            return res.json({ message: 'HR has been reminded successfully', status: ticket.status });
         }
 
         if (action === 'CLOSE') {
-            const { hasFinancialViolation, violationDescription, violationAmount } = req.body;
+            const { violationType, violationDescription, violationAmount } = req.body;
             const rcaOverridden = ticket.offCircuitReport?.rcaRequired && !ticket.offCircuitReport?.rcaCompleted;
-            const isFinViolation = hasFinancialViolation === true || hasFinancialViolation === 'true';
 
-            if (hasFinancialViolation === undefined || !violationDescription) {
-                return res.status(400).json({ message: 'Financial violation decision and description are required' });
+            const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
+            const hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+
+            let finalViolationType = violationType;
+            if (hasEmployeeInjury) {
+                finalViolationType = 'NONE';
             }
-            if (isFinViolation && !violationAmount) {
+
+            if (!finalViolationType) {
+                return res.status(400).json({ message: 'Violation type is required' });
+            }
+            if (finalViolationType !== 'NONE' && !violationDescription) {
+                return res.status(400).json({ message: 'Violation description is required' });
+            }
+            if (finalViolationType === 'FINANCIAL' && !violationAmount) {
                 return res.status(400).json({ message: 'Violation amount is required when there is a financial violation' });
             }
 
+            const isFinViolation = finalViolationType === 'FINANCIAL';
+            const isWarningViolation = finalViolationType === 'WARNING';
             const forwardedToFinance = isFinViolation;
 
             if (ticket.offCircuitReport) {
-                await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { finalDecision: 'CLOSE', finalNotes: notes || violationDescription, hseManagerFilledBy: req.user.name, hseManagerFilledAt: new Date() } });
+                await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { finalDecision: 'CLOSE', finalNotes: violationDescription || notes, hseManagerFilledBy: req.user.name, hseManagerFilledAt: new Date() } });
             }
             await prisma.ticket.update({ 
                 where: { id: ticket.id }, 
@@ -395,16 +469,16 @@ const safetyManagerAction = async (req, res) => {
                     closedBy: req.user.name, 
                     closedByRole: role, 
                     closedAt: new Date(), 
-                    closureReason: violationDescription || notes, 
+                    closureReason: violationDescription || notes || 'Closed', 
                     hasFinancialViolation: isFinViolation,
-                    violationDescription: violationDescription,
+                    violationDescription: violationDescription || null,
                     violationAmount: isFinViolation ? violationAmount : null,
                     forwardedToFinance: isFinViolation,
                     activityLogs: { 
                         create: { 
                             actorId: req.user.id, 
                             action: 'STAGE_CLOSED', 
-                            details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || '') + (isFinViolation ? ' (Forwarded to Finance)' : '')
+                            details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || notes || '') + (isFinViolation ? ' (Financial Violation)' : isWarningViolation ? ' (Warning Violation)' : '')
                         } 
                     } 
                 } 
@@ -413,10 +487,22 @@ const safetyManagerAction = async (req, res) => {
                 const closeMsg = "Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.";
                 await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
             }
+
+            // Notification to Responsible Department (for Warning and Financial)
+            if (ticket.departmentId && (isWarningViolation || isFinViolation)) {
+                const depReps = await prisma.user.findMany({ where: { repDepartmentId: ticket.departmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+                if (depReps.length > 0) {
+                    const notifyType = isFinViolation ? 'Financial Violation' : 'Warning Violation';
+                    await createNotificationsBulk(depReps.map(f => f.id), `Ticket Closed - ${notifyType}`, `Ticket ${ticket.ticketNo} has been closed with a ${notifyType}. Decision: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`);
+                }
+            }
+
             if (forwardedToFinance) {
                 const financeReps = await prisma.user.findMany({ where: { role: 'FINANCE_REP', status: 'ACTIVE' }, select: { id: true } });
                 if (financeReps.length > 0) {
-                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `Ticket ${ticket.ticketNo} has been forwarded to Finance for violation processing. Amount: ${violationAmount}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
+                    const sp = ticket.serviceProvider;
+                    const spDetails = sp ? `${sp.name} (CR: ${sp.commercialRegistrationNumber || 'N/A'})` : 'Unknown Provider';
+                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `A financial violation of ${violationAmount} SAR has been issued against Service Provider: ${spDetails}. Notes: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
                 }
             }
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });

@@ -109,11 +109,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const isDepRep = ['DEP_REP', 'DEP_MANAGER'].includes(role);
   const isHrRep  = role === 'HR_REP';
   const isReviewer = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role);
-  // DEP_REP edits when assigned/returned to their dept.
-  // HR_REP edits when assigned to HR OR controller returned the HR-handled ticket for revision.
-  const canEdit =
-    (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
-    (isHrRep  && ['ASSIGNED_TO_HR', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status));
+  const canEdit = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
 
   const [forms, setForms] = useState<Record<string, { desc: string; date: string }>>(() => {
     const init: Record<string, { desc: string; date: string }> = {};
@@ -137,6 +133,8 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // pending attachment-delete confirmation (replaces native confirm() dialog)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // pending action plan delete confirmation
+  const [confirmDeletePlan, setConfirmDeletePlan] = useState<string | null>(null);
 
   const getPlan = (type: string) => plans.find(p => p.type === type);
 
@@ -243,6 +241,9 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
       for (const plan of submittedPlans) {
         await api.put(`/action-plans/${plan.id}`, { status, reviewNotes: reviewNote || null });
       }
+      if (status === 'REJECTED') {
+        await api.put(`/tickets/${ticket.id}/controller-review`, { action: 'RETURN_DEPARTMENT', notes: reviewNote || 'Action plans rejected' });
+      }
       showToast(status === 'APPROVED' ? t('errors.planApproved') : t('errors.planRejected'),
         status === 'APPROVED' ? 'success' : 'warning');
       setReviewNote(''); setShowRejectNotes(false);
@@ -258,6 +259,16 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
       onRefresh();
     } catch (err: any) {
       showToast(err.response?.data?.message || t('errors.attachmentDeleteFailed'), 'error');
+    }
+  };
+
+  const deletePlan = async (planId: string) => {
+    try {
+      await api.delete(`/action-plans/${planId}`);
+      showToast(isRtl ? 'تم حذف الخطة بنجاح' : 'Action plan deleted successfully', 'success');
+      onRefresh();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || t('errors.generic'), 'error');
     }
   };
 
@@ -306,12 +317,23 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                   <p className="text-xs text-slate-600 font-medium max-w-lg mt-0.5 leading-relaxed">{isRtl ? pd.descAr : pd.descEn}</p>
                 </div>
                 {isSaved && (
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' :
-                      rejected ? 'bg-red-100 text-red-700' :
-                        'bg-blue-100 text-blue-700'
-                    }`}>
-                    {approved ? (isRtl ? '✓ مُعتمدة' : '✓ Approved') : rejected ? (isRtl ? '✗ مرفوضة' : '✗ Rejected') : (isRtl ? '⏳ محفوظة' : '⏳ Saved')}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700' :
+                        rejected ? 'bg-red-100 text-red-700' :
+                          'bg-blue-100 text-blue-700'
+                      }`}>
+                      {approved ? (isRtl ? '✓ مُعتمدة' : '✓ Approved') : rejected ? (isRtl ? '✗ مرفوضة' : '✗ Rejected') : (isRtl ? '⏳ محفوظة' : '⏳ Saved')}
+                    </span>
+                    {canEdit && !approved && (
+                      <button
+                        onClick={() => setConfirmDeletePlan(ex.id)}
+                        className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300 w-7 h-7 rounded-full transition-all shadow-sm flex items-center justify-center tooltip"
+                        title={isRtl ? 'حذف هذه الخطة' : 'Delete this plan'}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -320,6 +342,13 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                 {canEdit && !approved ? (
                   /* ── Editable form (DEP_REP) ── */
                   <>
+                    {rejected && ex?.reviewNotes && (
+                      <div className="rounded-lg p-2.5 text-xs mb-3 bg-red-50 border border-red-200 text-red-700">
+                        <div>
+                          <strong>{isRtl ? 'ملاحظة المراجع: ' : 'Reviewer Note: '}</strong>{ex.reviewNotes}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-sm font-bold text-gray-700">{isRtl ? 'الوصف' : 'Description'} {pd.required ? <span className="text-red-500">*</span> : <span className="text-gray-400 font-normal">{isRtl ? '(اختياري)' : '(Optional)'}</span>}</label>
@@ -341,7 +370,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                     </div>
 
                     <div className="flex items-center gap-3 mt-4">
-                      <label className="text-sm font-bold text-gray-700 whitespace-nowrap">{isRtl ? 'التاريخ المستهدف' : 'Target Date'} {pd.required ? <span className="text-red-500">*</span> : ''}:</label>
+                      <label className="text-sm font-bold text-gray-700 whitespace-nowrap">{isRtl ? 'التاريخ المستهدف' : 'Target Date'} {(pd.required || form.desc.trim()) ? <span className="text-red-500">*</span> : ''}:</label>
                       <input
                         id={`action-plan-date-${pd.type}`} name={`action-plan-date-${pd.type}`}
                         type="date"
@@ -731,129 +760,56 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-export const RCASection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () => void }) => {
-  const { t, i18n } = useTranslation();
-  const { showToast } = useToast();
-  const isRtl = i18n.language === 'ar';
-  const oc = ticket.offCircuitReport;
-  const [loading, setLoading] = useState(false);
-  // Q1: Immediate Causes
-  const [cause, setCause] = useState(oc?.rcaCause || '');
-  // Q2: Underlying Causes
-  const [why, setWhy] = useState(oc?.rcaWhy || '');
-  // Q3: Root Causes
-  const [rootCause, setRootCause] = useState(oc?.rcaRootCause || '');
-  // Q4: Corrective Actions (stored in rcaCategory field)
-  const [correctiveActions, setCorrectiveActions] = useState(oc?.rcaCategory || '');
-  // Q5: Preventive Actions
-  const [preventiveActions, setPreventiveActions] = useState(oc?.rcaPreventiveActions || '');
-
-  const { user } = useAuth();
-  const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(user?.role || '');
-  const canEdit = isControllerRole && ticket.status === 'UNDER_INVESTIGATION';
-  const isCompleted = oc?.rcaCompleted;
-
-  const countWords = (str: string) => str.trim().split(/\s+/).filter(w => w.length > 0).length;
-
-  const handleSubmit = async () => {
-    if (!cause || !why || !rootCause || !correctiveActions || !preventiveActions) {
-      return showToast(t('errors.rcaFieldsRequired'), 'warning');
-    }
-    if (countWords(cause) < 10 || countWords(why) < 10 || countWords(rootCause) < 10 || countWords(correctiveActions) < 10 || countWords(preventiveActions) < 10) {
-      return showToast(t('errors.rcaMinWords'), 'warning');
-    }
-    setLoading(true);
-    try {
-      await api.put(`/tickets/${ticket.id}/rca`, {
-        rcaCause: cause,
-        rcaWhy: why,
-        rcaRootCause: rootCause,
-        rcaCategory: correctiveActions,
-        rcaPreventiveActions: preventiveActions,
-      });
-      onRefresh();
-    } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
-    finally { setLoading(false); }
-  };
-
-  if (!oc?.rcaRequired) return null;
-  if (!isControllerRole && !isCompleted) return null;
-
-
-
-  const RCA_QUESTIONS = [
-    { num: 1, en: 'What are the Immediate Causes?', ar: 'ماهي الأسباب المباشرة للحدث/الحادث ؟', value: cause, setter: setCause, bg: 'bg-red-50', border: 'border-red-200', numBg: 'bg-red-600', labelColor: 'text-red-800' },
-    { num: 2, en: 'What are the Underlying Causes?', ar: 'ماهي الأسباب الغير مباشرة للحدث/الحادث ؟', value: why, setter: setWhy, bg: 'bg-orange-50', border: 'border-orange-200', numBg: 'bg-orange-600', labelColor: 'text-orange-800' },
-    { num: 3, en: 'What are the Root Causes?', ar: 'ماهي الأسباب الجذرية للحدث/الحادث ؟', value: rootCause, setter: setRootCause, bg: 'bg-amber-50', border: 'border-amber-200', numBg: 'bg-amber-600', labelColor: 'text-amber-800' },
-    { num: 4, en: 'Immediate and Corrective Actions', ar: 'الإجراءات الفورية والتصحيحية', value: correctiveActions, setter: setCorrectiveActions, bg: 'bg-blue-50', border: 'border-blue-200', numBg: 'bg-blue-600', labelColor: 'text-blue-800' },
-    { num: 5, en: 'Preventive Actions', ar: 'الإجراءات الوقائية التي تمنع تكرار الحادث', value: preventiveActions, setter: setPreventiveActions, bg: 'bg-emerald-50', border: 'border-emerald-200', numBg: 'bg-emerald-600', labelColor: 'text-emerald-800' },
-  ];
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-      <div className={`px-4 py-3 border-b ${isCompleted ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-        <h3 className="text-sm font-bold flex items-center gap-2">
-          {isCompleted
-            ? <><Check size={14} className="text-emerald-500" /> {isRtl ? 'تحليل السبب الجذري' : 'Root Cause Analysis'} ✓</>
-            : <><AlertTriangle size={14} className="text-amber-500" /> {isRtl ? 'تحليل السبب الجذري' : 'Root Cause Analysis'} ({isRtl ? 'مطلوب' : 'Required'})</>}
-        </h3>
-      </div>
-
-      {/* Pending — waiting for controller to click Proceed to RCA */}
-      {!isCompleted && isControllerRole && ticket.status === 'UNDER_REVIEW' && (
-        <div className="p-5 flex flex-col items-center gap-3 text-center">
-          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-2xl">📋</div>
-          <p className="text-sm font-bold text-slate-700">
-            {isRtl ? 'لم يبدأ تحليل السبب الجذري بعد' : 'RCA Not Started Yet'}
-          </p>
-          <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-            {isRtl ? 'راجع خطط العمل أولاً، ثم اضغط "الانتقال إلى RCA" في قسم الإجراءات أدناه.' : 'Review the action plans first, then click "Proceed to RCA" in the Actions section below.'}
-          </p>
+      {/* ── Action plan delete confirmation modal ── */}
+      {confirmDeletePlan && (
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setConfirmDeletePlan(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="h-1 bg-red-500" />
+            <div className="p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <Trash2 size={18} className="text-red-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    {isRtl ? 'حذف الخطة' : 'Delete Action Plan'}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {isRtl
+                      ? 'هل أنت متأكد من حذف خطة العمل هذه؟ سيتم حذف جميع المرفقات المرتبطة بها ولن تتمكن من التراجع.'
+                      : 'Are you sure you want to delete this action plan? All its attachments will be deleted and this cannot be undone.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDeletePlan(null)}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-all"
+                >
+                  {isRtl ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => { const id = confirmDeletePlan; setConfirmDeletePlan(null); if (id) deletePlan(id); }}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-red-600/30"
+                >
+                  {isRtl ? 'حذف' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Full form — only in UNDER_INVESTIGATION or when completed */}
-      {(canEdit || isCompleted) && (
-      <div className="p-4 space-y-4">
-        {RCA_QUESTIONS.map((q) => (
-          <div key={q.num} className={`rounded-xl border ${q.border} ${q.bg} p-4 space-y-2`}>
-            <div className="flex items-start gap-3">
-              <div className={`w-7 h-7 ${q.numBg} rounded-lg flex items-center justify-center text-white text-xs font-black flex-shrink-0`}>
-                {q.num}
-              </div>
-              <div className="flex-1">
-                <p className={`text-sm font-black ${q.labelColor}`}>{q.en}</p>
-                <p className="text-xs font-bold text-slate-500 mt-0.5" dir="rtl">{q.ar}</p>
-              </div>
-              {canEdit && <MagicWandButton text={q.value} context={oc?.whatHappened || ''} type="RCA_DRAFT" onEnhanced={q.setter} />}
-            </div>
-            <textarea
-              id={`rca-q-${q.num}`} name={`rca-q-${q.num}`}
-              value={q.value}
-              onChange={e => q.setter(e.target.value)}
-              disabled={!canEdit}
-              rows={6}
-              placeholder={canEdit ? (isRtl ? 'اكتب إجابتك هنا...' : 'Write your answer here...') : ''}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-3 resize-y disabled:bg-gray-50/80 min-h-[120px] focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
-            />
-          </div>
-        ))}
-
-        {oc?.rcaFilledBy && <p className="text-[10px] text-gray-400">{isRtl ? 'أكمله:' : 'Completed by:'} {oc.rcaFilledBy} ({new Date(oc.rcaFilledAt).toLocaleString()})</p>}
-        {canEdit && (
-          <button onClick={handleSubmit} disabled={loading} className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-md">
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {isRtl ? 'حفظ تحليل السبب الجذري' : 'Submit RCA'}
-          </button>
-        )}
-      </div>
-      )}
     </div>
   );
 };
+
+
 
 export const ReminderSection = ({ ticket, onRefresh }: { ticket: any; onRefresh: () => void }) => {
   const { t } = useTranslation();

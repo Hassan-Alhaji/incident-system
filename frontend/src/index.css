@@ -5,6 +5,20 @@
   :root {
     --sidebar-width: 15rem;
     --header-height: 3.5rem;
+
+    /* Unified surface system */
+    --surface-0: #ffffff;
+    --surface-1: #f8fafc;
+    --surface-2: #f1f5f9;
+
+    /* Unified focus ring color (WCAG AA on white & slate-50) */
+    --ring: 59 130 246; /* blue-500 */
+
+    /* Unified shadow tokens */
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 12px 28px -8px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.06);
   }
 
   html {
@@ -12,6 +26,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    /* Prevent iOS auto text-size adjustment that breaks responsive typography */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -35,14 +52,27 @@
     text-align: left !important;
   }
 
+  /* ── Unified focus-visible ring across all interactive elements ── */
+  /* keyboard-only — does not interfere with mouse clicks */
+  :where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--ring));
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  /* Remove default focus outline only when our custom one applies */
+  :where(button, [role="button"], a):focus:not(:focus-visible) {
+    outline: none;
+  }
+
   /* Custom scrollbar */
   * {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
   *::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
@@ -50,6 +80,7 @@
   *::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 99px;
+    transition: background 0.2s ease;
   }
   *::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
@@ -62,6 +93,9 @@
   .sidebar-scroll::-webkit-scrollbar-thumb {
     background: #334155;
   }
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
 
   /* Safe area bottom for mobile notch devices */
   .safe-area-bottom {
@@ -73,9 +107,84 @@
     input[type="date"],
     input[type="time"],
     input[type="datetime-local"],
-    select {
-      min-height: 44px;
+    select,
+    button:not(.no-touch-min) {
+      min-height: 40px;
     }
+  }
+
+  /* ── Mobile typography rhythm — slightly tighter line-height on small screens ── */
+  @media (max-width: 640px) {
+    body {
+      font-size: 14px;
+    }
+    h1, h2, h3 {
+      letter-spacing: -0.015em;
+    }
+  }
+
+  /* ── Reduced motion: honor OS preference ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* ── Skeleton shimmer (used by Skeleton component) ── */
+  @keyframes skeleton-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgb(241 245 249) 0%,
+      rgb(226 232 240) 50%,
+      rgb(241 245 249) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+    border-radius: 8px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+      background: rgb(241 245 249);
+    }
+  }
+
+  /* ── Soft, consistent hover lift utility ── */
+  .lift-hover {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .lift-hover:hover {
+    transform: translateY(-1px);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lift-hover:hover { transform: none; }
+  }
+
+  /* Prevent horizontal overflow on mobile from rogue wide content using #root */
+  #root {
+    overflow-x: hidden;
+  }
+
+  /* But allow tables/maps to scroll horizontally explicitly */
+  .x-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide scrollbar visually (e.g. tabs strip) while keeping scroll functional */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 

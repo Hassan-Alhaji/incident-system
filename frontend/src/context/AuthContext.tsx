@@ -23,6 +23,8 @@ interface User {
  canManageUsers?: boolean;
  canCloseTickets?: boolean;
  canPerformRCA?: boolean;
+ canManageEvents?: boolean;
+ canManageServiceProviders?: boolean;
 }
 
 interface AuthContextType {

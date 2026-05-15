@@ -23,7 +23,7 @@ const createTicket = async (req, res) => {
         if (!ROLES.REPORTER.includes(userRole) && userRole !== 'ADMIN') {
             return res.status(403).json({ message: 'Only reporters can create tickets' });
         }
-        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId } = req.body;
+        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId, departmentId } = req.body;
 
         if (!incidentType || !['OBSERVATION','SECURITY'].includes(incidentType)) {
             return res.status(400).json({ message: 'Valid incident type required (OBSERVATION, SECURITY)' });
@@ -51,14 +51,18 @@ const createTicket = async (req, res) => {
             });
             
             const ticketNo = `INC-${currentYear}-${String(count + 1 + retries).padStart(5, '0')}`;
+            let priority = 'MEDIUM';
             
             try {
                 ticket = await prisma.ticket.create({
                     data: {
                         ticketNo,
+                        createdById: req.user.id,
+                        departmentId: departmentId || null,
+                        zoneId: zoneId || null,
                         type: incidentType,
                         status: 'SUBMITTED',
-                        priority: 'MEDIUM',
+                        priority,
                         userGroup: 'OFF_CIRCUIT',
                         incidentDate: new Date(incidentDate),
                         incidentTime,
@@ -191,7 +195,7 @@ const getTickets = async (req, res) => {
         const stats = { total, open, closed, escalated, injuries };
 
         // Mask confidential PII for non-authorized roles
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(role);
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
         const sanitizedTickets = tickets.map(t => {
             if (!isConfidentialViewer && t.createdById !== userId) {
                 if (t.createdBy) t.createdBy = { id: t.createdBy.id, role: t.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
@@ -267,7 +271,7 @@ const getTicketById = async (req, res) => {
             }
         }
 
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(role) || ticket.createdById === userId;
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role) || ticket.createdById === userId;
         if (!isConfidentialViewer) {
             if (ticket.createdBy) {
                 ticket.createdBy = { 
@@ -321,7 +325,7 @@ const reporterReply = async (req, res) => {
 
         const updated = await prisma.ticket.findUnique({ where: { id }, include: { offCircuitReport: true, createdBy: { select: { id: true, name: true, role: true, email: true, mobile: true, department: true } }, activityLogs: { include: { actor: { select: { name: true, role: true } } }, orderBy: { createdAt: 'desc' } }, attachments: true } });
         
-        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'DEP_REP', 'DEP_MANAGER', 'HR_REP', 'FINANCE_REP'].includes(req.user.role) || updated.createdById === req.user.id;
+        const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(req.user.role) || updated.createdById === req.user.id;
         if (!isConfidentialViewer && updated) {
             if (updated.createdBy) updated.createdBy = { id: updated.createdBy.id, role: updated.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
             updated.reporterName = 'Confidential';

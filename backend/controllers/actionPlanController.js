@@ -20,6 +20,7 @@ const createActionPlan = async (req, res) => {
             return res.status(400).json({ message: 'Valid type required' });
         }
         if (!description?.trim()) return res.status(400).json({ message: 'Description required' });
+        if (!targetDate) return res.status(400).json({ message: 'Target date is required' });
 
         const dataPayload = {
             ticketId,
@@ -330,9 +331,34 @@ const getTicketQRCode = async (req, res) => {
 
         const png = await qrcode.toBuffer(text, { width: 220, margin: 2, color: { dark: '#1e3a5f', light: '#ffffff' } });
         res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Cache-Control', 'public, max-age=3600');
+        // Private cache only — prevents shared/CDN caching of ticket-specific QR codes
+        res.setHeader('Cache-Control', 'private, max-age=600');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         res.send(png);
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ===== DELETE ACTION PLAN =====
+const deleteActionPlan = async (req, res) => {
+    try {
+        const plan = await prisma.actionPlan.findUnique({ where: { id: req.params.id } });
+        if (!plan) return res.status(404).json({ message: 'Action plan not found' });
+
+        const isControllerRole = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(req.user.role);
+        const isDeptRep = req.user.role === 'DEP_REP' && req.user.repDepartmentId === plan.departmentId;
+
+        if (!isControllerRole && !isDeptRep) {
+            return res.status(403).json({ message: 'Not authorized to delete this action plan' });
+        }
+
+        // Must first delete attachments if any
+        await prisma.actionPlanAttachment.deleteMany({ where: { actionPlanId: req.params.id } });
+        await prisma.actionPlan.delete({ where: { id: req.params.id } });
+        res.json({ message: 'Action plan deleted' });
+    } catch (error) {
+        logger.error({ err: error }, 'Delete Action Plan Error:');
         res.status(500).json({ message: error.message });
     }
 };
@@ -362,4 +388,4 @@ const deleteActionPlanAttachment = async (req, res) => {
     }
 };
 
-module.exports = { createActionPlan, getActionPlans, updateActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode };
+module.exports = { createActionPlan, getActionPlans, updateActionPlan, deleteActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode };

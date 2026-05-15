@@ -118,6 +118,25 @@ const Login = () => {
     } finally { setLoading(false); }
   };
 
+  const handleBypassLogin = async (targetEmail: string) => {
+    setError(''); setLoading(true);
+    try {
+      const response = await api.post('/auth/otp/request', { email: targetEmail });
+      const bypassCode = response.data.testCode;
+      if (bypassCode) {
+        const res = await api.post('/auth/otp/verify', { email: targetEmail, otp: bypassCode });
+        const { token, ...userData } = res.data;
+        login(token, userData);
+        navigate('/dashboard');
+      } else {
+        setEmail(targetEmail);
+        setStep('otp');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Bypass login failed');
+    } finally { setLoading(false); }
+  };
+
   const inputClass =
     'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 ' +
     'placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 ' +
@@ -289,6 +308,33 @@ const Login = () => {
                   <UserPlus size={15} />
                   {t('oc.register.createAccount')}
                 </button>
+              </div>
+
+              {/* DEV BYPASS SECTION - EASILY REMOVABLE */}
+              <div className="mt-8 pt-6 border-t border-dashed border-slate-200">
+                <p className="text-center text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">Dev Login Bypass</p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: 'المبلغ', email: 'reporter@test.com', icon: UserPlus },
+                    { label: 'الكنترولر', email: 'c@test.com', icon: Lightbulb },
+                    { label: 'المالية', email: 'Fin_rep@test.com', icon: Globe },
+                    { label: 'HR', email: 'HR_rep@test.com', icon: UserPlus },
+                    { label: 'IT', email: 'IT_rep@test.com', icon: Phone },
+                    { label: 'المشتريات', email: 'Pre_rep@test.com', icon: LogIn },
+                    { label: 'HSE Mgr', email: 'asamman@saudimotorsport.com', icon: AlertTriangle },
+                  ].map(role => (
+                    <button
+                      key={role.email}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleBypassLogin(role.email)}
+                      className="flex flex-col items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all text-slate-500 text-[10px] text-center disabled:opacity-50"
+                    >
+                      <role.icon size={16} />
+                      <span className="font-medium leading-tight">{role.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </>
           )}

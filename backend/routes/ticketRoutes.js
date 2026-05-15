@@ -8,7 +8,7 @@ const fileUpload = multer({ dest: 'uploads/' });
 // Import controllers
 const { createTicket, getTickets, getTicketById, reporterReply, uploadAttachments } = require('../controllers/ticketCrud');
 const { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction } = require('../controllers/ticketWorkflow');
-const { createActionPlan, getActionPlans, updateActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode } = require('../controllers/actionPlanController');
+const { createActionPlan, getActionPlans, updateActionPlan, deleteActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode } = require('../controllers/actionPlanController');
 
 const { getUsers, createUser, updateUser, suspendUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets } = require('../controllers/ticketAdmin');
 
@@ -39,6 +39,7 @@ router.route('/tickets/:id/action-plans')
     .get(protect, getActionPlans);
 
 router.put('/action-plans/:id', protect, updateActionPlan);
+router.delete('/action-plans/:id', protect, deleteActionPlan);
 
 // Action plan file upload — wrap multer errors explicitly
 router.post('/action-plans/:id/attachments', protect, (req, res, next) => {

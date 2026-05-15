@@ -8,11 +8,12 @@ import { getRandomSafetyTip } from '../utils/safetyTips';
 import {
   AlertTriangle, Clock, CheckCircle, Search, Filter,
   FileWarning, ShieldAlert, Flame, Zap, Activity, ChevronRight,
-  Loader2, RefreshCw, Paperclip, Plus, ClipboardList,
+  RefreshCw, Paperclip, Plus, ClipboardList,
   Timer, TrendingUp, Activity as ActivityIcon, MapPin, Sparkles, X,
   Lightbulb,
 } from 'lucide-react';
 import { STATUS_CONFIG } from '../utils/statusConfig';
+import { SkeletonList } from '../components/Skeleton';
 
 const getRelativeTime = (date: Date, t: any): string => {
   const now = new Date();
@@ -57,13 +58,9 @@ const PRIORITY_CONFIG: Record<string, { label: string; chipCls: string }> = {
 };
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  VIOLATION:       <ShieldAlert size={11} />,
-  INJURY:          <AlertTriangle size={11} />,
-  FIRE:            <Flame size={11} />,
-  NEAR_MISS:       <Zap size={11} />,
-  HEALTH:          <Activity size={11} />,
-  PROPERTY_DAMAGE: <FileWarning size={11} />,
-  SECURITY_BREACH: <ShieldAlert size={11} />,
+  OBSERVATION: <AlertTriangle size={11} />,
+  SECURITY:    <ShieldAlert size={11} />,
+  ACCIDENT:    <FileWarning size={11} />,
 };
 
 const getTicketDuration = (ticket: Ticket): string => {
@@ -79,19 +76,7 @@ const getTicketDuration = (ticket: Ticket): string => {
   return `${totalMins}m`;
 };
 
-// Stage colors shown below each ticket card (labels moved to i18n: oc.stageDesc.*)
-const STAGE_COLORS: Record<string, { color: string; bg: string }> = {
-  OPEN:                   { color: '#3b82f6', bg: '#eff6ff' },
-  SUBMITTED:              { color: '#3b82f6', bg: '#eff6ff' },
-    ASSIGNED:               { color: '#f59e0b', bg: '#fffbeb' },
-  RETURNED_TO_REPORTER:   { color: '#f97316', bg: '#fff7ed' },
-  RETURNED_TO_DEPARTMENT: { color: '#f97316', bg: '#fff7ed' },
-  UNDER_REVIEW:           { color: '#6366f1', bg: '#f0f9ff' },
-  PENDING_REMINDER:       { color: '#eab308', bg: '#fefce8' },
-  ESCALATED:              { color: '#ef4444', bg: '#fef2f2' },
-  CLOSED:                 { color: '#10b981', bg: '#ecfdf5' },
-  CLOSED_REJECTED:        { color: '#f43f5e', bg: '#fff1f2' },
-};
+// Stage description moved to bottom card label
 
 
 
@@ -118,7 +103,7 @@ const Dashboard = () => {
   }, [currentLang]);
 
   useEffect(() => {
-    const interval = setInterval(rotateTip, 12000);
+    const interval = setInterval(rotateTip, 45000);
     return () => clearInterval(interval);
   }, [rotateTip]);
 
@@ -198,7 +183,7 @@ const Dashboard = () => {
   const statuses = [
     'ALL', 'SUBMITTED', 'ASSIGNED', 'UNDER_REVIEW',
     'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER',
-    'ESCALATED', 'CLOSED',
+    'PENDING_REMINDER', 'ESCALATED', 'CLOSED',
   ];
 
   const getStatusLabel = (s: string) => s === 'ALL' ? t('dashboard.allStatus', 'All Statuses') : t(`status.${s}`, STATUS_CONFIG[s]?.label || s.replace(/_/g, ' '));
@@ -364,9 +349,7 @@ const Dashboard = () => {
 
       {/* ── Ticket list ── */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="animate-spin text-blue-600" size={26} />
-        </div>
+        <SkeletonList count={5} />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 space-y-4 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border border-slate-100">
           <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm">
@@ -388,7 +371,8 @@ const Dashboard = () => {
         <div className="space-y-2.5">
           {sortedFiltered.map(ticket => {
             const statusCfg   = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.OPEN;
-            const priorityCfg = PRIORITY_CONFIG[ticket.priority];
+            const severityVal = ticket.severityLevel || ticket.offCircuitReport?.severity;
+            const priorityCfg = severityVal ? PRIORITY_CONFIG[severityVal] : null;
             const isClosed    = ticket.status === 'CLOSED' || ticket.status === 'CLOSED_REJECTED';
             const locationLabel = ticket.zone?.name || ticket.location;
 
@@ -431,7 +415,7 @@ const Dashboard = () => {
 
                         {priorityCfg && (
                           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 ${priorityCfg.chipCls}`}>
-                            {t(`priority.${ticket.priority}`, priorityCfg.label)}
+                            {t(`priority.${severityVal}`, priorityCfg.label)}
                           </span>
                         )}
                       </div>
@@ -483,17 +467,13 @@ const Dashboard = () => {
                     />
                   </div>
 
-                  {/* Stage label */}
-                  {STAGE_COLORS[ticket.status] && (
-                    <div className="px-1 pb-1">
-                      <span
-                        className="inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full"
-                        style={{ color: STAGE_COLORS[ticket.status].color, background: STAGE_COLORS[ticket.status].bg }}
-                      >
-                        {t(`oc.stageDesc.${ticket.status}`, '')}
-                      </span>
-                    </div>
-                  )}
+                  <div className="px-1 pb-1">
+                    <span
+                      className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full ${statusCfg.bgCls} ${statusCfg.textCls}`}
+                    >
+                      {t(`oc.stageDesc.${ticket.status}`, '')}
+                    </span>
+                  </div>
                 </div>
               </button>
             );

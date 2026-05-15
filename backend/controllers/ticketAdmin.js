@@ -11,7 +11,7 @@ const getUsers = async (req, res) => {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const users = await prisma.user.findMany({
             where: { role: { in: [...OC_USER_ROLES, 'ADMIN'] } },
-            select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, mobile: true, canCloseTickets: true, canPerformRCA: true },
+            select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, mobile: true, canCloseTickets: true, canPerformRCA: true, canManageEvents: true, canManageServiceProviders: true, canViewAnalytics: true, isIntakeEnabled: true, canManageUsers: true },
             orderBy: { createdAt: 'desc' }
         });
         res.json(users);
@@ -21,7 +21,9 @@ const getUsers = async (req, res) => {
 const createUser = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
-        const { name, email, role, mobile, canCloseTickets, canPerformRCA } = req.body;
+        const { name, email, role, mobile, canCloseTickets, canPerformRCA,
+                canManageEvents, canManageServiceProviders,
+                canViewAnalytics, isIntakeEnabled } = req.body;
         if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) return res.status(400).json({ message: 'Email exists' });
@@ -31,7 +33,17 @@ const createUser = async (req, res) => {
         const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
 
         const user = await prisma.user.create({
-            data: { name, firstName, fatherName, lastName, email, password: '', role: role || 'OC_REPORTER', userGroup: 'OFF_CIRCUIT', mobile: mobile || null, status: 'ACTIVE', canCloseTickets: canCloseTickets || false, canPerformRCA: canPerformRCA || false }
+            data: {
+                name, firstName, fatherName, lastName, email, password: '',
+                role: role || 'OC_REPORTER', userGroup: 'OFF_CIRCUIT',
+                mobile: mobile || null, status: 'ACTIVE',
+                canCloseTickets: !!canCloseTickets,
+                canPerformRCA: !!canPerformRCA,
+                canManageEvents: !!canManageEvents,
+                canManageServiceProviders: !!canManageServiceProviders,
+                canViewAnalytics: !!canViewAnalytics,
+                isIntakeEnabled: !!isIntakeEnabled,
+            }
         });
         res.status(201).json({ message: 'User created', user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     } catch (error) { res.status(500).json({ message: error.message }); }
@@ -40,7 +52,9 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
-        const { name, email, role, mobile, canCloseTickets, canPerformRCA } = req.body;
+        const { name, email, role, mobile, canCloseTickets, canPerformRCA,
+                canManageEvents, canManageServiceProviders,
+                canViewAnalytics, isIntakeEnabled } = req.body;
         const data = {};
         if (name) {
             data.name = name;
@@ -54,6 +68,10 @@ const updateUser = async (req, res) => {
         if (mobile !== undefined) data.mobile = mobile;
         if (typeof canCloseTickets === 'boolean') data.canCloseTickets = canCloseTickets;
         if (typeof canPerformRCA === 'boolean') data.canPerformRCA = canPerformRCA;
+        if (typeof canManageEvents === 'boolean') data.canManageEvents = canManageEvents;
+        if (typeof canManageServiceProviders === 'boolean') data.canManageServiceProviders = canManageServiceProviders;
+        if (typeof canViewAnalytics === 'boolean') data.canViewAnalytics = canViewAnalytics;
+        if (typeof isIntakeEnabled === 'boolean') data.isIntakeEnabled = isIntakeEnabled;
         data.userGroup = 'OFF_CIRCUIT';
         const user = await prisma.user.update({ where: { id: req.params.id }, data });
         res.json({ message: 'Updated', user: { id: user.id, name: user.name, role: user.role } });
@@ -87,31 +105,24 @@ const HIGH_SEVERITY = new Set(['MAJOR', 'SEVERE', 'CRITICAL', 'SERIOUS']);
 const LOW_SEVERITY  = new Set(['MINOR', 'MODERATE', 'SIGNIFICANT']);
 const PYRAMID_RATIO = { lti: 1, medical: 10, nearMiss: 30, observation: 100 }; // Saudi industrial
 
-// Classify a ticket into the pyramid level for HSE reporting
+// Classify a ticket into the pyramid level for HSE reporting.
+// Active TicketType values: OBSERVATION, SECURITY, ACCIDENT.
+// Active severityLevel values: MINOR, SIGNIFICANT, MAJOR, SEVERE.
 const classifyPyramid = (t) => {
     const type = t.type || '';
     const sev  = t.severityLevel || '';
 
-    // Security incidents don't typically count in the HSE safety pyramid
     if (type === 'SECURITY') return 'other';
 
-    // 1. Fatality
-    if (sev === 'FATAL' || type === 'FATALITY') return 'fatality';
-
-    // 2. Injuries / Actual Incidents
+    // Injuries / Actual Incidents
     if (t.hasInjury || type === 'ACCIDENT') {
         if (HIGH_SEVERITY.has(sev)) return 'lti';
         return 'medical';
     }
 
-    // 3. Proactive / No Injury
-    // A high-severity observation without injury is considered a Near-Miss
-    if (HIGH_SEVERITY.has(sev) || type === 'NEAR_MISS') return 'nearMiss';
+    // High-severity observation without injury → Near-Miss
+    if (HIGH_SEVERITY.has(sev)) return 'nearMiss';
 
-    // Normal observation
-    if (type === 'OBSERVATION' || ['UNSAFE_ACT', 'UNSAFE_CONDITION'].includes(type)) return 'observation';
-
-    // Fallback
     return 'observation';
 };
 
@@ -139,9 +150,10 @@ const getAnalytics = async (req, res) => {
                 select: {
                     id: true, type: true, status: true, priority: true, hasInjury: true,
                     severityLevel: true, createdAt: true, closedAt: true, createdById: true,
-                    departmentId: true, zoneId: true, serviceProviderId: true, location: true, ticketNo: true,
+                    departmentId: true, zoneId: true, eventId: true, serviceProviderId: true, location: true, ticketNo: true,
                     department: { select: { id: true, name: true, nameAr: true } },
                     zone: { select: { id: true, name: true } },
+                    event: { select: { id: true, nameEn: true, nameAr: true } },
                     serviceProvider: { select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { name: true, nameAr: true } } } },
                     offCircuitReport: { select: { isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true, locationLat: true, locationLng: true } },
                 },
@@ -299,6 +311,22 @@ const getAnalytics = async (req, res) => {
             if (t.severityLevel) zoneMap[t.zoneId].severities[t.severityLevel] = (zoneMap[t.zoneId].severities[t.severityLevel] || 0) + 1;
         });
         const zoneDistribution = Object.values(zoneMap).sort((a, b) => b.count - a.count);
+
+        // By event (incidents per event/championship)
+        const eventMap = {};
+        tickets.filter(t => t.eventId).forEach(t => {
+            const ev = t.event;
+            if (!eventMap[t.eventId]) eventMap[t.eventId] = {
+                id: t.eventId,
+                nameEn: ev?.nameEn || t.eventId,
+                nameAr: ev?.nameAr || '',
+                count: 0, injuries: 0, severities: {}
+            };
+            eventMap[t.eventId].count++;
+            if (t.hasInjury) eventMap[t.eventId].injuries++;
+            if (t.severityLevel) eventMap[t.eventId].severities[t.severityLevel] = (eventMap[t.eventId].severities[t.severityLevel] || 0) + 1;
+        });
+        const eventDistribution = Object.values(eventMap).sort((a, b) => b.count - a.count);
 
         // By department (count + injuries + avg response)
         const deptHeatRaw = {};
@@ -458,6 +486,7 @@ const getAnalytics = async (req, res) => {
 
             // Heatmaps
             zoneDistribution,
+            eventDistribution,
             departmentHeatmap,
             byHourOfDay,
             byDayOfWeek,
@@ -534,7 +563,7 @@ const getAnalytics = async (req, res) => {
 const downloadUserTemplate = async (req, res) => {
     try {
         const ws = xlsx.utils.json_to_sheet([
-            { name: 'Ahmed', email: 'ahmed@co.com', mobile: '+966500000000', role: 'REPORTER' },
+            { 'First Name': 'Ahmed', 'Father Name': 'Ali', 'Last Name': 'Alsaeed', 'Email': 'ahmed@co.com', 'Mobile Number': '+966500000000', 'Department': 'HSE', 'Role': 'REPORTER' },
         ]);
         const wb = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(wb, ws, 'Users');
         const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
@@ -544,7 +573,21 @@ const downloadUserTemplate = async (req, res) => {
     } catch (error) { res.status(500).json({ message: 'Failed' }); }
 };
 
-const ROLE_MAP = { 'REPORTER': 'OC_REPORTER', 'OC_REPORTER': 'OC_REPORTER', 'CONTROLLER': 'HSE_CONTROLLER', 'HSE_CONTROLLER': 'HSE_CONTROLLER', 'HSE_MANAGER': 'SAFETY_MANAGER', 'SAFETY_MANAGER': 'SAFETY_MANAGER' };
+const ROLE_MAP = { 
+    'REPORTER': 'OC_REPORTER', 
+    'OC_REPORTER': 'OC_REPORTER', 
+    'CONTROLLER': 'HSE_CONTROLLER', 
+    'HSE_CONTROLLER': 'HSE_CONTROLLER', 
+    'HSE_MANAGER': 'SAFETY_MANAGER', 
+    'SAFETY_MANAGER': 'SAFETY_MANAGER',
+    'DEPARTMENT_REP': 'DEP_REP',
+    'DEP_REP': 'DEP_REP',
+    'DEPARTMENT_MANAGER': 'DEP_MANAGER',
+    'DEP_MANAGER': 'DEP_MANAGER',
+    'HR_REP': 'HR_REP',
+    'FINANCE_REP': 'FINANCE_REP',
+    'SERVICE_PROVIDER_REP': 'SERVICE_PROVIDER_REP'
+};
 
 const importUsers = async (req, res) => {
     if (!req.file) return res.status(400).json({ message: 'No file' });
@@ -553,27 +596,56 @@ const importUsers = async (req, res) => {
         const wb = xlsx.readFile(req.file.path);
         const data = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
         let added = 0, skipped = 0; const errors = [];
+        
         for (const row of data) {
-            const email = row['email']?.toString().trim();
-            const name = row['name']?.toString().trim();
+            // Find keys case-insensitively just in case
+            const getVal = (keyStr) => {
+                const key = Object.keys(row).find(k => k.toLowerCase() === keyStr.toLowerCase());
+                return key ? row[key]?.toString().trim() : '';
+            };
+
+            const firstName = getVal('First Name');
+            const fatherName = getVal('Father Name');
+            const lastName = getVal('Last Name');
+            const email = getVal('Email');
+            const mobile = getVal('Mobile Number');
+            const departmentName = getVal('Department');
+            const roleInput = getVal('Role').toUpperCase();
+
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            const nameRegex = /^[a-zA-Z\s\-']+$/;
             
-            if (!email || !name) { errors.push(`Missing data: ${JSON.stringify(row)}`); continue; }
+            if (!firstName || !lastName || !email || !roleInput || !departmentName) { errors.push(`Missing required data (First Name, Last Name, Email, Department, Role) for row: ${JSON.stringify(row)}`); continue; }
             if (!emailRegex.test(email)) { errors.push(`Invalid email format: ${email}`); continue; }
-            if (!nameRegex.test(name)) { errors.push(`Invalid name format (English letters only): ${name}`); continue; }
             
-            const mappedRole = ROLE_MAP[row['role']?.toString().trim().toUpperCase()];
+            const mappedRole = ROLE_MAP[roleInput];
             if (!mappedRole) { errors.push(`Invalid role for ${email}`); continue; }
+            
             const existing = await prisma.user.findUnique({ where: { email } });
             if (existing) { skipped++; continue; }
             
-            const parts = name.split(/\s+/);
-            const firstName = parts[0] || '';
-            const lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
-            const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
+            // Map department
+            let repDepartmentId = null;
+            const dept = await prisma.department.findFirst({
+                where: {
+                    OR: [
+                        { name: { equals: departmentName, mode: 'insensitive' } },
+                        { nameAr: { equals: departmentName } }
+                    ]
+                }
+            });
+            if (!dept) { errors.push(`Department not found: ${departmentName} for ${email}`); continue; }
+            repDepartmentId = dept.id;
+
+            const name = [firstName, fatherName, lastName].filter(Boolean).join(' ');
             
-            await prisma.user.create({ data: { name, firstName, fatherName, lastName, email, password: '', role: mappedRole, userGroup: 'OFF_CIRCUIT', mobile: row['mobile']?.toString() || null, status: 'ACTIVE' } });
+            await prisma.user.create({ 
+                data: { 
+                    name, firstName, fatherName, lastName, email, password: '', 
+                    role: mappedRole, userGroup: 'OFF_CIRCUIT', 
+                    mobile: mobile || null, status: 'ACTIVE',
+                    repDepartmentId 
+                } 
+            });
             added++;
         }
         res.json({ message: 'Done', summary: { total: data.length, added, skipped, errors } });

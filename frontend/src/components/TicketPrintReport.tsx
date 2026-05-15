@@ -288,13 +288,78 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
               </div>
             );
           })()}
+
+          {/* EVENT BLOCK */}
+          {ticket.event && (
+            <div style={{ gridColumn: '1 / -1', marginTop: 8, paddingTop: 12, borderTop: '1px dashed #cbd5e1' }}>
+              <div style={{ fontSize: '8pt', color: '#94a3b8', marginBottom: 2 }}>Event / الفعالية</div>
+              <div style={{ fontWeight: 700, color: '#065f46' }}>
+                🏁 {ticket.event.nameEn}{ticket.event.nameAr ? ' — ' + ticket.event.nameAr : ''}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* SERVICE PROVIDER SECTION */}
+        {ticket.serviceProvider && (
+          <div style={{ marginBottom: 24, border: '1.5px solid #fed7aa', borderRadius: 12, background: '#fff7ed', padding: '14px 18px' }}>
+            <div style={{ fontWeight: 900, color: '#9a3412', fontSize: '11pt', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              🏢 Service Provider / المورد - المقاول
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, fontSize: '9pt' }}>
+              <div>
+                <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>Provider Name / اسم المورد</div>
+                <div style={{ fontWeight: 700, color: '#7c2d12' }}>
+                  {ticket.serviceProvider.name}
+                  {ticket.serviceProvider.nameAr ? ' — ' + ticket.serviceProvider.nameAr : ''}
+                </div>
+              </div>
+              {ticket.serviceProvider.commercialRegistrationNumber && (
+                <div>
+                  <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>CR Number / السجل التجاري</div>
+                  <div style={{ fontWeight: 700, color: '#7c2d12', fontFamily: 'monospace' }}>{ticket.serviceProvider.commercialRegistrationNumber}</div>
+                </div>
+              )}
+              {ticket.serviceProvider.department && (
+                <div>
+                  <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>Responsible Dept / القسم المسؤول</div>
+                  <div style={{ fontWeight: 700, color: '#7c2d12' }}>
+                    {ticket.serviceProvider.department.name}
+                    {ticket.serviceProvider.department.nameAr ? ' — ' + ticket.serviceProvider.department.nameAr : ''}
+                  </div>
+                </div>
+              )}
+              {ticket.serviceProvider.representativeName && (
+                <div>
+                  <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>Representative / الممثل</div>
+                  <div style={{ fontWeight: 700, color: '#7c2d12' }}>{ticket.serviceProvider.representativeName}</div>
+                </div>
+              )}
+              {ticket.serviceProvider.representativeMobile && (
+                <div>
+                  <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>Mobile / الجوال</div>
+                  <div style={{ fontWeight: 700, color: '#7c2d12', fontFamily: 'monospace' }}>{ticket.serviceProvider.representativeMobile}</div>
+                </div>
+              )}
+              {ticket.serviceProvider.representativeEmail && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ color: '#c2410c', fontSize: '7.5pt' }}>Email / البريد</div>
+                  <div style={{ fontWeight: 700, color: '#7c2d12' }}>{ticket.serviceProvider.representativeEmail}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* INCIDENT DETAILS */}
         <div style={{ marginBottom: 18 }}>
           <SecHead en="Incident Details" color="#1e3a5f" />
           <Row label="Incident Date" value={`${fmt(oc.incidentDate)}  ${oc.incidentTime || ''}`} />
-          <Row label="Reported By" value={ticket.reporter?.name || oc.reporterName || 'N/A'} />
+          <Row label="Reported By" value={
+            ticket.reporter && ticket.reporter.name !== 'Confidential' 
+              ? `${ticket.reporter.name}${ticket.reporter.department ? ` — ${ticket.reporter.department}` : ''}${ticket.reporter.mobile ? ` — ${ticket.reporter.mobile}` : ''}${ticket.reporter.email ? ` — ${ticket.reporter.email}` : ''}`
+              : ticket.reporter?.name || oc.reporterName || 'N/A'
+          } />
           <Row label="Description" value={<span style={{ whiteSpace: 'pre-wrap' }}>{oc.whatHappened || ticket.description}</span>} />
           {oc.isLateReport && <Row label="Late Report Reason" value={oc.lateReportReason} />}
         </div>
@@ -612,13 +677,34 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
           </div>
         )}
 
-        {/* CLOSURE */}
-        {ticket.closureReason && (
-          <div style={{ marginBottom: 18 }}>
-            <SecHead en="Closure Reason" color="#065f46" />
-            <div style={{ padding: '8px 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ticket.closureReason}</div>
-          </div>
-        )}
+        {/* CLOSURE / HSE DECISION */}
+        {(ticket.closureReason || ticket.violationDescription) && (() => {
+          const isWarning = ticket.activityLogs?.some((l: any) => l.action === 'STAGE_CLOSED' && l.details?.includes('(Warning Violation)'));
+          return (
+            <div style={{ marginBottom: 18 }}>
+              <SecHead en="HSE Final Decision — القرار النهائي" color="#065f46" />
+              <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1.5px solid #10b981', borderRadius: 8, lineHeight: 1.6 }}>
+                 {ticket.hasFinancialViolation ? (
+                   <div style={{ color: '#b91c1c', fontWeight: 900, marginBottom: 8, fontSize: '11pt', display: 'flex', alignItems: 'center', gap: 6 }}>
+                     🚨 Financial Violation Applied to Vendor (Amount: {ticket.violationAmount} SAR)
+                   </div>
+                 ) : isWarning ? (
+                   <div style={{ color: '#b45309', fontWeight: 900, marginBottom: 8, fontSize: '11pt', display: 'flex', alignItems: 'center', gap: 6 }}>
+                     ⚠️ Warning Applied to Vendor
+                   </div>
+                 ) : (
+                   <div style={{ color: '#047857', fontWeight: 900, marginBottom: 8, fontSize: '11pt', display: 'flex', alignItems: 'center', gap: 6 }}>
+                     ✅ Closed without violations
+                   </div>
+                 )}
+                 <div style={{ color: '#1e293b', whiteSpace: 'pre-wrap', fontSize: '10pt' }}>
+                    <strong>Details:</strong><br/>
+                    {ticket.violationDescription || ticket.closureReason}
+                 </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* AUTHORIZATION SEAL */}
         <div style={{ marginTop: 32, border: '2px solid #1e3a5f', borderRadius: 12, padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', gap: 16 }}>

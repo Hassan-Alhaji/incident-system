@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import {
  Plus, Trash2, Edit2, Users, CheckCircle, XCircle, AlertCircle, AlertTriangle,
- Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase, Wrench
+ Loader2, X, ShieldCheck, Search as SearchIcon, UserPlus, Upload, Download, FileSpreadsheet, Map, Building, Briefcase, Wrench, Calendar
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import ZoneDrawerMap from '../components/ZoneDrawerMap';
@@ -13,15 +13,22 @@ const OC_ROLE_OPTIONS = [
  { value: 'OC_REPORTER', label: 'Reporter' },
  { value: 'HSE_CONTROLLER', label: 'HSE Controller' },
  { value: 'OC_HSE_MANAGER', label: 'HSE Manager' },
+ { value: 'SAFETY_MANAGER', label: 'Safety Manager' },
+ { value: 'DEP_REP', label: 'Department Rep' },
+ { value: 'DEP_MANAGER', label: 'Department Manager' },
+ { value: 'HR_REP', label: 'HR Representative' },
  { value: 'FINANCE_REP', label: 'Finance Rep' },
+ { value: 'SERVICE_PROVIDER_REP', label: 'Service Provider Rep' },
 ];
 
 const roleColors: Record<string, string> = {
  OC_REPORTER: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
  HSE_CONTROLLER: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
  OC_HSE_MANAGER: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+ SAFETY_MANAGER: 'bg-purple-500/15 text-purple-500 border-purple-500/30',
  DEP_MANAGER: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
  DEP_REP: 'bg-teal-500/15 text-teal-400 border-teal-500/30',
+ HR_REP: 'bg-pink-500/15 text-pink-500 border-pink-500/30',
  SERVICE_PROVIDER_REP: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
  FINANCE_REP: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
 };
@@ -43,13 +50,13 @@ const Settings = () => {
  const [showModal, setShowModal] = useState(false);
  const [editingUser, setEditingUser] = useState<string | null>(null);
  const [search, setSearch] = useState('');
- const [activeTab, setActiveTab] = useState<'users' | 'zones' | 'departments' | 'providers' | 'system'>('users');
+ const [activeTab, setActiveTab] = useState<'users' | 'zones' | 'departments' | 'providers' | 'events' | 'system'>('users');
 
  // Maintenance Mode
  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
- const [form, setForm] = useState({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canCloseTickets: false, canPerformRCA: false, canManageUsers: false });
+ const [form, setForm] = useState({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
 
  // Global Entities State
  const [zones, setZones] = useState<any[]>([]);
@@ -69,7 +76,7 @@ const Settings = () => {
  const [serviceProviders, setServiceProviders] = useState<any[]>([]);
  const [showProviderModal, setShowProviderModal] = useState(false);
  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
- const [providerFormData, setProviderFormData] = useState({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] });
+ const [providerFormData, setProviderFormData] = useState({ name: '', nameAr: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representativeName: '', representativeEmail: '', representativeMobile: '', representatives: [{name:'', email:'', mobile:''}] });
  const [providerError, setProviderError] = useState('');
 
  const [events, setEvents] = useState<any[]>([]);
@@ -115,7 +122,7 @@ const Settings = () => {
  try { const res = await api.get('/service-providers'); setServiceProviders(res.data); } catch (e) {}
  };
  const fetchEvents = async () => {
- try { const res = await api.get('/events/all'); setEvents(res.data); } catch (e) {}
+ try { const res = await api.get('/events'); setEvents(res.data); } catch (e) {}
  };
 
  const handleZoneSubmit = async () => {
@@ -166,8 +173,12 @@ const Settings = () => {
  const openEditProvider = (sp: any) => {
    setEditingProviderId(sp.id);
    setProviderFormData({
-     name: sp.name || '', commercialRegistrationNumber: sp.commercialRegistrationNumber || '',
+     name: sp.name || '', nameAr: sp.nameAr || '',
+     commercialRegistrationNumber: sp.commercialRegistrationNumber || '',
      responsibleDepartmentId: sp.departmentId || sp.department?.id || '',
+     representativeName: sp.representativeName || '',
+     representativeEmail: sp.representativeEmail || '',
+     representativeMobile: sp.representativeMobile || '',
      representatives: sp.representatives?.length > 0 ? sp.representatives.map((r: any) => ({ name: r.name || '', email: r.email || '', mobile: r.mobile || '' })) : [{ name: '', email: '', mobile: '' }]
    });
    setProviderError('');
@@ -234,7 +245,7 @@ const Settings = () => {
  }
  setShowModal(false);
  setEditingUser(null);
- setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canCloseTickets: false, canPerformRCA: false, canManageUsers: false });
+ setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
  fetchUsers();
  setTimeout(() => setSuccess(''), 3000);
  } catch (err: any) {
@@ -251,25 +262,27 @@ const Settings = () => {
  };
 
  const handleToggleStatus = async (id: string, currentStatus: string) => {
- try {
  const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
- await api.patch(`/users/${id}/status`, { status: newStatus });
- fetchUsers();
- } catch (err: any) {
- setError(err.response?.data?.message || 'Status update failed');
- }
+ const msg = newStatus === 'SUSPENDED'
+   ? t('confirm.suspendUserMsg', 'هل أنت متأكد من تعليق حساب هذا المستخدم؟ لن يتمكن من تسجيل الدخول.')
+   : t('confirm.activateUserMsg', 'هل أنت متأكد من تفعيل حساب هذا المستخدم؟');
+ setConfirmModal({ title: t('confirm.changeUserStatus', 'تغيير حالة المستخدم'), message: msg, onConfirm: async () => {
+   try { await api.patch(`/users/${id}/status`, { status: newStatus }); fetchUsers(); }
+   catch (err: any) { setError(err.response?.data?.message || 'Status update failed'); }
+   setConfirmModal(null);
+ }});
  };
 
  const openEditModal = (u: any) => {
  setEditingUser(u.id);
- setForm({ name: u.name, email: u.email, role: u.role, mobile: u.mobile || '', canCloseTickets: u.canCloseTickets || false, canPerformRCA: u.canPerformRCA || false, canManageUsers: u.canManageUsers || false });
+ setForm({ name: u.name, email: u.email, role: u.role, mobile: u.mobile || '', canManageUsers: u.canManageUsers || false, canManageEvents: u.canManageEvents || false, canManageServiceProviders: u.canManageServiceProviders || false, canViewAnalytics: u.canViewAnalytics || false, isIntakeEnabled: u.isIntakeEnabled || false });
  setShowModal(true);
  setError('');
  };
 
  const openCreateModal = () => {
  setEditingUser(null);
- setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canCloseTickets: false, canPerformRCA: false, canManageUsers: false });
+ setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
  setShowModal(true);
  setError('');
  };
@@ -343,7 +356,7 @@ const Settings = () => {
  </div>
  {activeTab === 'users' && (
  <button onClick={openCreateModal}
- className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-3 py-2 rounded-xl flex items-center gap-2 font-bold text-xs shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all w-full sm:w-auto justify-center">
+ className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs shadow-md shadow-blue-500/20 transition-all w-full sm:w-auto justify-center">
  <UserPlus size={14} /> {t('oc.settings.addUser')}
  </button>
  )}
@@ -360,12 +373,16 @@ const Settings = () => {
  <button onClick={() => setActiveTab('departments')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'departments' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Building size={13} /> Departments
  </button>
+ {(user?.role === 'ADMIN' || user?.canManageServiceProviders) && (
  <button onClick={() => setActiveTab('providers')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Briefcase size={13} /> Providers
  </button>
+ )}
+ {(user?.role === 'ADMIN' || user?.canManageEvents) && (
  <button onClick={() => setActiveTab('events')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'events' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Calendar size={13} /> Events
  </button>
+ )}
  {(user?.role === 'ADMIN' || user?.role === 'OC_HSE_MANAGER' || user?.canManageUsers) && (
  <button onClick={() => setActiveTab('system')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'system' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Wrench size={13} /> System
@@ -568,26 +585,38 @@ const Settings = () => {
  <div className="grid grid-cols-1 gap-2">
  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200 cursor-pointer hover:bg-purple-100 transition-colors"
  onClick={() => setForm({ ...form, canManageUsers: !form.canManageUsers })}>
- <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canManageUsers ? 'bg-purple-600 border-purple-600 text-gray-800' : 'bg-white border-gray-300'}`}>
+ <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canManageUsers ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-gray-300'}`}>
  {form.canManageUsers && <CheckCircle size={14} />}
  </div>
  <span className="text-base font-medium text-purple-800 select-none">Can Activate / Manage Users (تفعيل المستخدمين)</span>
  </div>
- 
- <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200 cursor-pointer hover:bg-red-100 transition-colors"
- onClick={() => setForm({ ...form, canCloseTickets: !form.canCloseTickets })}>
- <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canCloseTickets ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-gray-300'}`}>
- {form.canCloseTickets && <CheckCircle size={14} />}
+ <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition-colors"
+ onClick={() => setForm({ ...form, canManageEvents: !form.canManageEvents })}>
+ <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canManageEvents ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>
+ {form.canManageEvents && <CheckCircle size={14} />}
  </div>
- <span className="text-base font-medium text-red-800 select-none">Can Close Tickets (اغلاق التذكرة)</span>
+ <span className="text-base font-medium text-emerald-800 select-none">Can Add / Manage Events (إدارة الفعاليات)</span>
  </div>
-
  <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
- onClick={() => setForm({ ...form, canPerformRCA: !form.canPerformRCA })}>
- <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canPerformRCA ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-300'}`}>
- {form.canPerformRCA && <CheckCircle size={14} />}
+ onClick={() => setForm({ ...form, canManageServiceProviders: !form.canManageServiceProviders })}>
+ <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canManageServiceProviders ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-300'}`}>
+ {form.canManageServiceProviders && <CheckCircle size={14} />}
  </div>
- <span className="text-base font-medium text-orange-800 select-none">Can Perform RCA (تحليل الحادث)</span>
+ <span className="text-base font-medium text-orange-800 select-none">Can Add / Manage Service Providers (إدارة الموردين)</span>
+ </div>
+ <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
+ onClick={() => setForm({ ...form, canViewAnalytics: !form.canViewAnalytics })}>
+ <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canViewAnalytics ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300'}`}>
+ {form.canViewAnalytics && <CheckCircle size={14} />}
+ </div>
+ <span className="text-base font-medium text-blue-800 select-none">Can View Analytics (مشاهدة الإحصائيات)</span>
+ </div>
+ <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg border border-teal-200 cursor-pointer hover:bg-teal-100 transition-colors"
+ onClick={() => setForm({ ...form, isIntakeEnabled: !form.isIntakeEnabled })}>
+ <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.isIntakeEnabled ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-gray-300'}`}>
+ {form.isIntakeEnabled && <CheckCircle size={14} />}
+ </div>
+ <span className="text-base font-medium text-teal-800 select-none">Ticket Intake Enabled (استقبال تذاكر المبلغين)</span>
  </div>
  </div>
  </div>
@@ -709,7 +738,7 @@ const Settings = () => {
  <div className="space-y-4 animate-in fade-in">
  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
  <div className="flex items-center gap-3"><Briefcase className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Service Providers</h3><p className="text-xs text-gray-500">Manage Providers & Blacklisting.</p></div></div>
- <button onClick={() => { setEditingProviderId(null); setProviderError(''); setProviderFormData({ name: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Provider</button>
+ <button onClick={() => { setEditingProviderId(null); setProviderError(''); setProviderFormData({ name: '', nameAr: '', commercialRegistrationNumber: '', responsibleDepartmentId: '', representativeName: '', representativeEmail: '', representativeMobile: '', representatives: [{name:'', email:'', mobile:''}] }); setShowProviderModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Provider</button>
  </div>
  <div className="space-y-2 md:hidden">
  {serviceProviders.map(sp => (
@@ -873,8 +902,28 @@ const Settings = () => {
  {providerError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{providerError}</div>}
  
  <div className="grid md:grid-cols-2 gap-4">
- <div><label className="block text-base font-medium text-gray-800 mb-1">Company / Est. Name *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={providerFormData.name} onChange={e => setProviderFormData({...providerFormData, name: e.target.value})} /></div>
- <div><label className="block text-base font-medium text-gray-800 mb-1">Commercial Registration Number *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 font-mono" value={providerFormData.commercialRegistrationNumber} onChange={e => setProviderFormData({...providerFormData, commercialRegistrationNumber: e.target.value})} /></div>
+ <div><label className="block text-base font-medium text-gray-800 mb-1">Company Name (English) *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={providerFormData.name} onChange={e => setProviderFormData({...providerFormData, name: e.target.value})} /></div>
+ <div><label className="block text-base font-medium text-gray-800 mb-1">اسم الشركة (عربي)</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" dir="rtl" value={providerFormData.nameAr} onChange={e => setProviderFormData({...providerFormData, nameAr: e.target.value})} /></div>
+ <div className="md:col-span-2"><label className="block text-base font-medium text-gray-800 mb-1">Commercial Registration Number * / رقم السجل التجاري</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 font-mono" value={providerFormData.commercialRegistrationNumber} onChange={e => setProviderFormData({...providerFormData, commercialRegistrationNumber: e.target.value})} /></div>
+ </div>
+
+ {/* Primary Representative Block */}
+ <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+   <h4 className="text-sm font-bold text-blue-900 mb-3">Primary Representative / ممثل المورد الرئيسي</h4>
+   <div className="grid md:grid-cols-3 gap-3">
+     <div>
+       <label className="block text-xs font-medium text-gray-700 mb-1">Name / الاسم</label>
+       <input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" value={providerFormData.representativeName} onChange={e => setProviderFormData({...providerFormData, representativeName: e.target.value})} />
+     </div>
+     <div>
+       <label className="block text-xs font-medium text-gray-700 mb-1">Email / البريد</label>
+       <input type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm" value={providerFormData.representativeEmail} onChange={e => setProviderFormData({...providerFormData, representativeEmail: e.target.value})} />
+     </div>
+     <div>
+       <label className="block text-xs font-medium text-gray-700 mb-1">Mobile / الجوال</label>
+       <input type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" value={providerFormData.representativeMobile} onChange={e => setProviderFormData({...providerFormData, representativeMobile: e.target.value.replace(/[^0-9+]/g, '')})} />
+     </div>
+   </div>
  </div>
  
  <div>

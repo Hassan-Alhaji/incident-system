@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import {
-  AlertTriangle, Loader2, ShieldCheck, Clock, FileWarning, Activity,
+  AlertTriangle, ShieldCheck, Clock, FileWarning, Activity,
   TrendingUp, TrendingDown, Users, MapPin, BarChart3, Sparkles,
   CheckCircle, XCircle, Eye, AlertOctagon, Calendar, Trophy, Flame,
   Send, Bot, Download, Filter, X, ChevronRight, ChevronLeft, Briefcase, ChevronDown
@@ -10,6 +10,7 @@ import {
 import { useToast } from '../components/Toast';
 import AnalyticsMap from '../components/AnalyticsMap';
 import { AIChatSidebar, Section, ProgressBar, ServiceProviderCard, TYPE_COLORS } from '../components/analytics';
+import { SkeletonAnalytics } from '../components/Skeleton';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmtNum = (n: number) => (n || 0).toLocaleString('en-US');
@@ -119,11 +120,7 @@ const Analytics = () => {
 
   const [aiUnavailable, setAiUnavailable] = useState(false);
 
-  if (loading) return (
-    <div className="flex justify-center py-24">
-      <Loader2 className="animate-spin text-blue-600" size={32} />
-    </div>
-  );
+  if (loading) return <SkeletonAnalytics />;
 
   if (error) return (
     <div className="text-center py-20">
@@ -160,20 +157,20 @@ const Analytics = () => {
       {/* ── Date range filter bar ── */}
       <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
         <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-slate-50 px-3 py-2 sm:py-1.5 rounded-lg border border-slate-200 w-full sm:w-auto">
-            <Calendar size={14} className="text-slate-400" />
+          <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 w-full sm:w-auto">
+            <Calendar size={14} className="text-slate-400 flex-shrink-0" />
             <span className="text-xs font-bold text-slate-600">{t('analytics.filter.from', 'From')}</span>
             <input
               type="date" value={dateFrom} max={dateTo}
               onChange={e => setDateFrom(e.target.value)}
-              className="text-sm bg-transparent focus:outline-none"
+              className="text-sm bg-transparent focus:outline-none min-w-0 flex-1 sm:flex-none"
             />
-            <span className="text-slate-300">|</span>
+            <span className="text-slate-300 hidden sm:inline">|</span>
             <span className="text-xs font-bold text-slate-600">{t('analytics.filter.to', 'To')}</span>
             <input
               type="date" value={dateTo} min={dateFrom} max={today}
               onChange={e => setDateTo(e.target.value)}
-              className="text-sm bg-transparent focus:outline-none"
+              className="text-sm bg-transparent focus:outline-none min-w-0 flex-1 sm:flex-none"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -237,30 +234,30 @@ const Analytics = () => {
       )}
 
       {/* ── 1. KPI HERO ROW ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {/* Days Without LTI */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-white p-5 shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-white/80 p-4 sm:p-5 shadow-sm lift-hover">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center mb-4 shadow-md">
             <ShieldCheck size={20} />
           </div>
-          <p className="text-4xl font-black text-emerald-700 leading-none tracking-tight">
+          <p className="text-3xl sm:text-4xl font-black text-emerald-700 leading-none tracking-tight">
             {data.daysSinceLastLTI != null ? fmtNum(data.daysSinceLastLTI) : '∞'}
           </p>
           <p className="text-xs font-bold text-slate-600 mt-2 uppercase tracking-wider">{t('analytics.kpi.daysWithoutLTI', 'Days Without LTI')}</p>
         </div>
 
         {/* Open Incidents */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-white p-5 shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-white/80 p-4 sm:p-5 shadow-sm lift-hover">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center mb-4 shadow-md">
             <Activity size={20} />
           </div>
-          <p className="text-4xl font-black text-blue-700 leading-none tracking-tight">{fmtNum(data.openCount)}</p>
+          <p className="text-3xl sm:text-4xl font-black text-blue-700 leading-none tracking-tight">{fmtNum(data.openCount)}</p>
           <p className="text-xs font-bold text-slate-600 mt-2 uppercase tracking-wider">{t('analytics.kpi.openTickets', 'Open Tickets')}</p>
           <p className="text-[11px] text-slate-500 mt-0.5">{t('analytics.kpi.outOfTotal', 'out of {{total}} total', { total: fmtNum(data.totalTickets) })}</p>
         </div>
 
         {/* Overdue Action Plans */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-50 to-red-50 border border-white p-5 shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-50 to-red-50 border border-white/80 p-4 sm:p-5 shadow-sm lift-hover">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white flex items-center justify-center mb-4 shadow-md">
             <Clock size={20} />
           </div>
@@ -271,11 +268,11 @@ const Analytics = () => {
         </div>
 
         {/* Total Injuries */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-pink-50 border border-white p-5 shadow-sm">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-pink-50 border border-white/80 p-4 sm:p-5 shadow-sm lift-hover">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center mb-4 shadow-md">
             <AlertTriangle size={20} />
           </div>
-          <p className="text-4xl font-black text-rose-700 leading-none tracking-tight">{fmtNum(data.lagging?.totalInjuries || 0)}</p>
+          <p className="text-3xl sm:text-4xl font-black text-rose-700 leading-none tracking-tight">{fmtNum(data.lagging?.totalInjuries || 0)}</p>
           <p className="text-xs font-bold text-slate-600 mt-2 uppercase tracking-wider">{t('analytics.kpi.recordedInjuries', 'Recorded Injuries')}</p>
         </div>
       </div>
@@ -348,17 +345,17 @@ const Analytics = () => {
             const gap = layer.expected != null && layer.actual < layer.expected ? layer.expected - layer.actual : 0;
             const ok  = layer.expected != null ? layer.actual >= layer.expected : true;
             return (
-              <div key={layer.key} className="flex items-center gap-4">
-                <div className={`flex-shrink-0 w-32 ${isRtl ? 'text-left' : 'text-right'}`}>
-                  <div className="text-xs font-bold text-slate-700">{layer.label}</div>
+              <div key={layer.key} className="flex items-center gap-2 sm:gap-4">
+                <div className={`flex-shrink-0 w-20 sm:w-32 ${isRtl ? 'text-left' : 'text-right'}`}>
+                  <div className="text-[11px] sm:text-xs font-bold text-slate-700 leading-tight">{layer.label}</div>
                 </div>
-                <div className="flex-1 relative" style={{ width: `${layer.width}%` }}>
-                  <div className="h-10 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-md"
+                <div className="flex-1 relative min-w-0" style={{ width: `${layer.width}%` }}>
+                  <div className="h-9 sm:h-10 rounded-lg flex items-center justify-center text-white font-black text-xs sm:text-sm shadow-md"
                     style={{ background: `linear-gradient(135deg, ${layer.color}, ${layer.color}cc)`, width: `${layer.width}%`, [isRtl ? 'marginLeft' : 'marginRight']: 'auto' }}>
                     {layer.actual}
                   </div>
                 </div>
-                <div className={`flex-shrink-0 w-36 ${isRtl ? 'text-right' : 'text-left'}`}>
+                <div className={`flex-shrink-0 w-20 sm:w-36 ${isRtl ? 'text-right' : 'text-left'}`}>
                   {layer.expected != null && layer.expected > 0 ? (
                     <>
                       <div className="text-[11px] text-slate-500 font-medium">{t('analytics.pyramid.ideal', 'Ideal')}: {layer.expected}</div>
@@ -510,6 +507,36 @@ const Analytics = () => {
       )}
 
       {/* ── 6. RISK HEATMAPS ── */}
+      {/* Event heatmap (full width) */}
+      {data.eventDistribution?.length > 0 && (
+        <Section title={isRtl ? 'الحوادث حسب الفعالية' : 'Incidents by Event'} icon={<Calendar size={16} />}>
+          <div className="space-y-4">
+            {data.eventDistribution.slice(0, 8).map((ev: any, i: number) => {
+              const max = data.eventDistribution[0].count;
+              const pct = (ev.count / max) * 100;
+              const colors = ['#7c3aed', '#9333ea', '#a855f7', '#c084fc', '#65a30d', '#16a34a'];
+              const color = colors[Math.min(i, colors.length - 1)];
+              const name = isRtl ? (ev.nameAr || ev.nameEn) : ev.nameEn;
+              return (
+                <div key={ev.id || i}>
+                  <div className="flex items-center justify-between mb-1.5 gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded flex items-center justify-center text-white text-[11px] font-black flex-shrink-0" style={{ background: color }}>{i + 1}</span>
+                      <span className="text-sm font-bold text-slate-800 truncate">🏁 {name}</span>
+                      {ev.injuries > 0 && <span className="text-[10px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full flex-shrink-0">🩹 {ev.injuries}</span>}
+                    </div>
+                    <span className="text-sm font-black flex-shrink-0" style={{ color }}>{ev.count}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Zone heatmap */}
         {data.zoneDistribution?.length > 0 && (

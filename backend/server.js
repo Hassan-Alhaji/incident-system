@@ -21,17 +21,22 @@ if (!isProd) {
     });
 }
 
-// Middleware — CORS allows localhost, LAN IPs (for mobile testing), and FRONTEND_URL (production)
+// Middleware — CORS
+// In production: only explicit FRONTEND_URL is allowed.
+// In development: allow localhost + LAN IPs (for mobile testing on the same network).
 app.use(cors({
     origin: (origin, cb) => {
         if (!origin) return cb(null, true); // same-origin / curl / server-to-server
-        const allowed = [
-            /^http:\/\/localhost(:\d+)?$/,
-            /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-            /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,           // LAN class C
-            /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,             // LAN class A
-            /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/, // LAN class B
-        ];
+        const allowed = [];
+        if (!isProd) {
+            allowed.push(
+                /^http:\/\/localhost(:\d+)?$/,
+                /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+                /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,           // LAN class C (dev only)
+                /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,             // LAN class A (dev only)
+                /^http:\/\/172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(:\d+)?$/ // LAN class B (dev only)
+            );
+        }
         if (process.env.FRONTEND_URL) allowed.push(process.env.FRONTEND_URL);
         const ok = allowed.some(r => r instanceof RegExp ? r.test(origin) : r === origin);
         cb(null, ok);
@@ -43,11 +48,22 @@ app.use(helmet({
     contentSecurityPolicy: isProd ? {
         directives: {
             defaultSrc: ["'self'"],
+            // 'unsafe-inline' kept for scripts because some build artifacts emit inline JSON; no 'unsafe-eval'
             scriptSrc: ["'self'", "'unsafe-inline'"],
+            // Tailwind / Vite emit inline styles → 'unsafe-inline' is required for styles
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
             imgSrc: ["'self'", "data:", "blob:", "https:"],
-            connectSrc: ["'self'", process.env.FRONTEND_URL || "https://*", "https://*.tile.openstreetmap.org"]
+            // connectSrc restricted to self + explicit FRONTEND_URL + tile servers
+            connectSrc: [
+                "'self'",
+                ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+                ...(process.env.API_URL ? [process.env.API_URL] : []),
+                "https://*.tile.openstreetmap.org",
+            ],
+            frameAncestors: ["'none'"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
         }
     } : false
 }));
@@ -68,9 +84,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rate Limiting
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 1 * 60 * 1000, // 1 minute
     max: 10, // Max 10 attempts per IP
-    message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' },
+    message: { message: 'Too many authentication attempts. Please try again after 1 minute.' },
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -90,7 +106,7 @@ app.use('/api', apiLimiter);
 const prisma = require('./prismaClient');
 
 // *** HEALTH CHECK (Top Priority) ***
-app.get('/api/health', async (req, res) => {
+const healthCheck = async (req, res) => {
     try {
         await prisma.$queryRaw`SELECT 1`;
         res.status(200).json({ status: 'OK', database: 'connected' });
@@ -98,7 +114,11 @@ app.get('/api/health', async (req, res) => {
         logger.error({ err: error }, 'Health check database failure');
         res.status(503).json({ status: 'ERROR', database: 'disconnected' });
     }
-});
+};
+
+app.get('/api/health', healthCheck);
+app.get('/health', healthCheck); // Alias for Render and external monitoring
+
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');

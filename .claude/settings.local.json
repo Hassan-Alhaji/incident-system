@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && head -50 {}')",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(node _extract_audit.cjs \"C:\\\\Users\\\\al3re\\\\.claude\\\\projects\\\\c--Users-al3re--gemini-antigravity-scratch-Incident-System\\\\d87ccd15-1aac-496b-89a0-340b6485eb29.jsonl\")"
     ]
   }
 }

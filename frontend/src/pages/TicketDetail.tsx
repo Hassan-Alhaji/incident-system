@@ -1,5 +1,4 @@
-import { HAZARD_CATEGORIES, HazardIcon } from '../components/HazardIcons';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -7,9 +6,13 @@ import api from '../utils/api';
 import { STATUS_CONFIG } from '../utils/statusConfig';
 import { formatDate, formatDateTime } from '../utils/formatDate';
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
-import { ArrowLeft, Clock, AlertTriangle, CheckCircle, Send, Loader2, User, Search, Paperclip, Check, X, Bell, Sparkles, Download } from 'lucide-react';
-import { ActionPlanSection, ReminderSection, MagicWandButton } from '../components/TicketSections';
+import { safeParseJSON } from '../utils/safeParseJSON';
+import { ArrowLeft, AlertTriangle, CheckCircle, Send, Loader2, User, Paperclip, Bell, Download } from 'lucide-react';
+import { ActionPlanSection, ReminderSection } from '../components/TicketSections';
 import { TimelineTab, ConfirmModal, CloseTicketModal } from '../components/ticket';
+import { ControllerSubmittedPanel, HrPanel, DepartmentPanel, ControllerFinalReviewPanel, SafetyManagerPanel } from '../components/ticket/ActionPanels';
+import { HazardIcon, HAZARD_CATEGORIES } from '../components/HazardIcons';
+
 import { useToast } from '../components/Toast';
 import TicketPrintReport from '../components/TicketPrintReport';
 
@@ -45,15 +48,6 @@ const TicketDetail = () => {
     const [rcaCategory, setRcaCategory] = useState('');
     const [rcaPreventiveActions, setRcaPreventiveActions] = useState('');
 
-    const safeParseJSON = (data: any, fallback: any = []) => {
-        if (!data) return fallback;
-        if (typeof data !== 'string') return data;
-        try {
-            return JSON.parse(data);
-        } catch {
-            return fallback;
-        }
-    };
 
     // Department Action — per-injured-person GOSI
     interface GosiEntry {
@@ -113,14 +107,23 @@ const TicketDetail = () => {
             if (!isBackground) setLoading(true);
             const res = await api.get(`/tickets/${id}`);
             setTicket(res.data);
-            setSeverityLevel(prev => prev || res.data.severityLevel || '');
+            setSeverityLevel(prev => prev || res.data.severityLevel || res.data.offCircuitReport?.severity || '');
             const oc = res.data.offCircuitReport;
             if (oc) {
+                setControllerNotes(prev => prev || oc.controllerNotes || '');
                 setRcaCause(prev => prev || oc.rcaCause || '');
                 setRcaWhy(prev => prev || oc.rcaWhy || '');
                 setRcaRootCause(prev => prev || oc.rcaRootCause || '');
                 setRcaCategory(prev => prev || oc.rcaCategory || '');
                 setRcaPreventiveActions(prev => prev || oc.rcaPreventiveActions || '');
+                if (oc.hazardCategory) {
+                    try {
+                        const parsed = JSON.parse(oc.hazardCategory);
+                        setHazardCategory(prev => prev.length > 0 ? prev : (Array.isArray(parsed) ? parsed : [parsed]));
+                    } catch {
+                        setHazardCategory(prev => prev.length > 0 ? prev : [oc.hazardCategory]);
+                    }
+                }
             }
         } catch (error) { console.error('Error fetching ticket', error); navigate('/dashboard'); }
         finally { if (!isBackground) setLoading(false); }
@@ -171,6 +174,19 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
+    const handleHrAction = async () => {
+        setActionLoading(true);
+        try {
+            await api.put(`/tickets/${id}/hr-action`, { 
+                injuredPersonsGosi: injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined,
+                hrNotes 
+            });
+            await fetchTicket(true);
+            showToast(isRtl ? 'تم تحديث بيانات التأمينات بنجاح' : 'GOSI data updated successfully', 'success');
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
+        finally { setActionLoading(false); }
+    };
+
     const handleDepartmentAction = async () => {
         // Re-fetch ticket to get the latest action plans from server
         // (avoids stale state after saving plans)
@@ -211,12 +227,12 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleFinalReview = async (action: string, closePayload?: { hasFinancialViolation: boolean; violationDescription: string; violationAmount: string }) => {
+    const handleFinalReview = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes, reminderDate, reminderMessage };
             if (action === 'CLOSE' && closePayload) {
-                body.hasFinancialViolation = closePayload.hasFinancialViolation;
+                body.violationType = closePayload.violationType;
                 body.violationDescription = closePayload.violationDescription;
                 body.violationAmount = closePayload.violationAmount;
             }
@@ -228,24 +244,28 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleSafetyManagerAction = async (action: string, closePayload?: { hasFinancialViolation: boolean; violationDescription: string; violationAmount: string }) => {
+    const handleSafetyManagerAction = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes };
+            if (action === 'ESCALATE_DEPT') {
+                body.targetDepartmentId = targetDepartmentId;
+            }
             if (action === 'CLOSE' && closePayload) {
-                body.hasFinancialViolation = closePayload.hasFinancialViolation;
+                body.violationType = closePayload.violationType;
                 body.violationDescription = closePayload.violationDescription;
                 body.violationAmount = closePayload.violationAmount;
             }
             await api.put(`/tickets/${id}/safety-manager`, body);
             await fetchTicket(true);
             setControllerNotes('');
+            if (action === 'ESCALATE_DEPT') setTargetDepartmentId('');
             setCloseModalOpen(false); setCloseTargetType(null);
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
-    const handleConfirmClose = (payload: { hasFinancialViolation: boolean; violationDescription: string; violationAmount: string }) => {
+    const handleConfirmClose = (payload: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
         if (closeTargetType === 'SAFETY_MANAGER') {
             handleSafetyManagerAction('CLOSE', payload);
         } else {
@@ -256,7 +276,10 @@ const TicketDetail = () => {
     const handleRemindHr = async () => {
         setActionLoading(true);
         try {
-            await api.put(`/tickets/${id}/controller-review`, { action: 'REMIND_HR', notes: controllerNotes });
+            const endpoint = closeTargetType === 'SAFETY_MANAGER' 
+                ? `/tickets/${id}/safety-manager` 
+                : `/tickets/${id}/controller-review`;
+            await api.put(endpoint, { action: 'REMIND_HR', notes: controllerNotes });
             await fetchTicket(true);
             setHrReminderModalOpen(false);
             setCloseTargetType(null);
@@ -265,12 +288,28 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleCloseRequest = (targetType: 'FINAL_REVIEW' | 'SAFETY_MANAGER') => {
-        const ocSafe = ticket.offCircuitReport || {};
-        const injuredPersonsSafe = safeParseJSON(ocSafe.injuredPersons);
-        const hasEmployeeInjury = injuredPersonsSafe.some((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+    const ocSafe = ticket?.offCircuitReport || {};
+    const injuredPersonsSafe = safeParseJSON(ocSafe?.injuredPersons);
+    const employeeInjuries = injuredPersonsSafe.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+    const hasEmployeeInjury = employeeInjuries.length > 0;
+    // HR is considered incomplete if it hasn't been filled at all OR if any employee injury is missing the gosiSubmitted status
+    const hrIncomplete = hasEmployeeInjury && (!ocSafe.hrFilledBy || employeeInjuries.some((p: any) => p.gosiSubmitted === undefined));
 
-        if (hasEmployeeInjury && !ocSafe.hrFilledBy) {
+    const handleStandaloneRemindHr = async (targetType: 'FINAL_REVIEW' | 'SAFETY_MANAGER') => {
+        setActionLoading(true);
+        try {
+            const endpoint = targetType === 'SAFETY_MANAGER' 
+                ? `/tickets/${id}/safety-manager` 
+                : `/tickets/${id}/controller-review`;
+            await api.put(endpoint, { action: 'REMIND_HR', notes: controllerNotes });
+            await fetchTicket(true);
+            showToast(isRtl ? 'تم إرسال تذكير للموارد البشرية بنجاح' : 'HR has been reminded successfully', 'success');
+        } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
+        finally { setActionLoading(false); }
+    };
+
+    const handleCloseRequest = (targetType: 'FINAL_REVIEW' | 'SAFETY_MANAGER') => {
+        if (hrIncomplete) {
             setCloseTargetType(targetType);
             setHrReminderModalOpen(true);
         } else {
@@ -323,16 +362,14 @@ const TicketDetail = () => {
 
     const oc = ticket.offCircuitReport || {};
     const role = user?.role || '';
-    const isController = ['HSE_CONTROLLER', 'ADMIN'].includes(role);
+    const isController = ['HSE_CONTROLLER', 'ADMIN', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
     const isSafetyManager = ['SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
-    const isDepRep = role === 'DEP_REP';
+    const isDepRep = ['DEP_REP', 'DEP_MANAGER'].includes(role);
     const isHrRep = role === 'HR_REP';
     const isReporter = role === 'OC_REPORTER' && ticket.createdById === user?.id;
 
     const injuredPersons = safeParseJSON(oc.injuredPersons);
-    const hasEmployeeInjury = injuredPersons.some((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
     const hasContractorInjury = injuredPersons.some((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
-    const hrDept = departments.find(d => d.name.toLowerCase().includes('hr') || d.nameAr?.includes('موارد'));
 
 
 
@@ -345,9 +382,17 @@ const TicketDetail = () => {
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate(-1)} className="p-2 border rounded-lg hover:bg-gray-50 transition"><ArrowLeft size={18} /></button>
                     <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <h1 className="text-xl font-bold">{ticket.ticketNo}</h1>
                             <span className={`px-2 py-1 rounded-md text-xs font-bold ${STATUS_CONFIG[ticket.status]?.chip || 'bg-gray-100'}`}>{t(`status.${ticket.status}`, ticket.status) as string}</span>
+                            {isController && ticket.reporter && ticket.reporter.name !== 'Confidential' && (
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-[11px] font-bold shadow-sm flex-wrap">
+                                    <span>👤 {ticket.reporter.name}</span>
+                                    {ticket.reporter.department && <span className="opacity-75 px-1 border-l border-amber-300">{ticket.reporter.department}</span>}
+                                    {ticket.reporter.mobile && <span className="opacity-75 px-1 border-l border-amber-300" dir="ltr">{ticket.reporter.mobile}</span>}
+                                    {ticket.reporter.email && <span className="opacity-75 px-1 border-l border-amber-300">{ticket.reporter.email}</span>}
+                                </div>
+                            )}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{t(`oc.incidentTypes.${ticket.type}`, ticket.type) as string} • {formatDate(ticket.createdAt)}</p>
                     </div>
@@ -385,6 +430,13 @@ const TicketDetail = () => {
                                             : ticket.location || '-'}
                                     </span>
                                 </div>
+                                {ticket.event && (
+                                    <div>
+                                        <span className="text-gray-500 block text-xs">{isRtl ? 'الفعالية' : 'Event'}</span>
+                                        <span className="font-medium text-emerald-700">🏁 {isRtl ? (ticket.event.nameAr || ticket.event.nameEn) : ticket.event.nameEn}</span>
+                                    </div>
+                                )}
+ 
                                 {ticket.severityLevel && (
                                     <div className="col-span-1 bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg">
                                         <strong className="block text-xs">{t('ticketActions.classification', 'Classification')}:</strong> 
@@ -392,29 +444,19 @@ const TicketDetail = () => {
                                     </div>
                                 )}
                                 {(() => {
-                                    const raw = oc?.hazardCategory;
-                                    if (!raw) return null;
-                                    let cats: string[] = [];
-                                    try { cats = JSON.parse(raw); } catch { cats = [raw]; }
+                                    const cats: string[] = safeParseJSON(oc?.hazardCategory, []);
                                     if (!cats.length) return null;
-                                    const HAZARD_ICONS: Record<string, {svg: React.ReactNode, labelAr: string}> = {
-                                        'Biological Hazards': { labelAr: 'بيولوجية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="8" fill="#1a1a1a"/><path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/><path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/></svg> },
-                                        'Chemical Hazards': { labelAr: 'كيميائية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><circle cx="20" cy="20" r="4" fill="#1a1a1a"/><circle cx="44" cy="20" r="4" fill="#1a1a1a"/><line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
-                                        'Physical Hazards': { labelAr: 'فيزيائية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="32" cy="32" r="6" fill="#1a1a1a"/><path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/><path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/><path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/></svg> },
-                                        'Safety Hazards': { labelAr: 'السلامة', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="40" cy="14" r="5" fill="#1a1a1a"/><path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/></svg> },
-                                        'Ergonomic Hazards': { labelAr: 'هندسة بشرية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><circle cx="36" cy="13" r="5" fill="#1a1a1a"/><path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/><path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/><rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/></svg> },
-                                        'Psychosocial Hazards': { labelAr: 'نفسية-اجتماعية', svg: <svg viewBox="0 0 64 64" className="w-7 h-7" fill="none"><circle cx="32" cy="32" r="30" fill="#FFC107"/><ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/><path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/><path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/><path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/></svg> },
-                                    };
                                     return (
                                         <div className="col-span-2 bg-amber-50 border border-amber-200 p-2 rounded-lg">
                                             <strong className="block text-xs text-amber-800 mb-1.5">{t('ticketDetail.hazardCategory', 'Hazard Category')}</strong>
                                             <div className="flex flex-wrap gap-2">
                                                 {cats.map((c: string) => {
-                                                    const h = HAZARD_ICONS[c];
+                                                    const meta = HAZARD_CATEGORIES.find(h => h.value === c);
+                                                    const label = isRtl ? (meta?.labelAr || c) : c.replace(' Hazards', '');
                                                     return (
                                                         <div key={c} className="flex flex-col items-center gap-0.5 bg-white border border-amber-200 rounded-lg p-1.5 shadow-sm min-w-[60px]">
-                                                            {h?.svg || <span className="text-lg">⚠️</span>}
-                                                            <span className="text-[8px] font-bold text-amber-700 text-center leading-tight">{isRtl ? (h?.labelAr || c) : c.replace(' Hazards', '')}</span>
+                                                            <HazardIcon category={c} className="w-7 h-7" />
+                                                            <span className="text-[8px] font-bold text-amber-700 text-center leading-tight">{label}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -494,44 +536,33 @@ const TicketDetail = () => {
                                     <div><span className="text-teal-600 block text-xs">{t('ticketDetail.filledBy')}</span><span className="font-bold text-teal-900">{oc.hrFilledBy}</span></div>
                                     <div><span className="text-teal-600 block text-xs">{t('ticketDetail.filledDate')}</span><span className="font-bold text-teal-900">{formatDate(oc.hrFilledAt)}</span></div>
                                 </div>
-                                {oc.hrNotes && (
-                                    <div className="mt-3 bg-white p-3 rounded-lg border border-teal-100">
-                                        <p className="text-xs text-teal-600 font-bold mb-1">{isRtl ? 'ملاحظات الموارد البشرية' : 'HR Notes'}</p>
+                                <div className="mt-3 bg-white p-3 rounded-lg border border-teal-100">
+                                    <p className="text-xs text-teal-600 font-bold mb-1">{isRtl ? 'ملاحظات الموارد البشرية' : 'HR Notes'}</p>
+                                    {oc.hrNotes ? (
                                         <p className="text-sm text-teal-900 whitespace-pre-wrap">{oc.hrNotes}</p>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <p className="text-sm text-slate-400 italic">{isRtl ? '— لم تُسجَّل ملاحظات إضافية —' : '— No additional notes recorded —'}</p>
+                                    )}
+                                </div>
                             </div>
                         )}
 
-                        {/* HR Pending notice — shown to OTHERS waiting; HR sees a call-to-action instead */}
-                        {!oc.hrFilledBy && ticket.hasInjury && !isHrRep && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                                <p className="text-xs text-amber-700 font-semibold text-center">⏳ {t('ticketDetail.waitingHrGosi')}</p>
-                            </div>
-                        )}
+                        {/* HR Pending notice removed as per request */}
                         {!oc.hrFilledBy && ticket.hasInjury && isHrRep && (
                             <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-4">
                                 <p className="text-xs text-teal-700 font-semibold text-center">📋 {t('ticketDetail.completeGosiBelow')}</p>
                             </div>
                         )}
 
-                        {/* Always show injuries section if there are any, visible across all stages */}
-                        {(hasEmployeeInjury || hasContractorInjury) && (
+                        {/* Employee Injuries Section */}
+                        {hasEmployeeInjury && (
                             <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4">
                                 <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
-                                    {/* Dynamic title based on injury types */}
-                                    {hasEmployeeInjury && hasContractorInjury
-                                        ? <>{'🏥 ' + t('ticketDetail.injuriesAndContractor')}</>
-                                        : hasEmployeeInjury
-                                            ? <>{'🏥 ' + t('ticketDetail.hrGosi')}</>
-                                            : <>{'🏗️ ' + t('ticketDetail.contractorNotification')}</>
-                                    }
-                                    {!oc.depRepFilledBy && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full ltr:ml-auto rtl:mr-auto">{t('ticketDetail.pendingDeptInput')}</span>}
+                                    {'🏥 ' + t('ticketDetail.hrGosi', 'HR / GOSI')}
                                 </h3>
-                                
                                 <div className="grid grid-cols-1 gap-4">
                                     {/* Per-person GOSI display or form */}
-                                    {hasEmployeeInjury && (() => {
+                                    {(() => {
                                         const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
                                         const isEditable =
                                             (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
@@ -541,7 +572,7 @@ const TicketDetail = () => {
                                             <div className="col-span-1 space-y-3">
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-bold text-xs text-blue-700">{isRtl ? `بيانات المصابين (${employees.length})` : `Injured Persons (${employees.length})`}</p>
-                                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">إلزامي (Required)</span>}
+                                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     {employees.map((p: any, i: number) => {
@@ -628,98 +659,193 @@ const TicketDetail = () => {
                                             </div>
                                         );
                                     })()}
-
-                                    {/* Contractor Data */}
-                                    {hasContractorInjury && (() => {
-                                        const contractors = injuredPersons.filter((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
-                                        const isEditable = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
-                                        return (
-                                            <div className="col-span-1">
-                                                <div className="flex items-center gap-2 mb-2 mt-2">
-                                                    <p className="font-bold text-xs text-purple-700">{t('ticketActions.contractor', 'Contractor')} ({contractors.length})</p>
-                                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
-                                                </div>
-
-                                                {/* ── Injured contractor persons (always visible) ── */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                                    {contractors.map((p: any, i: number) => (
-                                                        <div key={i} className="bg-purple-50/60 border border-purple-200/60 rounded-xl p-3 space-y-1.5">
-                                                            <div className="flex items-center gap-2 pb-1.5 border-b border-purple-200/40">
-                                                                <div className="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center text-white text-[10px] font-black">{i + 1}</div>
-                                                                <div>
-                                                                    <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
-                                                                    {p.mobile && <p className="text-[10px] text-slate-400" dir="ltr">{p.mobile}</p>}
-                                                                </div>
-                                                                {p.company && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold truncate max-w-[120px]">{p.company}</span>}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-
-                                                {/* ── Company notification status (DEP_REP editable / read-only) ── */}
-                                                {isEditable ? (
-                                                    <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-200/60 text-xs">
-                                                        <label className="flex items-center gap-2 cursor-pointer mb-3">
-                                                            <input type="checkbox" checked={contractorNotified === true} onChange={e => setContractorNotified(e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
-                                                            <span className="text-xs font-bold text-slate-700">{t('ticketActions.companyNotified', 'Was the contractor company notified?')}</span>
-                                                        </label>
-                                                        {contractorNotified === true && (
-                                                            <div className="pt-2 border-t border-blue-200/40">
-                                                                <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reportDate', 'Date of notification')} <span className="text-red-500">*</span></label>
-                                                                <input type="date" value={contractorNotifyDate} onChange={e => setContractorNotifyDate(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                            </div>
-                                                        )}
-                                                        {contractorNotified === false && (
-                                                            <div className="pt-2 border-t border-blue-200/40">
-                                                                <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reason', 'Reason')} <span className="text-red-500">*</span></label>
-                                                                <input placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={contractorNoReason} onChange={e => setContractorNoReason(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 text-xs">
-                                                        {oc.contractorNotified !== null && oc.contractorNotified !== undefined ? (
-                                                            <div className="space-y-1.5">
-                                                                <div><span className="text-slate-500">{t('ticketActions.companyNotified', 'Company Notified?')}:</span> {oc.contractorNotified ? <span className="text-emerald-600 font-bold">✓ {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold">✕ {t('common.no', 'No')}</span>}</div>
-                                                                {oc.contractorNotified ? (
-                                                                    <div><span className="text-slate-500">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong>{formatDate(oc.contractorNotifyDate)}</strong></div>
-                                                                ) : (
-                                                                    <div className="text-red-600"><span className="text-slate-500">{t('ticketActions.reason', 'Reason')}:</span> <strong>{oc.contractorNoReason}</strong></div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-amber-600 font-medium italic py-1">{'⏳ ' + t('ticketDetail.pendingContractor')}</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* OTHER type injured persons — always show */}
-                                    {injuredPersons.filter((p: any) => p.type === 'OTHER').length > 0 && (
-                                        <div className="col-span-1">
-                                            <p className="font-bold text-xs text-gray-600 mb-2 mt-2">{isRtl ? `أخرى (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})` : `Other (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})`}</p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {injuredPersons.filter((p: any) => p.type === 'OTHER').map((p: any, i: number) => (
-                                                    <div key={i} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                                                        <p className="text-sm font-bold text-slate-800">{p.name || `#${i + 1}`}</p>
-                                                        {p.mobile && <p className="text-[10px] text-slate-400" dir="ltr">{p.mobile}</p>}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
                                 </div>
                             </div>
                         )}
 
-                        {/* ActionPlanSection: dept filling, HR filling (for employee injury cases), or anyone reviewing */}
-                        {(isDepRep || isHrRep || (ticket.actionPlans?.length > 0)) && (
+                        {/* Combined Service Provider / Contractor Section */}
+                        {(ticket.serviceProvider || hasContractorInjury) && (
+                            <div className="bg-purple-50/40 border border-purple-200 rounded-xl p-4 space-y-4 mb-4">
+                                <h3 className="font-bold text-purple-800 flex items-center gap-2 border-b border-purple-200 pb-2">
+                                    🏗️ {isRtl ? 'بيانات مزود الخدمة والمقاولين' : 'Service Provider & Contractor Details'}
+                                </h3>
+
+                                {ticket.serviceProvider && (
+                                    <div className="bg-white border border-purple-100 rounded-xl p-4 shadow-sm">
+                                        <div className="flex items-center gap-2 text-purple-900 font-bold text-sm mb-3">
+                                            🏢 {isRtl ? 'الشركة / مزود الخدمة' : 'Company / Service Provider'}
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                                            <div>
+                                                <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم المورد' : 'Provider Name'}</span>
+                                                <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.nameAr || ticket.serviceProvider.name) : ticket.serviceProvider.name}</span>
+                                            </div>
+                                            {ticket.serviceProvider.commercialRegistrationNumber && (
+                                                <div>
+                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'السجل التجاري' : 'CR Number'}</span>
+                                                    <span className="font-mono font-bold text-slate-800">{ticket.serviceProvider.commercialRegistrationNumber}</span>
+                                                </div>
+                                            )}
+                                            {ticket.serviceProvider.department && (
+                                                <div>
+                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'القسم المسؤول' : 'Responsible Department'}</span>
+                                                    <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.department.nameAr || ticket.serviceProvider.department.name) : ticket.serviceProvider.department.name}</span>
+                                                </div>
+                                            )}
+                                            {ticket.serviceProvider.representativeName && (
+                                                <div>
+                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم الممثل' : 'Representative'}</span>
+                                                    <span className="font-bold text-slate-800">{ticket.serviceProvider.representativeName}</span>
+                                                </div>
+                                            )}
+                                            {ticket.serviceProvider.representativeMobile && (
+                                                <div>
+                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'جوال الممثل' : 'Rep Mobile'}</span>
+                                                    <span className="font-mono font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeMobile}</span>
+                                                </div>
+                                            )}
+                                            {ticket.serviceProvider.representativeEmail && (
+                                                <div className="col-span-1 md:col-span-2">
+                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'بريد الممثل' : 'Rep Email'}</span>
+                                                    <span className="font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeEmail}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {hasContractorInjury && (() => {
+                                    const contractors = injuredPersons.filter((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
+                                    const isEditable = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
+                                    return (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-sm text-purple-800">{t('ticketActions.contractor', 'Contractor Injuries')} ({contractors.length})</p>
+                                                {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {contractors.map((p: any, i: number) => (
+                                                    <div key={i} className="bg-white border border-purple-200 rounded-xl p-3 shadow-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center font-black">{i + 1}</div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
+                                                                {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
+                                                            </div>
+                                                            {p.company && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-md font-bold truncate max-w-[120px]">{p.company}</span>}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Company Notification Form */}
+                                            {isEditable ? (
+                                                <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm mt-2">
+                                                    <label className="flex items-center gap-2 cursor-pointer mb-3">
+                                                        <input type="checkbox" checked={contractorNotified === true} onChange={e => setContractorNotified(e.target.checked)} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
+                                                        <span className="text-sm font-bold text-slate-700">{t('ticketActions.companyNotified', 'Was the contractor company notified?')}</span>
+                                                    </label>
+                                                    {contractorNotified === true && (
+                                                        <div className="pt-3 border-t border-blue-100 mt-2">
+                                                            <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reportDate', 'Date of notification')} <span className="text-red-500">*</span></label>
+                                                            <input type="date" value={contractorNotifyDate} onChange={e => setContractorNotifyDate(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
+                                                        </div>
+                                                    )}
+                                                    {contractorNotified === false && (
+                                                        <div className="pt-3 border-t border-blue-100 mt-2">
+                                                            <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reason', 'Reason')} <span className="text-red-500">*</span></label>
+                                                            <input placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={contractorNoReason} onChange={e => setContractorNoReason(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {oc.contractorNotified !== null && oc.contractorNotified !== undefined && (
+                                                        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm text-sm space-y-2 mt-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-slate-500 font-medium">{t('ticketActions.companyNotified', 'Company Notified?')}:</span> 
+                                                                {oc.contractorNotified ? <span className="text-emerald-600 font-bold flex items-center gap-1"><CheckCircle size={14}/> {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold flex items-center gap-1"><AlertTriangle size={14}/> {t('common.no', 'No')}</span>}
+                                                            </div>
+                                                            {oc.contractorNotified ? (
+                                                                <div className="flex items-center gap-2"><span className="text-slate-500 font-medium">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong className="text-slate-800">{formatDate(oc.contractorNotifyDate)}</strong></div>
+                                                            ) : (
+                                                                <div className="flex items-start gap-2"><span className="text-slate-500 font-medium">{t('ticketActions.reason', 'Reason')}:</span> <strong className="text-red-600">{oc.contractorNoReason}</strong></div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* OTHER type injured persons — always show */}
+                        {injuredPersons.filter((p: any) => p.type === 'OTHER').length > 0 && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-2">
+                                    👥 {isRtl ? `أخرى (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})` : `Other (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})`}
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {injuredPersons.filter((p: any) => p.type === 'OTHER').map((p: any, i: number) => (
+                                        <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                                            <p className="text-sm font-bold text-slate-800">{p.name || `#${i + 1}`}</p>
+                                            {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ActionPlanSection: dept filling or anyone reviewing */}
+                        {((isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) || (ticket.actionPlans?.length > 0)) && (
                             <ActionPlanSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
                         )}
                         <ReminderSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
+
+                        {/* FINAL CLOSURE DECISION */}
+                        {ticket.status === 'CLOSED' && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mt-4 space-y-3">
+                                <h3 className="font-bold text-emerald-800 flex items-center gap-2 border-b border-emerald-200 pb-2">
+                                    <CheckCircle size={18} /> {isRtl ? 'قرار إدارة السلامة النهائي' : 'Final HSE Department Decision'}
+                                </h3>
+                                
+                                <div className="bg-white p-3 rounded-lg border border-emerald-100">
+                                    {ticket.hasFinancialViolation ? (
+                                        <div className="mb-2">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm font-bold border border-red-200">
+                                                🚨 {isRtl ? 'مخالفة مالية مقيدة على المقاول' : 'Financial Violation Applied to Vendor'}
+                                            </span>
+                                            <p className="mt-2 text-sm font-bold text-slate-700">
+                                                {isRtl ? 'مبلغ المخالفة:' : 'Violation Amount:'} <span className="text-red-600" dir="ltr">{ticket.violationAmount} SAR</span>
+                                            </p>
+                                        </div>
+                                    ) : ticket.activityLogs?.some((l: any) => l.action === 'STAGE_CLOSED' && l.details?.includes('(Warning Violation)')) ? (
+                                        <div className="mb-2">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 text-orange-700 rounded-md text-sm font-bold border border-orange-200">
+                                                ⚠️ {isRtl ? 'توجيه إنذار / تحذير للمقاول' : 'Warning Applied to Vendor'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="mb-2 text-sm font-bold text-emerald-700">
+                                            {isRtl ? 'أغلقت بدون مخالفات' : 'Closed without violations'}
+                                        </div>
+                                    )}
+                                    
+                                    {(ticket.violationDescription || ticket.closureReason) && (
+                                        <div className="mt-3">
+                                            <p className="text-xs text-slate-500 font-bold mb-1">{isRtl ? 'التفاصيل / ملاحظات الإغلاق:' : 'Details / Closure Notes:'}</p>
+                                            <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{ticket.violationDescription || ticket.closureReason}</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-[10px] text-emerald-600 font-medium">
+                                    {isRtl ? 'أغلقت بواسطة:' : 'Closed by:'} {ticket.closedBy || 'HSE Controller'} • {formatDate(ticket.closedAt)}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Bottom Section: Actions */}
@@ -738,337 +864,63 @@ const TicketDetail = () => {
                                 </div>
                             )}
 
-                            {/* REPORTER PENDING REMINDER */}
+                            {/* REPORTER PENDING REMINDER — informational only (DepRep/Controller completes the reminder) */}
                             {isReporter && ticket.status === 'PENDING_REMINDER' && (
-                                <div className="space-y-2 bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
-                                    <Bell className="mx-auto text-orange-500 mb-1" size={24} />
-                                    <h4 className="font-bold text-orange-800">{t('rem.pendingActionTitle', 'تنبيه يتطلب إجراؤك')}</h4>
-                                    <p className="text-xs text-orange-700 leading-relaxed">{t('rem.pendingActionDesc', 'يوجد تنبيه معلق بانتظار ردك، يرجى التوجه لقسم (التنبيهات) أدناه، وكتابة ملاحظة الإنجاز ثم الضغط على "إنجاز".')}</p>
+                                <div className="space-y-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                                    <Bell className="mx-auto text-blue-500 mb-1" size={24} />
+                                    <h4 className="font-bold text-blue-800">{t('rem.reporterInfoTitle', 'التذكرة في انتظار تذكير مُجدوَل')}</h4>
+                                    <p className="text-xs text-blue-700 leading-relaxed">{t('rem.reporterInfoDesc', 'تم تعليق التذكرة بناءً على تذكير من الكنترولر. سيتم استئناف المتابعة في الموعد المحدد من قبل القسم المختص — لا يلزم منك أي إجراء.')}</p>
+                                </div>
+                            )}
+
+                            {/* HR_REP: non-injury ticket — informational */}
+                            {isHrRep && !ticket.hasInjury && (
+                                <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                                    <h4 className="font-bold text-gray-800">{t('hr.noInjuryTitle', 'هذه التذكرة لا تتعلق بإصابة')}</h4>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{t('hr.noInjuryDesc', 'لا يلزم تعبئة بيانات GOSI — للعِلم فقط.')}</p>
+                                </div>
+                            )}
+
+                            {/* SP_REP: closed ticket — informational */}
+                            {role === 'SERVICE_PROVIDER_REP' && ticket.status === 'CLOSED' && (
+                                <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                                    <h4 className="font-bold text-gray-800">{t('sp.closedTitle', 'تذكرة مُغلقة')}</h4>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{t('sp.closedDesc', 'للعِلم فقط — تم إغلاق هذه التذكرة ولا يمكن تعديلها.')}</p>
+                                </div>
+                            )}
+
+                            {/* CONTROLLER: ticket returned to department — informational */}
+                            {isController && ticket.status === 'RETURNED_TO_DEPARTMENT' && (
+                                <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                    <h4 className="font-bold text-amber-800">{t('ctrl.returnedTitle', 'تم إرجاع التذكرة للقسم')}</h4>
+                                    <p className="text-xs text-amber-700 leading-relaxed">{t('ctrl.returnedDesc', 'التذكرة بانتظار رد القسم المختص. لا يمكن إغلاقها حتى يكمل القسم المراجعة.')}</p>
                                 </div>
                             )}
 
                             {/* CONTROLLER: SUBMITTED (Initial Review) */}
-                            {isController && ticket.status === 'SUBMITTED' && (
-                                <div className="space-y-3">
-                                    <div className="p-3 bg-white border rounded-lg space-y-2">
-                                        <p className="text-xs font-bold text-gray-500">{t('ticketActions.changeTypeOptional', 'Change Type (Optional)')}</p>
-                                        <select value={newType} onChange={e => setNewType(e.target.value)} className="w-full p-2 border rounded text-sm"><option value="">{t('ticketActions.keepCurrent', 'Keep current') as string} ({t(`oc.incidentTypes.${ticket.type}`, ticket.type) as string})</option><option value="OBSERVATION">{t('oc.incidentTypes.OBSERVATION', 'Observation')}</option><option value="ACCIDENT">{t('oc.incidentTypes.ACCIDENT', 'Accident / Injury')}</option><option value="SECURITY">{t('oc.incidentTypes.SECURITY', 'Security')}</option></select>
-                                        {newType && <input placeholder={t('ticketActions.reasonForChange', 'Reason for change...')} value={typeChangeReason} onChange={e => setTypeChangeReason(e.target.value)} className="w-full p-2 border rounded text-sm" />}
-                                    </div>
-                                    <div className="p-3 bg-white border rounded-lg space-y-2">
-                                        <p className="text-xs font-bold text-gray-500">{t('ticketActions.classification', 'Classification')}</p>
-                                        <select value={severityLevel} onChange={e => setSeverityLevel(e.target.value)} className="w-full p-2 border rounded text-sm"><option value="">-- {t('ticketActions.classification', 'Classification')} --</option><option value="MINOR">{t('classification.MINOR', 'Minor')}</option><option value="SIGNIFICANT">{t('classification.SIGNIFICANT', 'Significant')}</option><option value="MAJOR">{t('classification.MAJOR', 'Major')}</option></select>
-                                    </div>
-                                    {/* Hazard Category Grid */}
-                                    <div className="p-3 bg-white border rounded-lg space-y-2">
-                                        <p className="text-xs font-bold text-gray-500">{t('ticketDetail.hazardCategory', 'Hazard Category')}</p>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {[
-                                                { value: 'Biological Hazards', labelAr: 'مخاطر بيولوجية', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <circle cx="32" cy="32" r="8" fill="#1a1a1a"/>
-                                                        <path d="M32 24 C32 16 20 10 14 18 C8 26 16 34 24 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                                                        <path d="M32 24 C38 16 50 18 48 28 C46 38 36 36 32 30" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                                                        <path d="M26 34 C18 38 16 50 26 50 C36 50 36 40 32 38" stroke="#1a1a1a" strokeWidth="5" fill="none"/>
-                                                    </svg>
-                                                )},
-                                                { value: 'Chemical Hazards', labelAr: 'مخاطر كيميائية', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
-                                                        <circle cx="20" cy="20" r="4" fill="#1a1a1a"/>
-                                                        <circle cx="44" cy="20" r="4" fill="#1a1a1a"/>
-                                                        <line x1="15" y1="50" x2="27" y2="30" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                        <line x1="37" y1="30" x2="49" y2="50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                        <line x1="10" y1="54" x2="54" y2="54" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                    </svg>
-                                                )},
-                                                { value: 'Physical Hazards', labelAr: 'مخاطر فيزيائية', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <circle cx="32" cy="32" r="6" fill="#1a1a1a"/>
-                                                        <path d="M32 8 L32 18 M32 46 L32 56 M8 32 L18 32 M46 32 L56 32" stroke="#1a1a1a" strokeWidth="5" strokeLinecap="round"/>
-                                                        <path d="M32 14 A18 18 0 0 1 50 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
-                                                        <path d="M32 50 A18 18 0 0 1 14 32" stroke="#1a1a1a" strokeWidth="4" fill="none"/>
-                                                    </svg>
-                                                )},
-                                                { value: 'Safety Hazards', labelAr: 'مخاطر السلامة', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <circle cx="40" cy="14" r="5" fill="#1a1a1a"/>
-                                                        <path d="M40 20 L38 30 L30 26 L20 40" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                                                        <path d="M30 26 L26 42 L36 48" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                                                        <path d="M14 44 L22 44" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                    </svg>
-                                                )},
-                                                { value: 'Ergonomic Hazards', labelAr: 'مخاطر هندسة بشرية', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <circle cx="36" cy="13" r="5" fill="#1a1a1a"/>
-                                                        <path d="M36 18 L34 28 L44 32 L42 22" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="#1a1a1a" fillOpacity="0.3"/>
-                                                        <path d="M34 28 L32 42 L26 52" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                        <path d="M32 42 L40 50" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                        <path d="M20 36 L34 28" stroke="#1a1a1a" strokeWidth="4" strokeLinecap="round"/>
-                                                        <rect x="14" y="32" width="12" height="8" rx="2" fill="#1a1a1a"/>
-                                                    </svg>
-                                                )},
-                                                { value: 'Psychosocial Hazards', labelAr: 'مخاطر نفسية-اجتماعية', icon: (
-                                                    <svg viewBox="0 0 64 64" className="w-9 h-9" fill="none">
-                                                        <circle cx="32" cy="32" r="30" fill="#FFC107"/>
-                                                        <ellipse cx="32" cy="30" rx="16" ry="18" fill="#1a1a1a"/>
-                                                        <path d="M20 22 C20 14 44 14 44 22" fill="#1a1a1a"/>
-                                                        <path d="M24 26 C24 22 28 20 32 22 C36 20 40 22 40 26" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                                                        <path d="M26 32 C26 30 28 28 30 30" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                                                        <path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
-                                                    </svg>
-                                                )},
-                                            ].map(cat => {
-                                                const isSelected = hazardCategory.includes(cat.value);
-                                                return (
-                                                    <button
-                                                        key={cat.value}
-                                                        type="button"
-                                                        onClick={() => setHazardCategory(prev => prev.includes(cat.value) ? prev.filter(v => v !== cat.value) : [...prev, cat.value])}
-                                                        className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 transition-all text-center
-                                                            ${isSelected
-                                                                ? 'border-amber-500 bg-amber-50 shadow-md scale-105'
-                                                                : 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/50'}
-                                                            cursor-pointer hover:shadow-sm`}
-                                                    >
-                                                        {<HazardIcon category={cat.value} className="w-9 h-9" />}
-                                                        <span className={`text-[9px] font-bold leading-tight ${isSelected ? 'text-amber-700' : 'text-gray-600'}`}>
-                                                            {isRtl ? cat.labelAr : cat.value}
-                                                        </span>
-                                                        {isSelected && <span className="text-[8px] text-amber-500">✓</span>}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                                        <div className="flex items-center justify-between px-2 pt-2">
-                                            <span className="text-xs font-bold text-gray-500">{t('ticketActions.notes', 'Notes')}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_ASSIGN_NOTES" onEnhanced={setControllerNotes} />
-                                        </div>
-                                        <textarea id="controllerNotes" name="controllerNotes" placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[120px]" rows={5} />
-                                    </div>
-                                    {/* Show HR auto-routing notice if employee injured */}
-                                    {hasEmployeeInjury && (
-                                        <div className="bg-teal-50 border border-teal-200 rounded-xl px-3 py-2.5">
-                                            <p className="text-xs text-teal-800 font-semibold flex items-center gap-1.5">
-                                                <span className="text-lg">🏥</span>
-                                                {t('ticketDetail.hrAutoNotice')}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* ── RCA (Root Cause Analysis) — required for non-OBSERVATION ── */}
-                                    {(newType || ticket.type) !== 'OBSERVATION' && (
-                                        <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 rounded-xl p-4 space-y-3">
-                                            <div className="flex items-start gap-2 pb-2 border-b border-amber-200/70">
-                                                <span className="text-lg">📋</span>
-                                                <div>
-                                                    <h4 className="text-sm font-black text-amber-900">{isRtl ? 'تحليل السبب الجذري (RCA)' : 'Root Cause Analysis (RCA)'}</h4>
-                                                    <p className="text-[11px] text-amber-700 mt-0.5">{isRtl ? 'مطلوب قبل التوجيه — 10 كلمات على الأقل لكل حقل' : 'Required before routing — minimum 10 words per field'}</p>
-                                                </div>
-                                            </div>
-                                            {[
-                                                { num: 1, label: isRtl ? '١. الأسباب المباشرة' : '1. Immediate Causes', value: rcaCause, setter: setRcaCause, type: 'RCA_CAUSE' },
-                                                { num: 2, label: isRtl ? '٢. الأسباب الكامنة (لماذا حدث؟)' : '2. Underlying Causes (Why?)', value: rcaWhy, setter: setRcaWhy, type: 'RCA_WHY' },
-                                                { num: 3, label: isRtl ? '٣. السبب الجذري' : '3. Root Cause', value: rcaRootCause, setter: setRcaRootCause, type: 'RCA_ROOT_CAUSE' },
-                                                { num: 4, label: isRtl ? '٤. الإجراءات التصحيحية' : '4. Corrective Actions', value: rcaCategory, setter: setRcaCategory, type: 'RCA_CORRECTIVE' },
-                                                { num: 5, label: isRtl ? '٥. الإجراءات الوقائية' : '5. Preventive Actions', value: rcaPreventiveActions, setter: setRcaPreventiveActions, type: 'RCA_PREVENTIVE' },
-                                            ].map(f => (
-                                                <div key={f.num} className="space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <label className="text-xs font-bold text-slate-700">{f.label}<span className="text-red-500 ms-1">*</span></label>
-                                                        <MagicWandButton text={f.value} context={oc?.whatHappened || ''} type={f.type} onEnhanced={f.setter} />
-                                                    </div>
-                                                    <textarea
-                                                        value={f.value}
-                                                        onChange={e => f.setter(e.target.value)}
-                                                        rows={3}
-                                                        placeholder={isRtl ? 'اكتب إجابتك (10 كلمات على الأقل)...' : 'Write your answer (min 10 words)...'}
-                                                        className="w-full text-sm border border-amber-200 rounded-lg p-2 bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-2">
-    <p className="text-xs font-bold text-gray-500">{t('ticketActions.routeToDept', 'Route to Department')}</p>
-    <select id="targetDepartmentId" name="targetDepartmentId" value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.map(d => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
-</div>
-                                    {(!severityLevel || !controllerNotes.trim()) && (
-                                        <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1.5">
-                                            {!severityLevel && (
-                                                <p className="text-xs text-amber-800 font-semibold flex items-center gap-2">
-                                                    <span className="w-4 h-4 bg-amber-400 text-white rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0">!</span>
-                                                    {t('ticketDetail.classificationRequired')}
-                                                </p>
-                                            )}
-                                            {severityLevel && !controllerNotes.trim() && (
-                                                <p className="text-xs text-amber-800 font-semibold flex items-center gap-2">
-                                                    <span className="w-4 h-4 bg-amber-400 text-white rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0">!</span>
-                                                    {t('ticketDetail.notesRequired')}
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                    <div className="grid grid-cols-2 gap-2 pt-1">
-                                        <button
-                                            onClick={() => confirmThen(() => handleControllerAction('RETURN_REPORTER'), isRtl ? 'إرجاع إلى المبلّغ' : 'Return to Reporter', isRtl ? `ستُرجع التذكرة للمبلّغ.\nالملاحظات: "${controllerNotes}"` : `Ticket returned to reporter.\nNotes: "${controllerNotes}"`, 'danger')}
-                                            disabled={actionLoading || !controllerNotes.trim()}
-                                            className="bg-red-50 border border-red-200 text-red-700 py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-red-100"
-                                        >↩ {t('ticketActions.return', 'إرجاع')}</button>
-                                        <button
-    onClick={() => { if (!severityLevel || !targetDepartmentId || !controllerNotes.trim()) return; const deptName = departments.find(d => d.id === targetDepartmentId)?.name || targetDepartmentId; confirmThen(() => handleControllerAction('ASSIGN'), isRtl ? 'توجيه التذكرة' : 'Route Ticket', isRtl ? `سيتم التوجيه إلى "${deptName}" بتصنيف "${severityLevel}".` : `Routing to "${deptName}" with severity "${severityLevel}".`, 'primary'); }}
-    disabled={actionLoading || !targetDepartmentId || !severityLevel || !controllerNotes.trim()}
-    className="bg-blue-600 text-white py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-blue-700 flex items-center justify-center gap-1.5"
->✓ {t('ticketActions.assign', 'توجيه')}</button>
-                                    </div>
-                                </div>
-                            )}
-
-
-                            
+{isController && ticket.status === 'SUBMITTED' && (
+    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} />
+)}
 
                             {/* HR REP: GOSI form */}
-                            {isHrRep && ticket.hasInjury && (
-                                <div className="space-y-3 bg-teal-50 border border-teal-200 rounded-xl p-4">
-                                    <p className="text-sm font-bold text-teal-800 text-center">🏥 {t('ticketDetail.gosiPrompt')}</p>
-                                    
-                                    <div className="bg-white rounded-xl border border-teal-100 p-1 mb-3">
-                                        <textarea
-                                            placeholder={isRtl ? 'ملاحظات إضافية (اختياري)...' : 'Additional HR Notes (Optional)...'}
-                                            value={hrNotes}
-                                            onChange={(e) => setHrNotes(e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 text-sm p-3 resize-y min-h-[80px] outline-none"
-                                        />
-                                    </div>
-
-                                    <button
-                                        onClick={async () => {
-                                            setActionLoading(true);
-                                            try {
-                                                await api.put(`/tickets/${id}/hr-action`, { 
-                                                    injuredPersonsGosi: injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined,
-                                                    hrNotes 
-                                                });
-                                                await fetchTicket(true);
-                                                showToast(isRtl ? 'تم تحديث بيانات التأمينات بنجاح' : 'GOSI data updated successfully', 'success');
-                                            } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
-                                            finally { setActionLoading(false); }
-                                        }}
-                                        disabled={actionLoading}
-                                        className="w-full bg-teal-600 hover:bg-teal-700 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                                    >{actionLoading ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />} {ticket.offCircuitReport?.hrFilledBy ? t('ticketDetail.updateGosi') : t('ticketDetail.submitGosi')}</button>
-                                </div>
-                            )}
+{isHrRep && ticket.hasInjury && (
+    <HrPanel isHrRep={isHrRep} ticket={ticket} t={t} isRtl={isRtl} hrNotes={hrNotes} setHrNotes={setHrNotes} handleHrAction={handleHrAction} actionLoading={actionLoading} />
+)}
 
                             {/* DEPARTMENT REP ACTION */}
-                            {isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && (
-                                <div className="space-y-3 bg-white p-4 border border-slate-200 shadow-sm rounded-xl">
-                                    <p className="text-xs text-slate-500 italic text-center leading-relaxed">
-                                        {t('ticketDetail.completeFields')}
-                                    </p>
-                                    <button onClick={handleDepartmentAction} disabled={actionLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm">
-                                        {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />} 
-                                        {t('ticketDetail.submitResponse')}
-                                    </button>
-                                </div>
-                            )}
+{isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && (
+    <DepartmentPanel isDepRep={isDepRep} ticket={ticket} t={t} handleDepartmentAction={handleDepartmentAction} actionLoading={actionLoading} />
+)}
 
                             {/* CONTROLLER FINAL REVIEW */}
-                            {isController && ticket.status === 'UNDER_REVIEW' && (() => {
-                                const hasRejectedPlan = ticket.actionPlans?.some((p: any) => p.status === 'REJECTED');
-                                return (
-                                <div className="space-y-3">
-                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                                        <div className="flex items-center justify-between px-2 pt-2">
-                                            <span className="text-xs font-bold text-gray-500">{t('ticketActions.reviewNotes', 'Review Notes')}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_REVIEW_NOTES" onEnhanced={setControllerNotes} />
-                                        </div>
-                                        <textarea placeholder={t('ticketActions.reviewNotesPlaceholder', 'Review Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[150px]" rows={6} />
-                                        {!controllerNotes && (
-                                            <p className="text-[10px] text-amber-600 bg-amber-50 border-t border-amber-100 px-3 py-1.5 flex items-center gap-1.5">
-                                                <span className="font-black">!</span>
-                                                {t('ticketDetail.reviewWriteNote')}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
-                                        <p className="text-xs font-bold text-orange-800"><Bell size={12} className="inline mr-1" /> {t('ticketActions.setReminder', 'Set Reminder')}</p>
-                                        <input type="date" value={reminderDate} onChange={e => setReminderDate(e.target.value)} className="w-full p-1.5 border rounded text-xs" />
-                                        <input placeholder={t('ticketActions.reminderMessage', 'Reminder message...')} value={reminderMessage} onChange={e => setReminderMessage(e.target.value)} className="w-full p-1.5 border rounded text-xs" />
-                                        <button onClick={() => handleFinalReview('SET_REMINDER')} disabled={!reminderDate || !reminderMessage} className="w-full bg-orange-500 text-white p-1.5 rounded text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity">{t('ticketActions.setReminder', 'Set Reminder')}</button>
-                                    </div>
-
-                                    {/* Warning banner when a plan is rejected */}
-                                    {hasRejectedPlan && (
-                                        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 flex items-start gap-3">
-                                            <span className="text-red-500 text-lg">⚠️</span>
-                                            <p className="text-sm font-bold text-red-700">
-                                                {t('ticketDetail.rejectedPlanWarning')}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    <div className={`grid gap-2 pt-1 ${hasRejectedPlan ? 'grid-cols-2' : 'grid-cols-2'}`}>
-                                        <button
-                                            onClick={() => confirmThen(() => handleFinalReview('RETURN_DEPARTMENT'), isRtl ? 'إرجاع إلى القسم' : 'Return to Department', isRtl ? 'ستُرجع التذكرة إلى القسم المختص للمراجعة وإعادة الرد.' : 'The ticket will be returned to the department for revision and re-submission.', 'danger')}
-                                            disabled={!controllerNotes}
-                                            className="bg-rose-50 border-2 border-rose-300 text-rose-700 p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-rose-100 flex items-center justify-center gap-2"
-                                        >
-                                            ↩ {isRtl ? 'إرجاع للقسم' : 'Return to Dept'}
-                                        </button>
-                                        <button
-                                            onClick={() => confirmThen(() => handleFinalReview('ESCALATE'), isRtl ? 'تصعيد التذكرة' : 'Escalate Ticket', isRtl ? 'ستُرفع التذكرة للمستوى الأعلى (Safety Manager). لا يمكن التراجع عن هذا الإجراء.' : 'The ticket will be escalated to the Safety Manager. This action cannot be undone.', 'warning')}
-                                            className="bg-amber-500 text-white p-3 rounded-xl text-sm font-bold transition-all hover:bg-amber-600 flex items-center justify-center gap-2"
-                                        >
-                                            ⬆ {isRtl ? 'تصعيد' : 'Escalate'}
-                                        </button>
-                                        {!hasRejectedPlan && (
-                                            <button
-                                                onClick={() => handleCloseRequest('FINAL_REVIEW')}
-                                                className="col-span-2 bg-emerald-600 text-white p-3 rounded-xl text-sm font-bold transition-all hover:bg-emerald-700 flex items-center justify-center gap-2"
-                                            >
-                                                ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                );
-                            })()}
+{isController && ticket.status === 'UNDER_REVIEW' && (
+    <ControllerFinalReviewPanel isController={isController} ticket={ticket} t={t} hasRejectedPlan={ticket.actionPlans?.some((p: any) => p.status === 'REJECTED')} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} oc={oc} reminderDate={reminderDate} setReminderDate={setReminderDate} reminderMessage={reminderMessage} setReminderMessage={setReminderMessage} handleFinalReview={handleFinalReview} actionLoading={actionLoading} confirmThen={confirmThen} isRtl={isRtl} handleCloseRequest={handleCloseRequest} hrIncomplete={hrIncomplete} handleStandaloneRemindHr={handleStandaloneRemindHr} />
+)}
 
                             {/* SAFETY MANAGER */}
-                            {isSafetyManager && ticket.status === 'ESCALATED' && (
-                                <div className="space-y-3">
-                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                                        <div className="flex items-center justify-between px-2 pt-2">
-                                            <span className="text-xs font-bold text-gray-500">{t('ticketActions.closureNotes', 'Closure / Escalation Notes')}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_CLOSURE_NOTES" onEnhanced={setControllerNotes} />
-                                        </div>
-                                        <textarea placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[150px]" rows={6} />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2 pt-1">
-                                        <button
-                                            onClick={() => confirmThen(() => handleSafetyManagerAction('RETURN'), isRtl ? 'إرجاع التذكرة' : 'Return Ticket', isRtl ? 'ستُرجع التذكرة إلى المرحلة السابقة للمراجعة.' : 'The ticket will be returned to the previous review stage.', 'danger')}
-                                            className="bg-rose-50 border border-rose-200 text-rose-700 p-2 rounded-xl text-xs font-bold transition-all hover:bg-rose-100"
-                                        >
-                                            ↩ {isRtl ? 'إرجاع' : 'Return'}
-                                        </button>
-                                        <button
-                                            onClick={() => handleCloseRequest('SAFETY_MANAGER')}
-                                            className="bg-emerald-600 text-white p-2 rounded-xl text-xs font-bold transition-all hover:bg-emerald-700"
-                                        >
-                                            ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+{isSafetyManager && ticket.status === 'ESCALATED' && (
+    <SafetyManagerPanel isSafetyManager={isSafetyManager} ticket={ticket} t={t} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} oc={oc} confirmThen={confirmThen} handleSafetyManagerAction={handleSafetyManagerAction} isRtl={isRtl} handleCloseRequest={handleCloseRequest} hrIncomplete={hrIncomplete} handleStandaloneRemindHr={handleStandaloneRemindHr} actionLoading={actionLoading} departments={departments} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} />
+)}
 
                             {/* No actions message */}
                             {!(
@@ -1106,6 +958,7 @@ const TicketDetail = () => {
             <CloseTicketModal
                 open={closeModalOpen}
                 loading={actionLoading}
+                hasEmployeeInjury={hasEmployeeInjury}
                 onCancel={() => { setCloseModalOpen(false); setCloseTargetType(null); }}
                 onConfirm={handleConfirmClose}
             />

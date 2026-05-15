@@ -219,8 +219,14 @@ const TicketWizard = () => {
       }
       
       if (files.length === 0) {
-        showToast(isRtl ? 'الرجاء إرفاق الصور المطلوبة.' : 'Attachments are strictly required.', 'warning');
-        return false;
+        const wantsToAttach = window.confirm(
+          isRtl 
+            ? 'من الأفضل إرفاق إثبات للحادث إذا وجد.\n\nاضغط "موافق (OK)" لإضافة مرفق الآن.\nاضغط "إلغاء (Cancel)" لإكمال التقرير بدون مرفقات.' 
+            : 'It is better to attach proof of the incident if available.\n\nClick "OK" to add an attachment now.\nClick "Cancel" to continue without attachments.'
+        );
+        if (wantsToAttach) {
+          return false; // Stay on the page to attach
+        }
       }
     }
     if (step === 4) {
@@ -320,11 +326,11 @@ const TicketWizard = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`block text-sm font-bold mb-1.5 ${showErrors && !incidentDate ? 'text-red-500' : 'text-gray-700'}`}><Clock size={12} className="inline mr-1" />{t('oc.wizard.incidentDate', 'Date of Incident')} *</label>
-              <input type="date" value={incidentDate} onChange={e => setIncidentDate(e.target.value)} className={`w-full bg-white border ${showErrors && !incidentDate ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'} rounded-xl px-3 py-2.5 text-sm text-gray-800 transition-all`} dir="ltr" />
+              <input type="date" max={new Date().toISOString().split('T')[0]} value={incidentDate} onChange={e => setIncidentDate(e.target.value)} className={`w-full bg-white border ${showErrors && !incidentDate ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'} rounded-xl px-3 py-2.5 text-sm text-gray-800 transition-all`} dir="ltr" />
             </div>
             <div>
               <label className={`block text-sm font-bold mb-1.5 ${showErrors && !incidentTime ? 'text-red-500' : 'text-gray-700'}`}><Clock size={12} className="inline mr-1" />{t('oc.wizard.incidentTime', 'Time of Incident')} *</label>
-              <input type="time" value={incidentTime} onChange={e => setIncidentTime(e.target.value)} className={`w-full bg-white border ${showErrors && !incidentTime ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'} rounded-xl px-3 py-2.5 text-sm text-gray-800 transition-all`} dir="ltr" />
+              <input type="time" max={incidentDate === new Date().toISOString().split('T')[0] ? new Date().toTimeString().slice(0, 5) : undefined} value={incidentTime} onChange={e => setIncidentTime(e.target.value)} className={`w-full bg-white border ${showErrors && !incidentTime ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'} rounded-xl px-3 py-2.5 text-sm text-gray-800 transition-all`} dir="ltr" />
             </div>
           </div>
 
@@ -356,13 +362,46 @@ const TicketWizard = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5 text-gray-700">{t('oc.wizard.relatedEvent', 'Is this report related to a specific event? (Optional)')}</label>
-            <select value={eventId || ''} onChange={e => setEventId(e.target.value)} className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800">
-              <option value="">{t('oc.wizard.noEvent', '-- Select Event (Optional) --')}</option>
-              {events.map(ev => (
-                <option key={ev.id} value={ev.id}>{isRtl ? ev.nameAr : ev.nameEn}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium mb-2 text-gray-700">
+              {isRtl ? 'هل هذا الحادث يتبع فعالية رياضية قائمة؟' : 'Is this incident related to an ongoing sport event?'}
+            </label>
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => { /* keep eventId */ }}
+                className={`flex-1 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                  eventId !== null && eventId !== ''
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300'
+                }`}
+                onClickCapture={() => setEventId(eventId || (events.filter((ev: any) => ev.status === 'ACTIVE')[0]?.id ?? ''))}
+              >
+                {isRtl ? '✓ نعم' : '✓ Yes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEventId(null)}
+                className={`flex-1 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
+                  eventId === null
+                    ? 'bg-slate-700 border-slate-700 text-white shadow-md'
+                    : 'bg-white border-gray-200 text-gray-700 hover:border-slate-300'
+                }`}
+              >
+                {isRtl ? '✗ لا' : '✗ No'}
+              </button>
+            </div>
+            {eventId !== null && (
+              <select
+                value={eventId}
+                onChange={e => setEventId(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800"
+              >
+                <option value="">{isRtl ? '-- اختر فعالية --' : '-- Select Event --'}</option>
+                {events.filter((ev: any) => ev.status === 'ACTIVE').map(ev => (
+                  <option key={ev.id} value={ev.id}>{isRtl ? ev.nameAr : ev.nameEn}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -378,12 +417,12 @@ const TicketWizard = () => {
           {/* Attachments (Moved from Step 4) */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileImage size={16} className="text-purple-500" />{t('oc.wizard.attachments', 'Attachments')} *</label>
+              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileImage size={16} className="text-purple-500" />{t('oc.wizard.attachments', 'Attachments')} <span className="text-gray-400 text-xs mx-1">({isRtl ? 'اختياري' : 'Optional'})</span></label>
             </div>
             
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-              <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" size={16} />
-              <p className="text-sm text-amber-800 font-medium">{t('oc.wizard.attachmentReminder', 'Important: Attaching photos or supporting documents is strictly required to proceed.')}</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+              <AlertTriangle className="text-blue-500 flex-shrink-0 mt-0.5" size={16} />
+              <p className="text-sm text-blue-800 font-medium">{isRtl ? 'من الأفضل إرفاق إثبات للحادث إذا وجد.' : 'It is better to attach proof of the incident if available.'}</p>
             </div>
 
             {files.length > 0 && <div className="grid grid-cols-3 gap-2 mb-3">{files.map((f, i) => <FilePreview key={i} file={f} onRemove={() => setFiles(files.filter((_, idx) => idx !== i))} />)}</div>}
@@ -427,7 +466,9 @@ const TicketWizard = () => {
                     {p.type === 'CONTRACTOR' && (
                       <select value={p.company ? selectedServiceProviderId : ''} onChange={e => { setSelectedServiceProviderId(e.target.value); updateInjured(idx, 'company', e.target.selectedOptions[0]?.text || ''); }} className={`w-full bg-white border ${showErrors && !p.company ? 'border-red-300' : 'border-orange-200'} rounded-lg px-3 py-2 text-sm`}>
                         <option value="">{t('oc.wizard.selectCompany', 'Select Company')} *</option>
-                        {serviceProviders.filter(sp => sp.status !== 'BLACKLISTED').map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                        {serviceProviders.filter(sp => sp.status === 'ACTIVE').map(sp => (
+                          <option key={sp.id} value={sp.id}>{isRtl ? (sp.nameAr || sp.name) : sp.name}</option>
+                        ))}
                       </select>
                     )}
                   </div>

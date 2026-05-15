@@ -38,11 +38,20 @@ async function provisionUser(data, role) {
     return user;
 }
 
+// Permission gate
+const canManageSPs = (req, res, next) => {
+    if (req.user?.role === 'ADMIN' || req.user?.canManageServiceProviders) return next();
+    return res.status(403).json({ message: 'Not authorized to manage service providers' });
+};
+
 // Get all service providers
 router.get('/', protect, async (req, res) => {
     try {
+        const { active } = req.query;
+        const where = active === 'true' ? { status: 'ACTIVE' } : {};
         const providers = await prisma.serviceProvider.findMany({
-            include: { 
+            where,
+            include: {
                 department: true,
                 representatives: { select: { id: true, name: true, email: true, mobile: true } }
             }
@@ -55,21 +64,26 @@ router.get('/', protect, async (req, res) => {
 });
 
 // Admin adds a service provider
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, canManageSPs, async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Not authorized' });
-        const { name, commercialRegistrationNumber, responsibleDepartmentId, representatives } = req.body;
-        
+        const { name, nameAr, commercialRegistrationNumber, responsibleDepartmentId,
+                representativeName, representativeEmail, representativeMobile,
+                representatives } = req.body;
+
         if (!name || !commercialRegistrationNumber || !responsibleDepartmentId) {
              return res.status(400).json({ message: 'Missing required fields' });
         }
 
         // 1. Create the Service Provider
         const provider = await prisma.serviceProvider.create({
-            data: { 
-                name, 
+            data: {
+                name,
+                nameAr: nameAr || null,
                 commercialRegistrationNumber,
-                responsibleDepartmentId
+                responsibleDepartmentId,
+                representativeName: representativeName || null,
+                representativeEmail: representativeEmail || null,
+                representativeMobile: representativeMobile || null,
             }
         });
 
@@ -103,15 +117,20 @@ router.post('/', protect, async (req, res) => {
 });
 
 // Update service provider
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, canManageSPs, async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Not authorized' });
-        const { name, commercialRegistrationNumber, responsibleDepartmentId, representatives } = req.body;
+        const { name, nameAr, commercialRegistrationNumber, responsibleDepartmentId,
+                representativeName, representativeEmail, representativeMobile,
+                representatives } = req.body;
 
         const updateData = {};
-        if (name) updateData.name = name;
+        if (name !== undefined) updateData.name = name;
+        if (nameAr !== undefined) updateData.nameAr = nameAr;
         if (commercialRegistrationNumber) updateData.commercialRegistrationNumber = commercialRegistrationNumber;
         if (responsibleDepartmentId) updateData.responsibleDepartmentId = responsibleDepartmentId;
+        if (representativeName !== undefined)   updateData.representativeName   = representativeName;
+        if (representativeEmail !== undefined)  updateData.representativeEmail  = representativeEmail;
+        if (representativeMobile !== undefined) updateData.representativeMobile = representativeMobile;
 
         await prisma.serviceProvider.update({ where: { id: req.params.id }, data: updateData });
 
@@ -146,10 +165,9 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // Admin blacklists / toggles status of a service provider
-router.patch('/:id/status', protect, async (req, res) => {
+router.patch('/:id/status', protect, canManageSPs, async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Not authorized' });
-        const { status } = req.body; // ACTIVE or BLACKLISTED
+        const { status } = req.body; // ACTIVE or INACTIVE / BLACKLISTED
         
         const provider = await prisma.serviceProvider.update({
             where: { id: req.params.id },
@@ -163,9 +181,8 @@ router.patch('/:id/status', protect, async (req, res) => {
 });
 
 // Delete provider
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, canManageSPs, async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Not authorized' });
         await prisma.serviceProvider.delete({ where: { id: req.params.id } });
         res.json({ message: 'Removed' });
     } catch (e) {
