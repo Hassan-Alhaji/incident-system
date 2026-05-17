@@ -11,7 +11,8 @@ interface NotificationBellProps {
 
 const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  const { user } = useAuth();
- const { t } = useTranslation();
+ const { t, i18n } = useTranslation();
+ const isRtl = i18n.language?.startsWith('ar');
  const navigate = useNavigate();
 
  const [pendingCount, setPendingCount] = useState(0);
@@ -203,14 +204,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
  >
  <Bell size={16} className={hasNew ? 'animate-bounce' : ''} />
  {pendingCount > 0 && (
- <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-lg border-2 border-slate-900">
+ <span className="absolute -top-1.5 ltr:-right-1.5 rtl:-left-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-lg border-2 border-slate-900">
  {pendingCount}
  </span>
  )}
  </button>
 
  {showDropdown && (
- <div className="absolute top-full right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 shadow-2xl rounded-xl overflow-hidden z-50">
+ <div className="absolute top-full ltr:right-0 rtl:left-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1rem)] bg-white border border-gray-200 shadow-2xl rounded-xl overflow-hidden z-50">
  <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-white">
  <h3 className="text-sm font-bold text-gray-800">{t('notifications.title', 'التنبيهات — Notifications')}</h3>
  </div>
@@ -243,7 +244,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ portal }) => {
   >
    <div className="flex justify-between items-center mb-1">
    <span className="font-bold text-xs text-gray-700 group-hover:text-blue-600">{tk.ticketNo}</span>
-   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${hint.color}`}>{hint.ar}</span>
+   <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${hint.color}`}>{isRtl ? hint.ar : hint.en}</span>
    </div>
    <p className="text-[10px] text-gray-500 truncate w-full">{tk.description || tk.offCircuitReport?.whatHappened || '—'}</p>
   </button>

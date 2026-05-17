@@ -53,7 +53,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ data, applied, isOpen, on
 
     return (
         <>
-            <div className={`fixed top-0 ${isRtl ? 'left-0' : 'right-0'} h-full w-full sm:w-96 bg-slate-50 border-${isRtl ? 'r' : 'l'} border-slate-200 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : (isRtl ? '-translate-x-full' : 'translate-x-full')} flex flex-col`}>
+            <div className={`fixed top-0 ltr:right-0 rtl:left-0 h-full w-full sm:w-96 max-w-[100vw] bg-slate-50 ltr:border-l rtl:border-r border-slate-200 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : (isRtl ? '-translate-x-full' : 'translate-x-full')} flex flex-col`}>
                 <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">

@@ -53,9 +53,9 @@ const CloseTicketModal: React.FC<CloseTicketModalProps> = ({ open, hasEmployeeIn
             style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
         >
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-                <div className="h-1.5 w-full bg-emerald-500" />
-                <div className="p-5">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="h-1.5 w-full bg-emerald-500 flex-shrink-0" />
+                <div className="p-5 overflow-y-auto">
                     <div className="flex items-start gap-3 mb-5">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-100 flex-shrink-0">
                             <CheckCircle className="text-emerald-600" size={22} />

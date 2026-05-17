@@ -530,7 +530,7 @@ const Settings = () => {
  {/* Create/Edit Modal */}
  {showModal && (
  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
- <div className="bg-white border border-gray-200 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
+ <div className="bg-white border border-gray-200 rounded-2xl max-w-sm w-full p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
  <div className="flex items-center justify-between mb-5">
  <h3 className="text-lg font-bold text-gray-800">
  {editingUser ? 'Edit User' : 'Add User'}
@@ -805,7 +805,7 @@ const Settings = () => {
  {/* Event Modal */}
  {showEventModal && (
  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
- <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6">
+ <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
  <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-bold text-gray-800">{editingEventId ? 'Edit Event' : 'Add New Event'}</h3><button onClick={() => setShowEventModal(false)} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
  <div className="space-y-4">
  {eventError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{eventError}</div>}
@@ -887,7 +887,7 @@ const Settings = () => {
  </div>
  </div>
  
- <button onClick={handleDepartmentSubmit} disabled={!departmentFormData.nameEn} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">{editingDepartmentId ? 'Update Department (تحديث القسم)' : 'Create Department & Provision Users'}</button>
+ <button onClick={handleDepartmentSubmit} disabled={!departmentFormData.nameEn} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-bold rounded-xl shadow-md shadow-blue-500/20 text-white transition-all text-base disabled:opacity-50">{editingDepartmentId ? 'Update Department (تحديث القسم)' : 'Create Department & Provision Users'}</button>
  </div>
  </div>
  </div>
@@ -957,7 +957,7 @@ const Settings = () => {
  </div>
  </div>
  
- <button onClick={handleProviderSubmit} disabled={!providerFormData.name || !providerFormData.commercialRegistrationNumber || !providerFormData.responsibleDepartmentId} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white shadow-lg hover:from-amber-600 hover:to-orange-700 transition-all text-base disabled:opacity-50">{editingProviderId ? 'Update Provider (تحديث المزود)' : 'Create Provider & Provision Users'}</button>
+ <button onClick={handleProviderSubmit} disabled={!providerFormData.name || !providerFormData.commercialRegistrationNumber || !providerFormData.responsibleDepartmentId} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-bold rounded-xl shadow-md shadow-blue-500/20 text-white transition-all text-base disabled:opacity-50">{editingProviderId ? 'Update Provider (تحديث المزود)' : 'Create Provider & Provision Users'}</button>
  </div>
  </div>
  </div>
