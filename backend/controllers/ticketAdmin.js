@@ -4,7 +4,84 @@ const fs = require('fs');
 const { ROLES, ADMIN_ROLES } = require('./ticketCrud');
 const logger = require('../lib/logger').child({ module: 'ticketAdmin' });
 
-const OC_USER_ROLES = ['OC_REPORTER','HSE_CONTROLLER','DEP_REP','DEP_MANAGER','SAFETY_MANAGER','OC_HSE_MANAGER','HR_REP','SERVICE_PROVIDER_REP'];
+const OC_USER_ROLES = ['OC_REPORTER','HSE_CONTROLLER','DEP_REP','DEP_MANAGER','SAFETY_MANAGER','OC_HSE_MANAGER','HR_REP','SERVICE_PROVIDER_REP','FINANCE_REP'];
+
+/**
+ * H5 — Excel Formula Injection prevention (OWASP CSV Injection Cheat Sheet).
+ * Any cell that begins with `=`, `+`, `-`, `@`, TAB, or CR can be interpreted
+ * by Excel/LibreOffice as a live formula, leading to DDE/HYPERLINK/WEBSERVICE
+ * attacks against whoever opens the exported file. Prefix such values with a
+ * single quote to force literal-text rendering.
+ *
+ * Applied at serialization time only — DB values remain untouched.
+ */
+const DANGEROUS_CELL_PREFIX = /^[=+\-@\t\r]/;
+const escapeForExcel = (value) => {
+    if (typeof value !== 'string') return value;
+    return DANGEROUS_CELL_PREFIX.test(value) ? `'${value}` : value;
+};
+const sanitizeRowsForExcel = (rows) => rows.map(row => {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) out[k] = escapeForExcel(v);
+    return out;
+});
+// Allow-list of roles that may be assigned via the API. Any value not here is rejected.
+const ASSIGNABLE_ROLES = [...OC_USER_ROLES, 'ADMIN'];
+// Roles which require ADMIN-only assignment (cannot be granted by SAFETY_MANAGER / OC_HSE_MANAGER / HSE_CONTROLLER).
+const ADMIN_ONLY_ROLES = new Set(['ADMIN']);
+// Permission flags that, if granted, escalate the user toward admin-tier capabilities.
+const ADMIN_ONLY_FLAGS = new Set(['canManageUsers']);
+
+/**
+ * Enforce role-assignment safety rules for createUser / updateUser.
+ *   - Reject unknown roles (allow-list)
+ *   - Forbid self-role-change
+ *   - Forbid non-ADMIN from assigning or modifying ADMIN role
+ *   - Forbid non-ADMIN from granting canManageUsers
+ *
+ * Returns { ok: true } on success, or { ok: false, status, message } on rejection.
+ *
+ * @param {object} actor - req.user (the caller)
+ * @param {string|null} targetUserId - the user being modified (null for create)
+ * @param {object} payload - { role, canManageUsers, ... }
+ * @param {object|null} existingTarget - the current DB row of the target user (null for create)
+ */
+const enforceRoleAssignmentRules = (actor, targetUserId, payload, existingTarget) => {
+    const { role, canManageUsers } = payload;
+
+    // Rule 1: role must be in allow-list (if provided)
+    if (role !== undefined && role !== null && !ASSIGNABLE_ROLES.includes(role)) {
+        return { ok: false, status: 400, message: `Invalid role: ${role}` };
+    }
+
+    // Rule 2: a user cannot change their own role
+    if (targetUserId && actor.id === targetUserId && role && existingTarget && role !== existingTarget.role) {
+        return { ok: false, status: 403, message: 'You cannot change your own role' };
+    }
+
+    // Rule 3: only ADMIN can assign ADMIN role
+    if (role && ADMIN_ONLY_ROLES.has(role) && actor.role !== 'ADMIN') {
+        return { ok: false, status: 403, message: 'Only ADMIN can assign the ADMIN role' };
+    }
+
+    // Rule 4: only ADMIN can modify a user who is currently ADMIN
+    if (existingTarget && ADMIN_ONLY_ROLES.has(existingTarget.role) && actor.role !== 'ADMIN') {
+        return { ok: false, status: 403, message: 'Only ADMIN can modify an ADMIN user' };
+    }
+
+    // Rule 5: only ADMIN can grant admin-tier permission flags
+    if (canManageUsers === true && actor.role !== 'ADMIN') {
+        return { ok: false, status: 403, message: 'Only ADMIN can grant user-management permission' };
+    }
+    // (Defensive: catch any future admin-tier flag added to payload)
+    for (const flag of ADMIN_ONLY_FLAGS) {
+        if (payload[flag] === true && actor.role !== 'ADMIN') {
+            return { ok: false, status: 403, message: `Only ADMIN can grant the "${flag}" permission` };
+        }
+    }
+
+    return { ok: true };
+};
 
 const getUsers = async (req, res) => {
     try {
@@ -22,9 +99,14 @@ const createUser = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const { name, email, role, mobile, canCloseTickets, canPerformRCA,
-                canManageEvents, canManageServiceProviders,
+                canManageEvents, canManageServiceProviders, canManageUsers,
                 canViewAnalytics, isIntakeEnabled } = req.body;
         if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
+
+        // Enforce role-assignment safety rules (C3)
+        const ruleCheck = enforceRoleAssignmentRules(req.user, null, req.body, null);
+        if (!ruleCheck.ok) return res.status(ruleCheck.status).json({ message: ruleCheck.message });
+
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) return res.status(400).json({ message: 'Email exists' });
         const parts = name.trim().split(/\s+/);
@@ -41,20 +123,36 @@ const createUser = async (req, res) => {
                 canPerformRCA: !!canPerformRCA,
                 canManageEvents: !!canManageEvents,
                 canManageServiceProviders: !!canManageServiceProviders,
+                canManageUsers: !!canManageUsers,  // gated by rule check above; only ADMIN can set true
                 canViewAnalytics: !!canViewAnalytics,
                 isIntakeEnabled: !!isIntakeEnabled,
             }
         });
         res.status(201).json({ message: 'User created', user: { id: user.id, name: user.name, email: user.email, role: user.role } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
+    } catch (error) {
+        logger.error({ err: error }, 'createUser failed');
+        res.status(500).json({ message: 'Error creating user' });
+    }
 };
 
 const updateUser = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const { name, email, role, mobile, canCloseTickets, canPerformRCA,
-                canManageEvents, canManageServiceProviders,
+                canManageEvents, canManageServiceProviders, canManageUsers,
                 canViewAnalytics, isIntakeEnabled } = req.body;
+
+        // Load existing target to enforce admin-only modification rules
+        const existingTarget = await prisma.user.findUnique({
+            where: { id: req.params.id },
+            select: { id: true, role: true }
+        });
+        if (!existingTarget) return res.status(404).json({ message: 'User not found' });
+
+        // Enforce role-assignment safety rules (C3)
+        const ruleCheck = enforceRoleAssignmentRules(req.user, req.params.id, req.body, existingTarget);
+        if (!ruleCheck.ok) return res.status(ruleCheck.status).json({ message: ruleCheck.message });
+
         const data = {};
         if (name) {
             data.name = name;
@@ -70,12 +168,16 @@ const updateUser = async (req, res) => {
         if (typeof canPerformRCA === 'boolean') data.canPerformRCA = canPerformRCA;
         if (typeof canManageEvents === 'boolean') data.canManageEvents = canManageEvents;
         if (typeof canManageServiceProviders === 'boolean') data.canManageServiceProviders = canManageServiceProviders;
+        if (typeof canManageUsers === 'boolean') data.canManageUsers = canManageUsers;  // gated by rule check
         if (typeof canViewAnalytics === 'boolean') data.canViewAnalytics = canViewAnalytics;
         if (typeof isIntakeEnabled === 'boolean') data.isIntakeEnabled = isIntakeEnabled;
         data.userGroup = 'OFF_CIRCUIT';
         const user = await prisma.user.update({ where: { id: req.params.id }, data });
         res.json({ message: 'Updated', user: { id: user.id, name: user.name, role: user.role } });
-    } catch (error) { res.status(500).json({ message: 'Error updating user' }); }
+    } catch (error) {
+        logger.error({ err: error }, 'updateUser failed');
+        res.status(500).json({ message: 'Error updating user' });
+    }
 };
 
 const suspendUser = async (req, res) => {
@@ -715,7 +817,8 @@ const exportTickets = async (req, res) => {
                 rows.push({ 'Field': `Plan #${i+1} Status`, 'Value': ap.status });
             });
 
-            const ws = xlsx.utils.json_to_sheet(rows);
+            // H5: prevent formula injection in user-controlled cell values
+            const ws = xlsx.utils.json_to_sheet(sanitizeRowsForExcel(rows));
             const wb = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(wb, ws, 'Ticket Report');
             const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
             res.setHeader('Content-Disposition', `attachment; filename="${ticket.ticketNo}_Report.xlsx"`);
@@ -736,7 +839,8 @@ const exportTickets = async (req, res) => {
                 'Action Plans': t.actionPlans?.length || 0, 'Created': new Date(t.createdAt).toLocaleString(), 'Closed': t.closedAt ? new Date(t.closedAt).toLocaleString() : ''
             };
         });
-        const ws = xlsx.utils.json_to_sheet(rows);
+        // H5: prevent formula injection in user-controlled cell values
+        const ws = xlsx.utils.json_to_sheet(sanitizeRowsForExcel(rows));
         const wb = xlsx.utils.book_new(); xlsx.utils.book_append_sheet(wb, ws, 'Tickets');
         const buf = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
         res.setHeader('Content-Disposition', `attachment; filename="tickets_${new Date().toISOString().split('T')[0]}.xlsx"`);

@@ -28,6 +28,8 @@ const Login = () => {
   const [regEmail, setRegEmail] = useState('');
   const [regMobile, setRegMobile] = useState('');
   const [regDepartment, setRegDepartment] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const isArabic = i18n.language.startsWith('ar');
   const currentLang: 'ar' | 'en' = isArabic ? 'ar' : 'en';
@@ -96,6 +98,12 @@ const Login = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!termsAccepted) {
+      setError(isArabic
+        ? 'يجب الموافقة على الشروط والأحكام للمتابعة'
+        : 'You must accept the Terms & Conditions to continue');
+      return;
+    }
     const englishRegex = /^[A-Za-z\s]+$/;
     if (!englishRegex.test(regFirstName) || !englishRegex.test(regFatherName) || !englishRegex.test(regLastName)) {
       setError(t('errors.namesEnglishOnly', 'Names must be in English'));
@@ -516,15 +524,247 @@ const Login = () => {
                     />
                   </div>
                 </div>
+                {/* Terms & Conditions acceptance */}
+                <div className="pt-2" dir={isArabic ? 'rtl' : 'ltr'}>
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500/30 cursor-pointer flex-shrink-0"
+                    />
+                    <span className="text-xs text-slate-600 leading-relaxed select-none">
+                      {isArabic ? 'لقد قرأت وأوافق على ' : 'I have read and agree to the '}
+                      <button
+                        type="button"
+                        onClick={() => setShowTerms(true)}
+                        className="text-blue-600 hover:text-blue-700 font-bold underline underline-offset-2"
+                      >
+                        {isArabic ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                      </button>
+                      {isArabic ? ' الخاصة بشركة المحركات السعودية.' : ' of Saudi Motorsport Company.'}
+                    </span>
+                  </label>
+                </div>
+
                 <button
-                  type="submit" disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition-all shadow-sm shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-1"
+                  type="submit" disabled={loading || !termsAccepted}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition-all shadow-sm shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm mt-1"
                 >
                   {loading ? <Loader2 className="animate-spin" size={17} /> : <UserPlus size={16} />}
                   {loading ? (isArabic ? 'جاري الإنشاء...' : 'Creating Account…') : (isArabic ? 'إنشاء حساب' : 'Create Account')}
                 </button>
               </form>
             </>
+          )}
+
+          {/* Terms & Conditions Modal */}
+          {showTerms && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+              style={{ background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)' }}
+              onClick={() => setShowTerms(false)}
+            >
+              <div
+                className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}
+                dir={isArabic ? 'rtl' : 'ltr'}
+              >
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 to-white flex items-start justify-between gap-3 flex-shrink-0">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">
+                      {isArabic ? 'الشروط والأحكام' : 'Terms & Conditions'}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {isArabic ? 'منصة الأمن والسلامة — شركة المحركات السعودية' : 'HSE Platform — Saudi Motorsport Company'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTerms(false)}
+                    className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all flex items-center justify-center flex-shrink-0"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Body — scrollable */}
+                <div className="overflow-y-auto px-6 py-5 space-y-5 text-sm text-slate-700 leading-relaxed">
+                  {/* Arabic block */}
+                  <section dir="rtl" className="text-right">
+                    <h4 className="font-black text-slate-900 mb-2 text-base">📋 الشروط والأحكام</h4>
+                    <p className="text-xs text-slate-500 mb-3">آخر تحديث: {new Date().getFullYear()}</p>
+
+                    <p className="mb-3">
+                      مرحباً بك في منصة الأمن والسلامة التابعة لشركة المحركات السعودية. باستخدامك لهذه المنصة، فإنك توافق على الشروط والأحكام التالية:
+                    </p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-bold text-slate-900">1. السرية وحماية المعلومات</p>
+                        <ul className="list-disc pr-5 mt-1 space-y-1 text-xs">
+                          <li>تلتزم بالحفاظ على سرية جميع البيانات والمعلومات التي تطّلع عليها من خلال المنصة.</li>
+                          <li>لا يجوز مشاركة بيانات الدخول (البريد الإلكتروني، رمز التحقق) مع أي شخص آخر.</li>
+                          <li>يُحظر الإفصاح عن تفاصيل التذاكر أو الحوادث لأي جهة غير مخوّلة داخل أو خارج الشركة.</li>
+                          <li>أي إخلال بالسرية قد يُعرّضك للمساءلة القانونية والتأديبية وفقاً للأنظمة المعمول بها في المملكة العربية السعودية.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">2. صحة البيانات والمسؤولية</p>
+                        <ul className="list-disc pr-5 mt-1 space-y-1 text-xs">
+                          <li>تلتزم بتقديم بيانات صحيحة ودقيقة وكاملة عند التسجيل وعند رفع البلاغات.</li>
+                          <li>أنت المسؤول الوحيد عن صحة المعلومات التي تُدخلها في المنصة.</li>
+                          <li>تقديم بيانات غير صحيحة أو مضلّلة أو بلاغات كاذبة قد يُعرّضك لإجراءات تأديبية وقانونية.</li>
+                          <li>تتعهد بتحديث بياناتك الشخصية فور أي تغيير (الجوال، البريد، القسم).</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">3. إخلاء المسؤولية</p>
+                        <ul className="list-disc pr-5 mt-1 space-y-1 text-xs">
+                          <li>لا تتحمل <strong>شركة المحركات السعودية</strong> أي مسؤولية عن عدم صحة البيانات المُدخَلة من قِبل المستخدمين.</li>
+                          <li>الشركة غير مسؤولة عن أي أضرار مباشرة أو غير مباشرة ناتجة عن بلاغات غير صحيحة أو ناقصة.</li>
+                          <li>تُقدَّم المنصة "كما هي" دون ضمانات صريحة أو ضمنية تتعلق بدقة المحتوى المُقدَّم من المستخدمين.</li>
+                          <li>قرارات الإغلاق والمخالفات تستند إلى البيانات المُقدَّمة، والشركة غير ملزمة بالتحقق المستقل من كل بلاغ.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">4. الاستخدام المقبول</p>
+                        <ul className="list-disc pr-5 mt-1 space-y-1 text-xs">
+                          <li>تُستخدم المنصة حصراً لأغراض الإبلاغ عن قضايا الأمن والسلامة والبيئة (HSE).</li>
+                          <li>يُحظر استخدام المنصة لأي غرض غير مشروع أو يتعارض مع سياسات الشركة.</li>
+                          <li>يُحظر إساءة استخدام النظام، أو محاولة الوصول غير المصرّح به، أو تعطيل الخدمة.</li>
+                          <li>قد يؤدي مخالفة هذه الشروط إلى تعليق أو إلغاء حسابك دون إشعار مسبق.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">5. حماية البيانات الشخصية</p>
+                        <ul className="list-disc pr-5 mt-1 space-y-1 text-xs">
+                          <li>تُجمَع بياناتك الشخصية لأغراض إدارة الأمن والسلامة فقط.</li>
+                          <li>لن تُشارَك بياناتك مع أي طرف ثالث إلا بموجب التزام قانوني أو نظامي.</li>
+                          <li>تُحفظ البيانات وفقاً لأفضل ممارسات الأمن السيبراني ونظام حماية البيانات الشخصية في المملكة العربية السعودية.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">6. التعديلات</p>
+                        <p className="text-xs mt-1">
+                          تحتفظ شركة المحركات السعودية بحق تعديل هذه الشروط في أي وقت. استمرار استخدامك للمنصة بعد التعديل يُعتبر موافقةً ضمنية على الشروط المُحدَّثة.
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">7. الموافقة</p>
+                        <p className="text-xs mt-1">
+                          بالنقر على "أوافق على الشروط والأحكام" وإكمال التسجيل، فإنك تُقرّ بأنك قد قرأت هذه الشروط وفهمتها ووافقت على الالتزام بها.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="border-t border-slate-200" />
+
+                  {/* English block */}
+                  <section dir="ltr" className="text-left">
+                    <h4 className="font-black text-slate-900 mb-2 text-base">📋 Terms & Conditions</h4>
+                    <p className="text-xs text-slate-500 mb-3">Last updated: {new Date().getFullYear()}</p>
+
+                    <p className="mb-3">
+                      Welcome to the HSE Platform of Saudi Motorsport Company. By using this platform, you agree to the following Terms & Conditions:
+                    </p>
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-bold text-slate-900">1. Confidentiality & Information Protection</p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+                          <li>You commit to maintaining the confidentiality of all data and information accessed through this platform.</li>
+                          <li>Login credentials (email, verification code) must not be shared with any other person.</li>
+                          <li>Disclosing ticket or incident details to any unauthorized party — inside or outside the company — is strictly prohibited.</li>
+                          <li>Any breach of confidentiality may expose you to legal and disciplinary action under the laws of the Kingdom of Saudi Arabia.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">2. Data Accuracy & Responsibility</p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+                          <li>You commit to providing accurate, truthful, and complete information during registration and when submitting reports.</li>
+                          <li>You are solely responsible for the accuracy of the information you enter into the platform.</li>
+                          <li>Submitting inaccurate, misleading, or false reports may result in disciplinary and legal action.</li>
+                          <li>You agree to update your personal information promptly upon any change (mobile, email, department).</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">3. Disclaimer of Liability</p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+                          <li><strong>Saudi Motorsport Company</strong> bears no responsibility for the accuracy of data entered by users.</li>
+                          <li>The Company is not liable for any direct or indirect damages resulting from incorrect or incomplete reports.</li>
+                          <li>The platform is provided "as is" without express or implied warranties regarding the accuracy of user-submitted content.</li>
+                          <li>Closure and violation decisions are based on the data provided; the Company is not obligated to independently verify every report.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">4. Acceptable Use</p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+                          <li>The platform is used exclusively for reporting Health, Safety, and Environment (HSE) matters.</li>
+                          <li>Use of the platform for any unlawful purpose or in violation of company policies is prohibited.</li>
+                          <li>Misuse of the system, unauthorized access attempts, or service disruption is prohibited.</li>
+                          <li>Violation of these terms may result in suspension or termination of your account without prior notice.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">5. Personal Data Protection</p>
+                        <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+                          <li>Your personal data is collected solely for HSE management purposes.</li>
+                          <li>Your data will not be shared with any third party except as required by law or regulation.</li>
+                          <li>Data is stored in accordance with cybersecurity best practices and the Personal Data Protection Law of the Kingdom of Saudi Arabia.</li>
+                        </ul>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">6. Modifications</p>
+                        <p className="text-xs mt-1">
+                          Saudi Motorsport Company reserves the right to modify these terms at any time. Your continued use of the platform after any modification constitutes implicit acceptance of the updated terms.
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-900">7. Acceptance</p>
+                        <p className="text-xs mt-1">
+                          By clicking "I agree to the Terms & Conditions" and completing registration, you acknowledge that you have read, understood, and agreed to be bound by these terms.
+                        </p>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowTerms(false)}
+                    className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    {isArabic ? 'إغلاق' : 'Close'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setTermsAccepted(true); setShowTerms(false); }}
+                    className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm shadow-blue-500/30 transition-all flex items-center gap-2"
+                  >
+                    <CheckCircle2 size={15} />
+                    {isArabic ? 'أوافق' : 'I Agree'}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ── Pending activation step ── */}

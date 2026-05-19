@@ -99,6 +99,7 @@ const TicketDetail = () => {
         fetchTicket();
         if (canFetchAdminData) {
             api.get('/departments').then(res => setDepartments(res.data)).catch(console.error);
+            api.get('/service-providers').then(res => setServiceProviders(res.data)).catch(console.error);
         }
     }, [id]);
 
@@ -108,6 +109,7 @@ const TicketDetail = () => {
             const res = await api.get(`/tickets/${id}`);
             setTicket(res.data);
             setSeverityLevel(prev => prev || res.data.severityLevel || res.data.offCircuitReport?.severity || '');
+            setSelectedServiceProviderId(prev => prev || res.data.serviceProviderId || '');
             const oc = res.data.offCircuitReport;
             if (oc) {
                 setControllerNotes(prev => prev || oc.controllerNotes || '');
@@ -159,6 +161,7 @@ const TicketDetail = () => {
                 newType: newType || undefined,
                 typeChangeReason,
                 hazardCategory: hazardCategory.length > 0 ? JSON.stringify(hazardCategory) : undefined,
+                serviceProviderId: selectedServiceProviderId || undefined,
             };
             if (action === 'ASSIGN') {
                 body.rcaCause = rcaCause;
@@ -227,7 +230,7 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleFinalReview = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
+    const handleFinalReview = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes, reminderDate, reminderMessage };
@@ -235,6 +238,7 @@ const TicketDetail = () => {
                 body.violationType = closePayload.violationType;
                 body.violationDescription = closePayload.violationDescription;
                 body.violationAmount = closePayload.violationAmount;
+                if (closePayload.serviceProviderId !== undefined) body.serviceProviderId = closePayload.serviceProviderId;
             }
             await api.put(`/tickets/${id}/controller-review`, body);
             await fetchTicket(true);
@@ -244,7 +248,7 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleSafetyManagerAction = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
+    const handleSafetyManagerAction = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes };
@@ -265,7 +269,7 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleConfirmClose = (payload: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string }) => {
+    const handleConfirmClose = (payload: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string | null }) => {
         if (closeTargetType === 'SAFETY_MANAGER') {
             handleSafetyManagerAction('CLOSE', payload);
         } else {
@@ -974,7 +978,7 @@ const TicketDetail = () => {
 
                             {/* CONTROLLER: SUBMITTED (Initial Review) */}
 {isController && ticket.status === 'SUBMITTED' && (
-    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} />
+    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} serviceProviders={serviceProviders} selectedServiceProviderId={selectedServiceProviderId} setSelectedServiceProviderId={setSelectedServiceProviderId} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} />
 )}
 
                             {/* HR REP: GOSI form */}
@@ -1078,6 +1082,10 @@ const TicketDetail = () => {
                 open={closeModalOpen}
                 loading={actionLoading}
                 hasEmployeeInjury={hasEmployeeInjury}
+                serviceProviderId={ticket?.serviceProviderId || null}
+                serviceProviderName={ticket?.serviceProvider ? (isRtl ? (ticket.serviceProvider.nameAr || ticket.serviceProvider.name) : ticket.serviceProvider.name) : null}
+                serviceProviders={serviceProviders}
+                ticketSeverity={ticket?.severityLevel || null}
                 onCancel={() => { setCloseModalOpen(false); setCloseTargetType(null); }}
                 onConfirm={handleConfirmClose}
             />

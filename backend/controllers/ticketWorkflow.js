@@ -9,6 +9,47 @@ const safeParseJSON = (data, fallback = []) => {
 };
 
 /**
+ * Validate and normalize a closure-violation payload.
+ * Returns { ok: true, normalized: { violationAmount, violationDescription } } on success,
+ * or { ok: false, error: '...' } on validation failure.
+ *
+ * Rules:
+ *  - violationDescription must be non-empty after trim() when type !== 'NONE'
+ *  - violationAmount must parse to a positive finite number when type === 'FINANCIAL'
+ *  - Accepts amount as string ("1000", "1,000.50") or number; stores as canonical string
+ */
+const validateClosurePayload = (violationType, rawDescription, rawAmount) => {
+    const description = typeof rawDescription === 'string' ? rawDescription.trim() : '';
+    if (violationType !== 'NONE' && description.length === 0) {
+        return { ok: false, error: 'Violation description is required' };
+    }
+    // L4: cap description length to prevent abuse / DB bloat
+    if (description.length > 2000) {
+        return { ok: false, error: 'Violation description is too long (max 2000 characters)' };
+    }
+    if (violationType === 'FINANCIAL') {
+        if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
+            return { ok: false, error: 'Violation amount is required when there is a financial violation' };
+        }
+        // Strip thousands separators but keep decimal point; reject anything else
+        const cleaned = String(rawAmount).replace(/,/g, '').trim();
+        if (!/^\d+(\.\d+)?$/.test(cleaned)) {
+            return { ok: false, error: 'Violation amount must be a valid positive number' };
+        }
+        const num = parseFloat(cleaned);
+        if (!Number.isFinite(num) || num <= 0) {
+            return { ok: false, error: 'Violation amount must be greater than zero' };
+        }
+        // Optional sanity cap to avoid absurd values (10 million SAR)
+        if (num > 10_000_000) {
+            return { ok: false, error: 'Violation amount exceeds the allowed limit' };
+        }
+        return { ok: true, normalized: { violationDescription: description, violationAmount: cleaned } };
+    }
+    return { ok: true, normalized: { violationDescription: description, violationAmount: null } };
+};
+
+/**
  * Dispatch closure-violation notifications:
  *   • Department reps  → for WARNING or FINANCIAL  (info-only, full context)
  *   • Finance reps     → for FINANCIAL only        (info-only, SP + dept + amount)
@@ -16,12 +57,12 @@ const safeParseJSON = (data, fallback = []) => {
  * Both notifications are read-only and require no action from recipients.
  * Failure to notify must never block ticket closure — every call is wrapped in catch.
  */
-const dispatchClosureViolationNotifications = async (ticket, { violationType, violationDescription, violationAmount }) => {
+const dispatchClosureViolationNotifications = async (ticket, { violationType, violationDescription, violationAmount }, actorId = null) => {
     const isFinViolation = violationType === 'FINANCIAL';
     const isWarning      = violationType === 'WARNING';
     if (!isFinViolation && !isWarning) return;
 
-    const note   = (violationDescription || '').trim() || '(لا توجد ملاحظات — no note provided)';
+    const note   = (violationDescription || '').trim() || '(لا توجد ملاحظات / no note provided)';
     const ticketNo = ticket.ticketNo || ticket.id;
 
     // Responsible department: prefer ticket's own dept, fall back to service-provider's responsible dept
@@ -36,15 +77,24 @@ const dispatchClosureViolationNotifications = async (ticket, { violationType, vi
                 select: { id: true }
             });
             if (depReps.length) {
-                const kind = isFinViolation ? 'Financial Violation' : 'Warning Violation';
-                const amountLine = isFinViolation ? `\nAmount: ${violationAmount} SAR` : '';
+                const kindAr = isFinViolation ? 'مخالفة مالية' : 'مخالفة تحذيرية';
+                const kindEn = isFinViolation ? 'Financial Violation' : 'Warning Violation';
+                const amountLineAr = isFinViolation ? `\nقيمة المخالفة: ${violationAmount} ريال` : '';
+                const amountLineEn = isFinViolation ? `\nAmount: ${violationAmount} SAR` : '';
+                // L1/L2: Bilingual notification — Arabic block followed by English
                 const msg =
-`Ticket ${ticketNo} has been closed with a ${kind}.${amountLine}
+`تم إغلاق التذكرة ${ticketNo} بـ${kindAr}.${amountLineAr}
+ملاحظة الكنترولر: ${note}
+(للعِلم فقط — لا يتطلب إجراءً منك.)
+
+———
+
+Ticket ${ticketNo} has been closed with a ${kindEn}.${amountLineEn}
 Controller's note: ${note}
 (For your information — no action required.)`;
                 await createNotificationsBulk(
                     depReps.map(r => r.id),
-                    `Ticket Closed — ${kind}`,
+                    `إغلاق تذكرة — ${kindAr} / Ticket Closed — ${kindEn}`,
                     msg,
                     'INFO',
                     `/tickets/${ticket.id}`
@@ -54,14 +104,25 @@ Controller's note: ${note}
     } else {
         // No department found — log warning so it doesn't fail silently
         logger.warn({ ticketId: ticket.id, ticketNo }, 'Violation closure: no responsible department found — department notification skipped');
-        // Notify the controllers so they're aware the notification wasn't sent
+        // M2: Notify other controllers so they're aware — excluding the actor who just closed it.
         try {
-            const controllers = await prisma.user.findMany({ where: { role: { in: ['HSE_CONTROLLER', 'SAFETY_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+            const controllers = await prisma.user.findMany({
+                where: {
+                    role: { in: ['HSE_CONTROLLER', 'SAFETY_MANAGER'] },
+                    status: 'ACTIVE',
+                    ...(actorId ? { id: { not: actorId } } : {})
+                },
+                select: { id: true }
+            });
             if (controllers.length) {
                 await createNotificationsBulk(
                     controllers.map(c => c.id),
-                    `⚠️ Violation Notice Not Delivered`,
-                    `Ticket ${ticketNo} was closed with a violation, but no responsible department was found. The department was NOT notified. Please verify the ticket's department assignment.`,
+                    `⚠️ إشعار مخالفة لم يُسلَّم / Violation Notice Not Delivered`,
+                    `تم إغلاق التذكرة ${ticketNo} بمخالفة، لكن لم يتم العثور على القسم المسؤول. لم يُرسَل إشعار للقسم — يُرجى التحقق من تعيين قسم التذكرة.
+
+———
+
+Ticket ${ticketNo} was closed with a violation, but no responsible department was found. The department was NOT notified. Please verify the ticket's department assignment.`,
                     'INFO',
                     `/tickets/${ticket.id}`
                 );
@@ -78,7 +139,17 @@ Controller's note: ${note}
             });
             if (financeReps.length) {
                 const sp = ticket.serviceProvider;
-                const spLines = sp
+                // Build bilingual SP block
+                const spBlockAr = sp
+                    ? [
+                        `مزود الخدمة: ${sp.nameAr ? `${sp.nameAr} (${sp.name})` : sp.name}`,
+                        `السجل التجاري: ${sp.commercialRegistrationNumber || 'غير متوفر'}`,
+                        `الممثل: ${sp.representativeName || 'غير متوفر'}`,
+                        `البريد: ${sp.representativeEmail || 'غير متوفر'}`,
+                        `الجوال: ${sp.representativeMobile || 'غير متوفر'}`,
+                      ].join('\n')
+                    : 'مزود الخدمة: (غير مُربط)';
+                const spBlockEn = sp
                     ? [
                         `Service Provider: ${sp.nameAr ? `${sp.name} / ${sp.nameAr}` : sp.name}`,
                         `Commercial Reg.: ${sp.commercialRegistrationNumber || 'N/A'}`,
@@ -87,19 +158,31 @@ Controller's note: ${note}
                         `Mobile: ${sp.representativeMobile || 'N/A'}`,
                       ].join('\n')
                     : 'Service Provider: (not linked)';
-                const deptLine = `Responsible Department: ${responsibleDeptName || 'N/A'}`;
+                const deptLineAr = `القسم المسؤول: ${responsibleDeptName || 'غير متوفر'}`;
+                const deptLineEn = `Responsible Department: ${responsibleDeptName || 'N/A'}`;
                 const msg =
-`Ticket No.: ${ticketNo}
+`رقم التذكرة: ${ticketNo}
+قيمة المخالفة: ${violationAmount} ريال
+ملاحظة الكنترولر: ${note}
+
+— ${spBlockAr}
+— ${deptLineAr}
+
+(للعِلم فقط — لا يتطلب إجراءً منك.)
+
+———
+
+Ticket No.: ${ticketNo}
 Violation Amount: ${violationAmount} SAR
 Controller's note: ${note}
 
-— ${spLines}
-— ${deptLine}
+— ${spBlockEn}
+— ${deptLineEn}
 
 (For your information — no action required.)`;
                 await createNotificationsBulk(
                     financeReps.map(r => r.id),
-                    `Financial Violation — Ticket ${ticketNo}`,
+                    `مخالفة مالية — تذكرة ${ticketNo} / Financial Violation — Ticket ${ticketNo}`,
                     msg,
                     'INFO',
                     null  // intentionally no ticket link — finance must not see ticket details
@@ -187,20 +270,25 @@ const controllerAction = async (req, res) => {
             const targetDept = await prisma.department.findUnique({ where: { id: targetDepartmentId } });
             const deptName = targetDept ? (targetDept.nameAr || targetDept.name) : 'Unknown';
 
-            await prisma.ticket.update({ 
-                where: { id: ticket.id }, 
-                data: { 
-                    status: 'ASSIGNED', 
-                    severityLevel: severity, 
-                    departmentId: targetDepartmentId, 
-                    activityLogs: { 
-                        create: { 
-                            actorId: req.user.id, 
-                            action: 'STAGE_ASSIGNED', 
-                            details: `Controller completed RCA and assigned to: ${deptName}. Severity: ${severity}. ${notes}` 
-                        } 
+            const ticketUpdateData = { 
+                status: 'ASSIGNED', 
+                severityLevel: severity, 
+                departmentId: targetDepartmentId, 
+                activityLogs: { 
+                    create: { 
+                        actorId: req.user.id, 
+                        action: 'STAGE_ASSIGNED', 
+                        details: `Controller completed RCA and assigned to: ${deptName}. Severity: ${severity}. ${notes}` 
                     } 
                 } 
+            };
+            if (req.body.serviceProviderId !== undefined) {
+                ticketUpdateData.serviceProviderId = req.body.serviceProviderId || null;
+            }
+
+            await prisma.ticket.update({ 
+                where: { id: ticket.id }, 
+                data: ticketUpdateData
             });
 
             const depReps = await prisma.user.findMany({ where: { repDepartmentId: targetDepartmentId, role: 'DEP_REP', status: 'ACTIVE' }, select: { id: true } });
@@ -400,18 +488,24 @@ const controllerFinalReview = async (req, res) => {
         
 
         if (action === 'CLOSE') {
-            const { violationType, violationDescription, violationAmount } = req.body;
-            
+            const { violationType, violationDescription: rawDescription, violationAmount: rawAmount } = req.body;
+
             const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
             const hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
             let finalViolationType = violationType;
+            // H1: When employee injury forces NONE, audit the override so it isn't silent.
+            // Tracked via `violationOverridden` and persisted as an activityLog after close.
+            const violationOverridden = hasEmployeeInjury && violationType && violationType !== 'NONE';
             if (hasEmployeeInjury) {
                 finalViolationType = 'NONE';
+                if (violationOverridden) {
+                    logger.warn({ ticketId: ticket.id, actorId: req.user.id, requestedType: violationType }, 'Violation choice overridden to NONE due to employee injury');
+                }
             }
 
             if (ticket.offCircuitReport?.rcaRequired && !ticket.offCircuitReport?.rcaCompleted) return res.status(400).json({ message: 'Cannot close: RCA required but not completed' });
-            
+
             // If RCA was required, Action Plans must be present before closing
             if (ticket.offCircuitReport?.rcaRequired || ticket.type === 'SECURITY') {
                 const existingPlans = await prisma.actionPlan.count({ where: { ticketId: ticket.id } });
@@ -424,47 +518,88 @@ const controllerFinalReview = async (req, res) => {
                 return res.status(400).json({ message: 'Violation type is required' });
             }
 
-            if (finalViolationType !== 'NONE' && !violationDescription) {
-                return res.status(400).json({ message: 'Violation description is required' });
+            // C2 + C3: trim description and validate amount as a positive finite number
+            const validation = validateClosurePayload(finalViolationType, rawDescription, rawAmount);
+            if (!validation.ok) {
+                return res.status(400).json({ message: validation.error });
             }
-
-            if (finalViolationType === 'FINANCIAL' && !violationAmount) {
-                return res.status(400).json({ message: 'Violation amount is required when there is a financial violation' });
-            }
+            const { violationDescription, violationAmount } = validation.normalized;
 
             const isFinViolation = finalViolationType === 'FINANCIAL';
 
-            await prisma.ticket.update({ 
-                where: { id: ticket.id }, 
-                data: { 
-                    status: 'CLOSED', 
-                    closedBy: req.user.name, 
-                    closedByRole: role, 
-                    closedAt: new Date(), 
-                    closureReason: violationDescription || notes || 'Closed', 
-                    hasFinancialViolation: isFinViolation,
-                    violationDescription: violationDescription || null,
-                    violationAmount: isFinViolation ? violationAmount : null,
-                    forwardedToFinance: isFinViolation,
-                    activityLogs: { 
-                        create: { 
-                            actorId: req.user.id, 
-                            action: 'STAGE_CLOSED', 
-                            details: notes || violationDescription || 'Closed'
-                        } 
-                    } 
-                } 
-            });
-            if (ticket.createdById) {
-                const closeMsg = "Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.";
-                await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
+            const ticketUpdateData = {
+                status: 'CLOSED',
+                closedBy: req.user.name,
+                closedByRole: role,
+                closedAt: new Date(),
+                closureReason: violationDescription || notes || 'Closed',
+                hasFinancialViolation: isFinViolation,
+                violationDescription: violationDescription || null,
+                violationAmount: isFinViolation ? violationAmount : null,
+                forwardedToFinance: isFinViolation,
+                activityLogs: {
+                    create: {
+                        actorId: req.user.id,
+                        action: 'STAGE_CLOSED',
+                        details: notes || violationDescription || 'Closed'
+                    }
+                }
+            };
+            // C1: if controller links/changes a service provider at close-time, refresh the
+            // local relation so the downstream notification helper sees the full SP data.
+            // Failures are tolerated — closure must never be blocked by an SP lookup.
+            if (req.body.serviceProviderId !== undefined) {
+                const newSpId = req.body.serviceProviderId || null;
+                ticketUpdateData.serviceProviderId = newSpId;
+                ticket.serviceProviderId = newSpId;
+                if (newSpId) {
+                    try {
+                        ticket.serviceProvider = await prisma.serviceProvider.findUnique({
+                            where: { id: newSpId },
+                            include: { department: true }
+                        });
+                    } catch (err) {
+                        logger.warn({ err, spId: newSpId }, 'Failed to refresh serviceProvider relation at close-time');
+                        // keep stale relation rather than crashing
+                    }
+                } else {
+                    ticket.serviceProvider = null;
+                }
             }
-            
+
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: ticketUpdateData
+            });
+            // H1: audit log if the violation type was overridden by employee-injury rule
+            if (violationOverridden) {
+                prisma.activityLog.create({
+                    data: {
+                        ticketId: ticket.id,
+                        actorId: req.user.id,
+                        action: 'VIOLATION_OVERRIDDEN',
+                        details: `Requested violation type "${violationType}" was overridden to NONE due to employee injury.`
+                    }
+                }).catch(err => logger.warn({ err }, 'Override audit log failed'));
+            }
+            if (ticket.createdById) {
+                // H2: fire-and-forget so closure response is not delayed by notification I/O.
+                // L1: bilingual thank-you message.
+                const closeMsg =
+`شكراً لبلاغك. تم حل المشكلة وإغلاق التذكرة بالكامل. لأي استفسارات أو طلبات إضافية، يُرجى التواصل مع قسم الأمن والسلامة.
+
+———
+
+Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.`;
+                createNotification(ticket.createdById, 'تم إغلاق التذكرة / Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`)
+                    .catch(err => logger.error({ err }, 'Reporter close notify failed'));
+            }
+
             dispatchClosureViolationNotifications(ticket, {
                 violationType: finalViolationType,
                 violationDescription,
                 violationAmount,
-            }).catch(err => logger.error({ err }, 'Closure violation notify failed'));
+            }, req.user.id).catch(err => logger.error({ err }, 'Closure violation notify failed'));
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });
         }
 
@@ -521,63 +656,109 @@ const safetyManagerAction = async (req, res) => {
         }
 
         if (action === 'CLOSE') {
-            const { violationType, violationDescription, violationAmount } = req.body;
+            const { violationType, violationDescription: rawDescription, violationAmount: rawAmount } = req.body;
             const rcaOverridden = ticket.offCircuitReport?.rcaRequired && !ticket.offCircuitReport?.rcaCompleted;
 
             const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
             const hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
             let finalViolationType = violationType;
+            // H1: audit silent override when employee injury forces NONE
+            const violationOverridden = hasEmployeeInjury && violationType && violationType !== 'NONE';
             if (hasEmployeeInjury) {
                 finalViolationType = 'NONE';
+                if (violationOverridden) {
+                    logger.warn({ ticketId: ticket.id, actorId: req.user.id, requestedType: violationType }, 'Violation choice overridden to NONE due to employee injury');
+                }
             }
 
             if (!finalViolationType) {
                 return res.status(400).json({ message: 'Violation type is required' });
             }
-            if (finalViolationType !== 'NONE' && !violationDescription) {
-                return res.status(400).json({ message: 'Violation description is required' });
+            // C2 + C3: trim description and validate amount as a positive finite number
+            const validation = validateClosurePayload(finalViolationType, rawDescription, rawAmount);
+            if (!validation.ok) {
+                return res.status(400).json({ message: validation.error });
             }
-            if (finalViolationType === 'FINANCIAL' && !violationAmount) {
-                return res.status(400).json({ message: 'Violation amount is required when there is a financial violation' });
-            }
+            const { violationDescription, violationAmount } = validation.normalized;
 
             const isFinViolation = finalViolationType === 'FINANCIAL';
 
             if (ticket.offCircuitReport) {
                 await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { finalDecision: 'CLOSE', finalNotes: violationDescription || notes, hseManagerFilledBy: req.user.name, hseManagerFilledAt: new Date() } });
             }
-            await prisma.ticket.update({ 
-                where: { id: ticket.id }, 
-                data: { 
-                    status: 'CLOSED', 
-                    closedBy: req.user.name, 
-                    closedByRole: role, 
-                    closedAt: new Date(), 
-                    closureReason: violationDescription || notes || 'Closed', 
-                    hasFinancialViolation: isFinViolation,
-                    violationDescription: violationDescription || null,
-                    violationAmount: isFinViolation ? violationAmount : null,
-                    forwardedToFinance: isFinViolation,
-                    activityLogs: { 
-                        create: { 
-                            actorId: req.user.id, 
-                            action: 'STAGE_CLOSED', 
-                            details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || notes || '')
-                        } 
-                    } 
-                } 
+
+            const ticketUpdateData = {
+                status: 'CLOSED',
+                closedBy: req.user.name,
+                closedByRole: role,
+                closedAt: new Date(),
+                closureReason: violationDescription || notes || 'Closed',
+                hasFinancialViolation: isFinViolation,
+                violationDescription: violationDescription || null,
+                violationAmount: isFinViolation ? violationAmount : null,
+                forwardedToFinance: isFinViolation,
+                activityLogs: {
+                    create: {
+                        actorId: req.user.id,
+                        action: 'STAGE_CLOSED',
+                        details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || notes || '')
+                    }
+                }
+            };
+            // C1: refresh serviceProvider relation when controller links/changes SP at close-time.
+            // Wrapped in try/catch so SP lookup failures don't block closure.
+            if (req.body.serviceProviderId !== undefined) {
+                const newSpId = req.body.serviceProviderId || null;
+                ticketUpdateData.serviceProviderId = newSpId;
+                ticket.serviceProviderId = newSpId;
+                if (newSpId) {
+                    try {
+                        ticket.serviceProvider = await prisma.serviceProvider.findUnique({
+                            where: { id: newSpId },
+                            include: { department: true }
+                        });
+                    } catch (err) {
+                        logger.warn({ err, spId: newSpId }, 'Failed to refresh serviceProvider relation at close-time');
+                    }
+                } else {
+                    ticket.serviceProvider = null;
+                }
+            }
+
+            await prisma.ticket.update({
+                where: { id: ticket.id },
+                data: ticketUpdateData
             });
+            // H1: audit log if the violation type was overridden by employee-injury rule
+            if (violationOverridden) {
+                prisma.activityLog.create({
+                    data: {
+                        ticketId: ticket.id,
+                        actorId: req.user.id,
+                        action: 'VIOLATION_OVERRIDDEN',
+                        details: `Requested violation type "${violationType}" was overridden to NONE due to employee injury.`
+                    }
+                }).catch(err => logger.warn({ err }, 'Override audit log failed'));
+            }
             if (ticket.createdById) {
-                const closeMsg = "Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.";
-                await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
+                // H2: fire-and-forget so closure response is not delayed by notification I/O.
+                // L1: bilingual thank-you message.
+                const closeMsg =
+`شكراً لبلاغك. تم حل المشكلة وإغلاق التذكرة بالكامل. لأي استفسارات أو طلبات إضافية، يُرجى التواصل مع قسم الأمن والسلامة.
+
+———
+
+Thank you for your report. The issue has been fully resolved. If you have any questions or additional requests, please contact the HSE Department.`;
+                createNotification(ticket.createdById, 'تم إغلاق التذكرة / Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`)
+                    .catch(err => logger.error({ err }, 'Reporter close notify failed'));
             }
 
             dispatchClosureViolationNotifications(ticket, {
                 violationType: finalViolationType,
                 violationDescription,
                 violationAmount,
-            }).catch(err => logger.error({ err }, 'Closure violation notify failed'));
+            }, req.user.id).catch(err => logger.error({ err }, 'Closure violation notify failed'));
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });
         }
 

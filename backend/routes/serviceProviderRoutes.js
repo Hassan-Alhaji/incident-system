@@ -180,6 +180,57 @@ router.patch('/:id/status', protect, canManageSPs, async (req, res) => {
     }
 });
 
+// Get violation history for a service provider (controller-only)
+router.get('/:id/violation-history', protect, async (req, res) => {
+    try {
+        const allowedRoles = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'];
+        if (!allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        const tickets = await prisma.ticket.findMany({
+            where: {
+                serviceProviderId: req.params.id,
+                status: 'CLOSED',
+                OR: [
+                    { hasFinancialViolation: true },
+                    { violationDescription: { not: null } },
+                ],
+            },
+            select: {
+                id: true,
+                ticketNo: true,
+                type: true,
+                severityLevel: true,
+                hasFinancialViolation: true,
+                violationDescription: true,
+                violationAmount: true,
+                closedAt: true,
+                closedBy: true,
+            },
+            orderBy: { closedAt: 'desc' },
+        });
+
+        // Determine violation type from stored fields
+        const history = tickets.map(t => ({
+            ticketId: t.id,
+            ticketNo: t.ticketNo,
+            type: t.type,
+            severityLevel: t.severityLevel,
+            violationType: t.hasFinancialViolation ? 'FINANCIAL' : 'WARNING',
+            violationDescription: t.violationDescription,
+            violationAmount: t.violationAmount,
+            closedAt: t.closedAt,
+            closedBy: t.closedBy,
+        }));
+
+        res.json(history);
+    } catch (e) {
+        console.error('Violation history error:', e);
+        res.status(500).json({ message: 'Error fetching violation history' });
+    }
+});
+
 // Delete provider
 router.delete('/:id', protect, canManageSPs, async (req, res) => {
     try {

@@ -4,7 +4,7 @@ import { Check, Loader2, Send, Bell } from 'lucide-react';
 import { HazardIcon, HAZARD_CATEGORIES } from '../HazardIcons';
 import { MagicWandButton } from '../TicketSections';
 
-export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newType, setNewType, typeChangeReason, setTypeChangeReason, severityLevel, setSeverityLevel, hazardCategory, setHazardCategory, controllerNotes, setControllerNotes, rcaCause, setRcaCause, rcaWhy, setRcaWhy, rcaRootCause, setRcaRootCause, rcaCategory, setRcaCategory, rcaPreventiveActions, setRcaPreventiveActions, targetDepartmentId, setTargetDepartmentId, departments, confirmThen, handleControllerAction, actionLoading, hasEmployeeInjury, oc }: any) => {
+export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newType, setNewType, typeChangeReason, setTypeChangeReason, severityLevel, setSeverityLevel, hazardCategory, setHazardCategory, controllerNotes, setControllerNotes, rcaCause, setRcaCause, rcaWhy, setRcaWhy, rcaRootCause, setRcaRootCause, rcaCategory, setRcaCategory, rcaPreventiveActions, setRcaPreventiveActions, targetDepartmentId, setTargetDepartmentId, departments, serviceProviders, selectedServiceProviderId, setSelectedServiceProviderId, confirmThen, handleControllerAction, actionLoading, hasEmployeeInjury, oc }: any) => {
     const injuriesCount = (() => {
         try { return oc?.injuredPersons ? JSON.parse(oc.injuredPersons).length : 0; } catch { return 0; }
     })();
@@ -186,10 +186,25 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                         </div>
                                     )}
 
-                                    <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-2">
-    <p className="text-xs font-bold text-gray-500">{t('ticketActions.routeToDept', 'Route to Department')}</p>
-    <select id="targetDepartmentId" name="targetDepartmentId" value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.map(d => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
-</div>
+                                    <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-3">
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-500 mb-1.5">{t('ticketActions.routeToDept', 'Route to Department')}<span className="text-red-500 ms-1">*</span></p>
+                                            <select id="targetDepartmentId" name="targetDepartmentId" value={targetDepartmentId} onChange={e => setTargetDepartmentId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"><option value="">{t('ticketActions.selectDept', 'Select Department')}</option>{departments.map((d: any) => <option key={d.id} value={d.id}>{isRtl && d.nameAr ? d.nameAr : d.name}</option>)}</select>
+                                        </div>
+                                        <div className="pt-2 border-t border-gray-100">
+                                            <div className="flex items-center gap-1.5 mb-1.5">
+                                                <p className="text-xs font-bold text-gray-500">{isRtl ? 'مزود الخدمة المستهدف' : 'Target Service Provider'}</p>
+                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-semibold">{isRtl ? 'اختياري' : 'Optional'}</span>
+                                            </div>
+                                            <select value={selectedServiceProviderId || ''} onChange={e => setSelectedServiceProviderId(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white">
+                                                <option value="">{isRtl ? 'بدون مزود خدمة (N/A)' : 'No Service Provider (N/A)'}</option>
+                                                {serviceProviders?.map((sp: any) => (
+                                                    <option key={sp.id} value={sp.id}>{isRtl ? (sp.nameAr || sp.name) : sp.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[10px] text-slate-400 mt-1">{isRtl ? 'يمكنك تحديده الآن أو تأجيله لمرحلة الإغلاق إذا اتضح المتسبب لاحقاً.' : 'You can set it now or later at closure if the responsible party is identified later.'}</p>
+                                        </div>
+                                    </div>
                                     {(!severityLevel || !controllerNotes.trim()) && (
                                         <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1.5">
                                             {!severityLevel && (

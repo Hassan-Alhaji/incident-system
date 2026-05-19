@@ -123,12 +123,32 @@ const createTicket = async (req, res) => {
         if (!incidentDate || !incidentTime) return res.status(400).json({ message: 'Date and time required' });
         if (!whatHappened) return res.status(400).json({ message: 'Description required' });
 
-        // Late report check
+        // H4: Late report check (and reject future-dated incidents)
         const reportDateTime = new Date(`${incidentDate}T${incidentTime}`);
+        if (isNaN(reportDateTime.getTime())) {
+            return res.status(400).json({ message: 'Invalid incident date or time' });
+        }
+        // Allow up to 5 minutes of clock skew between client and server
+        const FUTURE_SKEW_MS = 5 * 60 * 1000;
+        if (reportDateTime.getTime() > Date.now() + FUTURE_SKEW_MS) {
+            return res.status(400).json({ message: 'Incident date/time cannot be in the future' });
+        }
         const hoursDiff = (Date.now() - reportDateTime.getTime()) / (1000*60*60);
         const isLate = hoursDiff > 24;
         if (isLate && !lateReportReason) {
             return res.status(400).json({ message: 'Late report reason required (>24h)' });
+        }
+
+        // H5: Pre-validate FKs to return clean 400 instead of Prisma P2003 → 500
+        const fkChecks = [];
+        if (departmentId) fkChecks.push(prisma.department.findUnique({ where: { id: departmentId }, select: { id: true } }).then(r => ({ name: 'department', found: !!r })));
+        if (zoneId) fkChecks.push(prisma.zone.findUnique({ where: { id: zoneId }, select: { id: true } }).then(r => ({ name: 'zone', found: !!r })));
+        if (eventId) fkChecks.push(prisma.event.findUnique({ where: { id: eventId }, select: { id: true } }).then(r => ({ name: 'event', found: !!r })));
+        if (serviceProviderId && serviceProviderId !== 'OTHER') fkChecks.push(prisma.serviceProvider.findUnique({ where: { id: serviceProviderId }, select: { id: true } }).then(r => ({ name: 'serviceProvider', found: !!r })));
+        if (fkChecks.length) {
+            const results = await Promise.all(fkChecks);
+            const missing = results.find(r => !r.found);
+            if (missing) return res.status(400).json({ message: `Invalid ${missing.name} reference` });
         }
 
         // Generate ticket number with retry to prevent race conditions
@@ -161,10 +181,8 @@ const createTicket = async (req, res) => {
                         location: locationAddress || (locationLat ? `${locationLat},${locationLng}` : ''),
                         description: whatHappened,
                         reporterName: req.user.name,
-                        createdById: req.user.id,
                         hasInjury: hasInjury || false,
                         serviceProviderId: (serviceProviderId && serviceProviderId !== 'OTHER') ? serviceProviderId : null,
-                        zoneId: zoneId || null,
                         eventId: eventId || null,
                         offCircuitReport: {
                             create: {
