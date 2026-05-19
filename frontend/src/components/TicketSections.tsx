@@ -128,9 +128,8 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   const [bulkReviewing, setBulkReviewing] = useState(false); // loading state for bulk review
   // pending local files per plan type — shown as preview before save
   const [pendingFiles, setPendingFiles] = useState<Record<string, File[]>>({});
-  // Refs to file inputs per plan type — used to open the picker programmatically
-  // (more reliable than relying on <label>-wraps-<input> across browsers)
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Unique instance ID for file inputs — ensures htmlFor/id pairing is unique per mount
+  const instanceId = useRef(Math.random().toString(36).slice(2, 8));
   // pending attachment-delete confirmation (replaces native confirm() dialog)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // pending action plan delete confirmation
@@ -388,38 +387,28 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                         <span className="text-xs font-bold text-teal-700">
                           {isRtl ? '📎 المرفقات (اختياري)' : '📎 Attachments (Optional)'}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            console.log('[Upload] Click', pd.type, 'ref:', !!fileInputRefs.current[pd.type]);
-                            const inp = fileInputRefs.current[pd.type];
-                            if (!inp) { showToast(`No ref for ${pd.type}`, 'error'); return; }
-                            inp.click();
-                          }}
+                        <label
+                          htmlFor={`ap-file-${instanceId.current}-${pd.type}`}
                           className="flex items-center gap-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 hover:border-teal-400 text-teal-700 text-xs font-bold py-1.5 px-3 rounded-lg cursor-pointer transition-all shadow-sm"
                         >
                           {(uploading === ex?.id || saving === pd.type) ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                           {isRtl ? 'اختر ملف' : 'Choose File'}
-                        </button>
-                        {/* Hidden file input — opened programmatically via ref */}
-                        <input
-                          ref={(el) => { fileInputRefs.current[pd.type] = el; }}
-                          type="file"
-                          multiple
-                          accept="image/*,.pdf,.doc,.docx,.xlsx,.eml"
-                          style={{ display: 'none' }}
-                          onChange={e => {
-                            const fileList = e.target.files;
-                            console.log('[Upload] onChange', pd.type, 'files:', fileList?.length);
-                            if (!fileList || fileList.length === 0) {
-                              showToast(`No files selected for ${pd.type}`, 'warning');
-                              return;
-                            }
-                            addPendingFiles(pd.type, fileList);
-                            showToast(`✅ Added ${fileList.length} file(s) to ${pd.type}`, 'success');
-                            e.target.value = '';
-                          }}
-                        />
+                          <input
+                            key={`ap-file-${pd.type}`}
+                            id={`ap-file-${instanceId.current}-${pd.type}`}
+                            type="file"
+                            multiple
+                            accept="image/*,.pdf,.doc,.docx,.xlsx,.eml"
+                            className="sr-only"
+                            onChange={e => {
+                              const fileList = e.target.files;
+                              if (!fileList || fileList.length === 0) return;
+                              addPendingFiles(pd.type, fileList);
+                              showToast(`✅ Added ${fileList.length} file(s) to ${pd.type}`, 'success');
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
                       </div>
 
                       {/* Saved attachments from server */}

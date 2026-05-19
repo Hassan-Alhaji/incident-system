@@ -16,6 +16,98 @@ const ROLES = {
 
 const ADMIN_ROLES = ['ADMIN', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'HSE_CONTROLLER'];
 
+// ===== SECURITY: Whitelist-based response sanitizer =====
+// Any field NOT listed here is automatically hidden from reporters.
+// This ensures new schema fields are secure-by-default.
+const REPORTER_ALLOWED_TICKET = new Set([
+    'id', 'ticketNo', 'status', 'type', 'priority',
+    'description', 'location', 'hasInjury',
+    'incidentDate', 'incidentTime',
+    'createdAt', 'updatedAt', 'createdById',
+    'createdBy', 'zone', 'event', 'attachments',
+    'offCircuitReport', '_count'
+]);
+const REPORTER_ALLOWED_OC = new Set([
+    'id', 'ticketId',
+    'incidentType', 'incidentDate', 'incidentTime',
+    'locationLat', 'locationLng', 'locationAddress', 'locationDescription',
+    'whatHappened', 'hasInjury',
+    'isLateReport', 'lateReportReason',
+    'injuredPersons', 'witnesses',
+    'reporterFilledBy', 'reporterFilledAt',
+    'createdAt', 'updatedAt'
+]);
+const REPORTER_ALLOWED_PERSON = new Set([
+    'name', 'type', 'affiliate', 'mobile', 'company', 'dept'
+]);
+
+function sanitizeForReporter(ticket) {
+    if (!ticket) return ticket;
+    const safe = {};
+    for (const key of REPORTER_ALLOWED_TICKET) {
+        if (ticket[key] !== undefined) safe[key] = ticket[key];
+    }
+    // Filter attachments: reporter sees only their own uploads.
+    if (ticket.attachments && ticket.createdById) {
+        safe.attachments = ticket.attachments.filter(att =>
+            att.uploadedById === ticket.createdById
+        ).map(({ data, ...meta }) => meta); // strip binary data
+    }
+    // Rebuild _count so reporter only sees counts they're entitled to.
+    // List endpoints use prisma _count which sums ALL rows; we cannot accurately
+    // count their attachments without a separate query, so we drop the inaccurate
+    // total to avoid confusion with the filtered detail view.
+    // actionPlans/reminders existence is itself confidential — never expose.
+    if (ticket._count) {
+        safe._count = {}; // intentionally empty: dashboard chips fall back to 0
+    }
+    if (ticket.offCircuitReport) {
+        const oc = {};
+        for (const key of REPORTER_ALLOWED_OC) {
+            if (ticket.offCircuitReport[key] !== undefined) oc[key] = ticket.offCircuitReport[key];
+        }
+        // Strip GOSI/HR data from injuredPersons — keep only reporter-submitted fields
+        if (oc.injuredPersons) {
+            try {
+                const persons = typeof oc.injuredPersons === 'string' ? JSON.parse(oc.injuredPersons) : oc.injuredPersons;
+                oc.injuredPersons = JSON.stringify(
+                    persons.map(p => {
+                        const clean = {};
+                        for (const k of REPORTER_ALLOWED_PERSON) { if (p[k] !== undefined) clean[k] = p[k]; }
+                        return clean;
+                    })
+                );
+            } catch { /* keep as-is if parse fails */ }
+        }
+        safe.offCircuitReport = oc;
+    }
+    return safe;
+}
+
+// Finance sees ONLY violation details + vendor identity — nothing else
+const FINANCE_ALLOWED_TICKET = new Set([
+    'id', 'ticketNo', 'status', 'type',
+    'hasFinancialViolation', 'violationAmount', 'violationDescription',
+    'forwardedToFinance', 'closedAt', 'closedBy', 'createdAt'
+]);
+
+function sanitizeForFinance(ticket) {
+    if (!ticket) return ticket;
+    const safe = {};
+    for (const key of FINANCE_ALLOWED_TICKET) {
+        if (ticket[key] !== undefined) safe[key] = ticket[key];
+    }
+    // Vendor identity only: name + CR number (no rep contacts)
+    if (ticket.serviceProvider) {
+        safe.serviceProvider = {
+            name: ticket.serviceProvider.name,
+            nameAr: ticket.serviceProvider.nameAr,
+            commercialRegistrationNumber: ticket.serviceProvider.commercialRegistrationNumber
+        };
+    }
+    return safe;
+}
+
 // ===== CREATE TICKET =====
 const createTicket = async (req, res) => {
     try {
@@ -197,6 +289,9 @@ const getTickets = async (req, res) => {
         // Mask confidential PII for non-authorized roles
         const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role);
         const sanitizedTickets = tickets.map(t => {
+            // Security: role-based whitelist filtering
+            if (ROLES.REPORTER.includes(role)) return sanitizeForReporter(t);
+            if (ROLES.FINANCE.includes(role)) return sanitizeForFinance(t);
             if (!isConfidentialViewer && t.createdById !== userId) {
                 if (t.createdBy) t.createdBy = { id: t.createdBy.id, role: t.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
                 t.reporterName = 'Confidential';
@@ -295,6 +390,14 @@ const getTicketById = async (req, res) => {
 
         }
 
+        // Security: role-based whitelist filtering
+        if (ROLES.REPORTER.includes(role)) {
+            return res.json(sanitizeForReporter(ticket));
+        }
+        if (ROLES.FINANCE.includes(role)) {
+            return res.json(sanitizeForFinance(ticket));
+        }
+
         res.json(ticket);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -325,6 +428,11 @@ const reporterReply = async (req, res) => {
 
         const updated = await prisma.ticket.findUnique({ where: { id }, include: { offCircuitReport: true, createdBy: { select: { id: true, name: true, role: true, email: true, mobile: true, department: true } }, activityLogs: { include: { actor: { select: { name: true, role: true } } }, orderBy: { createdAt: 'desc' } }, attachments: true } });
         
+        // Security: reporters get whitelist-filtered response
+        if (ROLES.REPORTER.includes(req.user.role)) {
+            return res.json(sanitizeForReporter(updated));
+        }
+
         const isConfidentialViewer = ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(req.user.role) || updated.createdById === req.user.id;
         if (!isConfidentialViewer && updated) {
             if (updated.createdBy) updated.createdBy = { id: updated.createdBy.id, role: updated.createdBy.role, name: 'Confidential', email: 'Confidential', mobile: 'Confidential', department: null };
@@ -356,7 +464,7 @@ const uploadAttachments = async (req, res) => {
             const attachmentId = crypto.randomUUID();
             const refId = `${ticket.ticketNo}-A${startCount + i + 1}`;
             await prisma.attachment.create({
-                data: { id: attachmentId, ticketId, url: `/api/attachments/${attachmentId}/content`, type: file.mimetype.startsWith('image/') ? 'IMAGE' : 'DOCUMENT', name: file.originalname, size: file.size, mimeType: file.mimetype, refId, data: file.buffer }
+                data: { id: attachmentId, ticketId, uploadedById: req.user.id, url: `/api/attachments/${attachmentId}/content`, type: file.mimetype.startsWith('image/') ? 'IMAGE' : 'DOCUMENT', name: file.originalname, size: file.size, mimeType: file.mimetype, refId, data: file.buffer }
             });
         }
         await prisma.activityLog.create({ data: { ticketId, actorId: req.user.id, action: 'ATTACHMENT_ADDED', details: `Uploaded ${files.length} file(s)` } });

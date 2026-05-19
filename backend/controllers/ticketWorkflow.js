@@ -8,6 +8,107 @@ const safeParseJSON = (data, fallback = []) => {
     catch { return fallback; }
 };
 
+/**
+ * Dispatch closure-violation notifications:
+ *   • Department reps  → for WARNING or FINANCIAL  (info-only, full context)
+ *   • Finance reps     → for FINANCIAL only        (info-only, SP + dept + amount)
+ *
+ * Both notifications are read-only and require no action from recipients.
+ * Failure to notify must never block ticket closure — every call is wrapped in catch.
+ */
+const dispatchClosureViolationNotifications = async (ticket, { violationType, violationDescription, violationAmount }) => {
+    const isFinViolation = violationType === 'FINANCIAL';
+    const isWarning      = violationType === 'WARNING';
+    if (!isFinViolation && !isWarning) return;
+
+    const note   = (violationDescription || '').trim() || '(لا توجد ملاحظات — no note provided)';
+    const ticketNo = ticket.ticketNo || ticket.id;
+
+    // Responsible department: prefer ticket's own dept, fall back to service-provider's responsible dept
+    const responsibleDeptId   = ticket.departmentId || ticket.serviceProvider?.responsibleDepartmentId || null;
+    const responsibleDeptName = ticket.department?.name || ticket.serviceProvider?.department?.name || null;
+
+    // 1) Department reps — warning OR financial
+    if (responsibleDeptId) {
+        try {
+            const depReps = await prisma.user.findMany({
+                where: { repDepartmentId: responsibleDeptId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' },
+                select: { id: true }
+            });
+            if (depReps.length) {
+                const kind = isFinViolation ? 'Financial Violation' : 'Warning Violation';
+                const amountLine = isFinViolation ? `\nAmount: ${violationAmount} SAR` : '';
+                const msg =
+`Ticket ${ticketNo} has been closed with a ${kind}.${amountLine}
+Controller's note: ${note}
+(For your information — no action required.)`;
+                await createNotificationsBulk(
+                    depReps.map(r => r.id),
+                    `Ticket Closed — ${kind}`,
+                    msg,
+                    'INFO',
+                    `/tickets/${ticket.id}`
+                );
+            }
+        } catch (err) { logger.error({ err }, 'Dep-rep closure notify failed'); }
+    } else {
+        // No department found — log warning so it doesn't fail silently
+        logger.warn({ ticketId: ticket.id, ticketNo }, 'Violation closure: no responsible department found — department notification skipped');
+        // Notify the controllers so they're aware the notification wasn't sent
+        try {
+            const controllers = await prisma.user.findMany({ where: { role: { in: ['HSE_CONTROLLER', 'SAFETY_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+            if (controllers.length) {
+                await createNotificationsBulk(
+                    controllers.map(c => c.id),
+                    `⚠️ Violation Notice Not Delivered`,
+                    `Ticket ${ticketNo} was closed with a violation, but no responsible department was found. The department was NOT notified. Please verify the ticket's department assignment.`,
+                    'INFO',
+                    `/tickets/${ticket.id}`
+                );
+            }
+        } catch (err) { logger.error({ err }, 'Fallback controller notify failed'); }
+    }
+
+    // 2) Finance reps — financial only, with SP contact + responsible dept (NO ticket details)
+    if (isFinViolation) {
+        try {
+            const financeReps = await prisma.user.findMany({
+                where: { role: 'FINANCE_REP', status: 'ACTIVE' },
+                select: { id: true }
+            });
+            if (financeReps.length) {
+                const sp = ticket.serviceProvider;
+                const spLines = sp
+                    ? [
+                        `Service Provider: ${sp.nameAr ? `${sp.name} / ${sp.nameAr}` : sp.name}`,
+                        `Commercial Reg.: ${sp.commercialRegistrationNumber || 'N/A'}`,
+                        `Representative: ${sp.representativeName || 'N/A'}`,
+                        `Email: ${sp.representativeEmail || 'N/A'}`,
+                        `Mobile: ${sp.representativeMobile || 'N/A'}`,
+                      ].join('\n')
+                    : 'Service Provider: (not linked)';
+                const deptLine = `Responsible Department: ${responsibleDeptName || 'N/A'}`;
+                const msg =
+`Ticket No.: ${ticketNo}
+Violation Amount: ${violationAmount} SAR
+Controller's note: ${note}
+
+— ${spLines}
+— ${deptLine}
+
+(For your information — no action required.)`;
+                await createNotificationsBulk(
+                    financeReps.map(r => r.id),
+                    `Financial Violation — Ticket ${ticketNo}`,
+                    msg,
+                    'INFO',
+                    null  // intentionally no ticket link — finance must not see ticket details
+                );
+            }
+        } catch (err) { logger.error({ err }, 'Finance closure notify failed'); }
+    }
+};
+
 // ===== CONTROLLER ACTION =====
 const controllerAction = async (req, res) => {
     try {
@@ -232,7 +333,7 @@ const departmentAction = async (req, res) => {
 // ===== CONTROLLER FINAL REVIEW =====
 const controllerFinalReview = async (req, res) => {
     try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, actionPlans: true, serviceProvider: true } });
+        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, actionPlans: true, serviceProvider: { include: { department: true } }, department: true } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
         const { role } = req.user;
@@ -332,8 +433,6 @@ const controllerFinalReview = async (req, res) => {
             }
 
             const isFinViolation = finalViolationType === 'FINANCIAL';
-            const isWarningViolation = finalViolationType === 'WARNING';
-            const forwardedToFinance = isFinViolation;
 
             await prisma.ticket.update({ 
                 where: { id: ticket.id }, 
@@ -351,7 +450,7 @@ const controllerFinalReview = async (req, res) => {
                         create: { 
                             actorId: req.user.id, 
                             action: 'STAGE_CLOSED', 
-                            details: (notes || violationDescription || 'Closed') + (isFinViolation ? ' (Financial Violation)' : isWarningViolation ? ' (Warning Violation)' : '')
+                            details: notes || violationDescription || 'Closed'
                         } 
                     } 
                 } 
@@ -361,23 +460,11 @@ const controllerFinalReview = async (req, res) => {
                 await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
             }
             
-            // Notification to Responsible Department (for Warning and Financial)
-            if (ticket.departmentId && (isWarningViolation || isFinViolation)) {
-                const depReps = await prisma.user.findMany({ where: { repDepartmentId: ticket.departmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
-                if (depReps.length > 0) {
-                    const notifyType = isFinViolation ? 'Financial Violation' : 'Warning Violation';
-                    await createNotificationsBulk(depReps.map(f => f.id), `Ticket Closed - ${notifyType}`, `Ticket ${ticket.ticketNo} has been closed with a ${notifyType}. Decision: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`);
-                }
-            }
-
-            if (forwardedToFinance) {
-                const financeReps = await prisma.user.findMany({ where: { role: 'FINANCE_REP', status: 'ACTIVE' }, select: { id: true } });
-                if (financeReps.length > 0) {
-                    const sp = ticket.serviceProvider;
-                    const spDetails = sp ? `${sp.name} (CR: ${sp.commercialRegistrationNumber || 'N/A'})` : 'Unknown Provider';
-                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `A financial violation of ${violationAmount} SAR has been issued against Service Provider: ${spDetails}. Notes: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
-                }
-            }
+            dispatchClosureViolationNotifications(ticket, {
+                violationType: finalViolationType,
+                violationDescription,
+                violationAmount,
+            }).catch(err => logger.error({ err }, 'Closure violation notify failed'));
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });
         }
 
@@ -391,7 +478,7 @@ const controllerFinalReview = async (req, res) => {
 // ===== SAFETY MANAGER ACTIONS =====
 const safetyManagerAction = async (req, res) => {
     try {
-        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, serviceProvider: true } });
+        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true, serviceProvider: { include: { department: true } }, department: true } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
         const { role } = req.user;
         if (!['SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role)) return res.status(403).json({ message: 'Only Safety Manager' });
@@ -456,8 +543,6 @@ const safetyManagerAction = async (req, res) => {
             }
 
             const isFinViolation = finalViolationType === 'FINANCIAL';
-            const isWarningViolation = finalViolationType === 'WARNING';
-            const forwardedToFinance = isFinViolation;
 
             if (ticket.offCircuitReport) {
                 await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { finalDecision: 'CLOSE', finalNotes: violationDescription || notes, hseManagerFilledBy: req.user.name, hseManagerFilledAt: new Date() } });
@@ -478,7 +563,7 @@ const safetyManagerAction = async (req, res) => {
                         create: { 
                             actorId: req.user.id, 
                             action: 'STAGE_CLOSED', 
-                            details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || notes || '') + (isFinViolation ? ' (Financial Violation)' : isWarningViolation ? ' (Warning Violation)' : '')
+                            details: (rcaOverridden ? `Closed by Safety Manager (RCA waived). ` : `Closed. `) + (violationDescription || notes || '')
                         } 
                     } 
                 } 
@@ -488,23 +573,11 @@ const safetyManagerAction = async (req, res) => {
                 await createNotification(ticket.createdById, 'Ticket Closed', closeMsg, 'CLOSED', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Background task failed'));
             }
 
-            // Notification to Responsible Department (for Warning and Financial)
-            if (ticket.departmentId && (isWarningViolation || isFinViolation)) {
-                const depReps = await prisma.user.findMany({ where: { repDepartmentId: ticket.departmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
-                if (depReps.length > 0) {
-                    const notifyType = isFinViolation ? 'Financial Violation' : 'Warning Violation';
-                    await createNotificationsBulk(depReps.map(f => f.id), `Ticket Closed - ${notifyType}`, `Ticket ${ticket.ticketNo} has been closed with a ${notifyType}. Decision: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`);
-                }
-            }
-
-            if (forwardedToFinance) {
-                const financeReps = await prisma.user.findMany({ where: { role: 'FINANCE_REP', status: 'ACTIVE' }, select: { id: true } });
-                if (financeReps.length > 0) {
-                    const sp = ticket.serviceProvider;
-                    const spDetails = sp ? `${sp.name} (CR: ${sp.commercialRegistrationNumber || 'N/A'})` : 'Unknown Provider';
-                    await createNotificationsBulk(financeReps.map(f => f.id), 'Financial Violation Reported', `A financial violation of ${violationAmount} SAR has been issued against Service Provider: ${spDetails}. Notes: ${violationDescription}`, 'INFO', `/tickets/${ticket.id}`).catch(err => logger.error({ err }, 'Finance notify failed'));
-                }
-            }
+            dispatchClosureViolationNotifications(ticket, {
+                violationType: finalViolationType,
+                violationDescription,
+                violationAmount,
+            }).catch(err => logger.error({ err }, 'Closure violation notify failed'));
             return res.json({ message: 'Ticket closed', status: 'CLOSED' });
         }
 

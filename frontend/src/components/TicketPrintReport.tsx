@@ -355,11 +355,13 @@ const TicketPrintReport = ({ ticket, onClose }: { ticket: any; onClose: () => vo
         <div style={{ marginBottom: 18 }}>
           <SecHead en="Incident Details" color="#1e3a5f" />
           <Row label="Incident Date" value={`${fmt(oc.incidentDate)}  ${oc.incidentTime || ''}`} />
-          <Row label="Reported By" value={
-            ticket.reporter && ticket.reporter.name !== 'Confidential' 
-              ? `${ticket.reporter.name}${ticket.reporter.department ? ` — ${ticket.reporter.department}` : ''}${ticket.reporter.mobile ? ` — ${ticket.reporter.mobile}` : ''}${ticket.reporter.email ? ` — ${ticket.reporter.email}` : ''}`
-              : ticket.reporter?.name || oc.reporterName || 'N/A'
-          } />
+          <Row label="Reported By" value={(() => {
+            const r = ticket.reporter || ticket.createdBy;
+            if (r && r.name !== 'Confidential') {
+              return `${r.name}${r.department ? ` — ${r.department}` : ''}${r.mobile ? ` — ${r.mobile}` : ''}${r.email ? ` — ${r.email}` : ''}`;
+            }
+            return r?.name || oc.reporterFilledBy || ticket.reporterName || 'N/A';
+          })()} />
           <Row label="Description" value={<span style={{ whiteSpace: 'pre-wrap' }}>{oc.whatHappened || ticket.description}</span>} />
           {oc.isLateReport && <Row label="Late Report Reason" value={oc.lateReportReason} />}
         </div>

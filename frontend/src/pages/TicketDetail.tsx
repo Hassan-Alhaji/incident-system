@@ -367,6 +367,7 @@ const TicketDetail = () => {
     const isDepRep = ['DEP_REP', 'DEP_MANAGER'].includes(role);
     const isHrRep = role === 'HR_REP';
     const isReporter = role === 'OC_REPORTER' && ticket.createdById === user?.id;
+    const isTicketOwner = ticket.createdById === user?.id;
 
     const injuredPersons = safeParseJSON(oc.injuredPersons);
     const hasContractorInjury = injuredPersons.some((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
@@ -384,15 +385,30 @@ const TicketDetail = () => {
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
                             <h1 className="text-xl font-bold">{ticket.ticketNo}</h1>
-                            <span className={`px-2 py-1 rounded-md text-xs font-bold ${STATUS_CONFIG[ticket.status]?.chip || 'bg-gray-100'}`}>{t(`status.${ticket.status}`, ticket.status) as string}</span>
-                            {isController && ticket.reporter && ticket.reporter.name !== 'Confidential' && (
+                            {(() => {
+                                // Mask internal workflow stages from the reporter
+                                const INTERNAL_STATUSES = ['ASSIGNED', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'ESCALATED', 'PENDING_REMINDER'];
+                                const maskedStatus = isReporter && INTERNAL_STATUSES.includes(ticket.status) ? 'IN_PROGRESS' : ticket.status;
+                                const maskedLabel = maskedStatus === 'IN_PROGRESS'
+                                    ? (isRtl ? 'قيد المعالجة' : 'In Progress')
+                                    : t(`status.${ticket.status}`, ticket.status) as string;
+                                const maskedChip = maskedStatus === 'IN_PROGRESS'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : (STATUS_CONFIG[ticket.status]?.chip || 'bg-gray-100');
+                                return <span className={`px-2 py-1 rounded-md text-xs font-bold ${maskedChip}`}>{maskedLabel}</span>;
+                            })()}
+                            {(() => {
+                                const r = ticket.reporter || ticket.createdBy;
+                                if (!isController || !r || r.name === 'Confidential') return null;
+                                return (
                                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-[11px] font-bold shadow-sm flex-wrap">
-                                    <span>👤 {ticket.reporter.name}</span>
-                                    {ticket.reporter.department && <span className="opacity-75 px-1 border-l border-amber-300">{ticket.reporter.department}</span>}
-                                    {ticket.reporter.mobile && <span className="opacity-75 px-1 border-l border-amber-300" dir="ltr">{ticket.reporter.mobile}</span>}
-                                    {ticket.reporter.email && <span className="opacity-75 px-1 border-l border-amber-300">{ticket.reporter.email}</span>}
+                                    <span>👤 {r.name}</span>
+                                    {r.department && <span className="opacity-75 px-1 border-l border-amber-300">{r.department}</span>}
+                                    {r.mobile && <span className="opacity-75 px-1 border-l border-amber-300" dir="ltr">{r.mobile}</span>}
+                                    {r.email && <span className="opacity-75 px-1 border-l border-amber-300">{r.email}</span>}
                                 </div>
-                            )}
+                                );
+                            })()}
                         </div>
                         <p className="text-sm text-gray-500 mt-1">{t(`oc.incidentTypes.${ticket.type}`, ticket.type) as string} • {formatDate(ticket.createdAt)}</p>
                     </div>
@@ -404,16 +420,71 @@ const TicketDetail = () => {
                 </div>
             </div>
 
+            {/* Prominent banner for returned tickets */}
+            {isReporter && ticket.status === 'RETURNED_TO_REPORTER' && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-xl">✏️</span>
+                    </div>
+                    <div className="flex-1">
+                        <h4 className="font-black text-amber-900 text-sm">
+                            {isRtl ? 'مطلوب تعديل بلاغك' : 'Your Report Needs Updates'}
+                        </h4>
+                        <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                            {isRtl
+                                ? 'تمت إعادة التذكرة إليك من قِبل فريق السلامة. يُرجى مراجعة الملاحظات أدناه وإرسال ردك في قسم "الإجراءات" بالأسفل.'
+                                : 'This ticket has been returned to you by the HSE team. Please review the notes below and submit your reply in the "Actions" section at the bottom.'}
+                        </p>
+                    </div>
+                    <ArrowLeft size={18} className="text-amber-400 rtl:rotate-180 animate-bounce flex-shrink-0" />
+                </div>
+            )}
+
             {/* Main Content Tabs */}
             <div className="flex gap-2 border-b">
                 <button onClick={() => setActiveTab('details')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'details' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.details', 'Details')}</button>
-                <button onClick={() => setActiveTab('timeline')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.timeline', 'Timeline')}</button>
+                {isController && (
+                    <button onClick={() => setActiveTab('timeline')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.timeline', 'Timeline')}</button>
+                )}
                 <button onClick={() => setActiveTab('attachments')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'attachments' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>📎 {t('nav.attachments', 'Attachments')} ({ticket.attachments?.length || 0})</button>
             </div>
 
             {/* Tab Content */}
             {activeTab === 'details' && (
                 <div className="flex flex-col gap-4">
+                    {/* Reporter Info — visible to controllers / HSE managers only */}
+                    {isController && ticket.createdBy && (
+                        <div className="bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-200 shadow-sm rounded-xl p-4">
+                            <h3 className="font-bold text-indigo-800 text-sm flex items-center gap-2 mb-3 pb-2 border-b border-indigo-100">
+                                👤 {isRtl ? 'بيانات المُبلّغ' : 'Reporter Information'}
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
+                                        {isRtl ? 'الاسم الكامل' : 'Full Name'}
+                                    </span>
+                                    <span className="font-bold text-slate-800">{ticket.createdBy.name || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
+                                        {isRtl ? 'البريد الإلكتروني' : 'Email'}
+                                    </span>
+                                    {ticket.createdBy.email
+                                        ? <a href={`mailto:${ticket.createdBy.email}`} className="font-semibold text-blue-600 hover:underline break-all" dir="ltr">{ticket.createdBy.email}</a>
+                                        : <span className="text-slate-400">—</span>}
+                                </div>
+                                <div>
+                                    <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
+                                        {isRtl ? 'رقم الجوال' : 'Mobile'}
+                                    </span>
+                                    {ticket.createdBy.mobile
+                                        ? <a href={`tel:${ticket.createdBy.mobile}`} className="font-semibold text-blue-600 hover:underline" dir="ltr">{ticket.createdBy.mobile}</a>
+                                        : <span className="text-slate-400">—</span>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Top Section: Details */}
                     <div className="space-y-4">
                         <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 border border-slate-200 shadow-sm shadow-slate-100 rounded-xl p-4 space-y-4">
@@ -437,9 +508,9 @@ const TicketDetail = () => {
                                     </div>
                                 )}
  
-                                {ticket.severityLevel && (
+                                {!isReporter && ticket.severityLevel && (
                                     <div className="col-span-1 bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg">
-                                        <strong className="block text-xs">{t('ticketActions.classification', 'Classification')}:</strong> 
+                                        <strong className="block text-xs">{t('ticketActions.classification', 'Classification')}:</strong>
                                         <span className="font-bold">{t(`classification.${ticket.severityLevel}`, ticket.severityLevel) as string}</span>
                                     </div>
                                 )}
@@ -464,9 +535,9 @@ const TicketDetail = () => {
                                         </div>
                                     );
                                 })()}
-                                {ticket.department && (
+                                {!isReporter && ticket.department && (
                                     <div className="col-span-1 bg-indigo-50 border border-indigo-200 text-indigo-800 p-2 rounded-lg">
-                                        <strong className="block text-xs">{t('ticketActions.routedToDept', 'Routed to Department')}:</strong> 
+                                        <strong className="block text-xs">{t('ticketActions.routedToDept', 'Routed to Department')}:</strong>
                                         <span className="font-bold">{isRtl && ticket.department.nameAr ? ticket.department.nameAr : ticket.department.name}</span>
                                     </div>
                                 )}
@@ -475,6 +546,8 @@ const TicketDetail = () => {
                             </div>
                         </div>
 
+                        {/* ── Staff-only sections (hidden from reporter to keep their view clean) ── */}
+                        {!isReporter && <>
                         {/* Controller Notes - always visible when set */}
                         {oc.controllerNotes && (
                             <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 border border-blue-200 shadow-sm shadow-blue-100 rounded-xl p-4">
@@ -846,6 +919,8 @@ const TicketDetail = () => {
                                 </div>
                             </div>
                         )}
+                        </>}
+                        {/* ── End staff-only sections ── */}
                     </div>
 
                     {/* Bottom Section: Actions */}
@@ -929,20 +1004,64 @@ const TicketDetail = () => {
                                     (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
                                     (isSafetyManager && ticket.status === 'ESCALATED')
                                 ) && ticket.status !== 'CLOSED' && (
-                                    <div className="text-center py-6 px-4">
-                                        <p className="text-sm text-slate-500 font-medium bg-slate-100 rounded-lg py-3 inline-block px-6">
-                                            {t('ticketDetail.noPendingActions')}
-                                        </p>
-                                    </div>
+                                    isReporter ? (
+                                        <div className="text-center py-8 px-4">
+                                            <div className="w-14 h-14 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                                                <Loader2 className="text-blue-500 animate-spin" size={24} />
+                                            </div>
+                                            <h4 className="font-black text-slate-800 text-sm mb-1">
+                                                {isRtl ? 'تذكرتك قيد المراجعة' : 'Your Ticket Is Being Reviewed'}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                                                {isRtl
+                                                    ? 'يعمل فريق السلامة على معالجة بلاغك. سيتم إشعارك فور وجود أي تحديث.'
+                                                    : 'The HSE team is working on your report. You will be notified when there is an update.'}
+                                            </p>
+                                            <div className="mt-3 inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
+                                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                                                <span className="text-[10px] font-bold text-blue-600">
+                                                    {isRtl ? 'قيد المعالجة' : 'In Progress'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 px-4">
+                                            <p className="text-sm text-slate-500 font-medium bg-slate-100 rounded-lg py-3 inline-block px-6">
+                                                {t('ticketDetail.noPendingActions')}
+                                            </p>
+                                        </div>
+                                    )
                                 )}
-                            {ticket.status === 'CLOSED' && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm font-bold text-center border border-emerald-200"><CheckCircle className="mx-auto mb-1" size={24} /> {t('ticketActions.ticketClosed', 'Ticket Closed')}</div>}
+                            {ticket.status === 'CLOSED' && isTicketOwner ? (
+                                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-5 text-center shadow-sm">
+                                    <div className="w-12 h-12 mx-auto bg-emerald-100 rounded-full flex items-center justify-center mb-3">
+                                        <CheckCircle className="text-emerald-600" size={26} />
+                                    </div>
+                                    <h4 className="font-black text-emerald-800 text-base mb-1.5">
+                                        {isRtl ? 'شكراً لبلاغك' : 'Thank You for Your Report'}
+                                    </h4>
+                                    <p className="text-sm text-emerald-700 leading-relaxed max-w-md mx-auto">
+                                        {isRtl
+                                            ? 'تم حل المشكلة وإغلاق التذكرة. للاستفسار عن أي تفاصيل، يُرجى التواصل مع قسم الأمن والسلامة مع ذكر رقم التذكرة.'
+                                            : 'The issue has been resolved and the ticket is closed. For any inquiries, please contact the HSE Department and reference the ticket number below.'}
+                                    </p>
+                                    <div className="mt-3 inline-flex items-center gap-2 bg-white border border-emerald-200 rounded-lg px-3 py-1.5">
+                                        <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">
+                                            {isRtl ? 'رقم التذكرة' : 'Ticket No.'}
+                                        </span>
+                                        <span className="font-mono font-black text-emerald-900 text-sm" dir="ltr">{ticket.ticketNo}</span>
+                                    </div>
+                                </div>
+                            ) : ticket.status === 'CLOSED' && (
+                                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm font-bold text-center border border-emerald-200"><CheckCircle className="mx-auto mb-1" size={24} /> {t('ticketActions.ticketClosed', 'Ticket Closed')}</div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Timeline Tab */}
-            {activeTab === 'timeline' && (
+            {/* Timeline Tab — restricted to controllers and HSE/safety managers */}
+            {activeTab === 'timeline' && isController && (
                 <TimelineTab ticket={ticket} formatDateTime={formatDateTime} />
             )}
 
