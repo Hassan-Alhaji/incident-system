@@ -24,3 +24,14 @@ implementation_plan.md
 # SQLite dev databases
 *.db
 *.db-journal
+
+# Security: never commit scripts that may embed DB credentials
+backend/scripts/test_supabase.js
+backend/scripts/copy_master.js
+backend/scripts/copy_users.js
+backend/scripts/migrate_data.js
+backend/scripts/test_connection.js
+backend/scripts/test_db_connection.js
+backend/scripts/*credentials*
+backend/scripts/*secret*
+**/*.local.js
