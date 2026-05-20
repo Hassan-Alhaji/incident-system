@@ -323,7 +323,7 @@ export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejecte
                                         </div>
                                         <input type="date" min={new Date().toISOString().split('T')[0]} value={reminderDate} onChange={e => setReminderDate(e.target.value)} className="w-full p-1.5 border border-orange-200 rounded text-xs focus:ring-orange-500 focus:border-orange-500" />
                                         <input placeholder={t('ticketActions.reminderMessage', 'Reminder message...')} value={reminderMessage} onChange={e => setReminderMessage(e.target.value)} className="w-full p-1.5 border border-orange-200 rounded text-xs focus:ring-orange-500 focus:border-orange-500" />
-                                        <button onClick={() => confirmThen(() => handleFinalReview('SET_REMINDER'), isRtl ? 'تعيين تنبيه' : 'Set Reminder', isRtl ? 'سيتم حفظ التنبيه وتحويل حالة التذكرة إلى PENDING_REMINDER ولن يتم إغلاقها نهائياً.' : 'A reminder will be set, changing the status to PENDING_REMINDER. The ticket will remain open.', 'warning')} disabled={!reminderDate || !reminderMessage} className="w-full bg-orange-500 text-white p-1.5 rounded text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:bg-orange-600">{t('ticketActions.setReminder', 'Set Reminder')}</button>
+                                        <button onClick={() => confirmThen(() => handleFinalReview('SET_REMINDER'), isRtl ? 'تعيين تنبيه' : 'Set Reminder', isRtl ? 'سيتم حفظ التنبيه وتحويل حالة التذكرة إلى PENDING_REMINDER ولن يتم إغلاقها نهائياً.' : 'A reminder will be set, changing the status to PENDING_REMINDER. The ticket will remain open.', 'warning')} disabled={actionLoading || !reminderDate || !reminderMessage} className="w-full bg-orange-500 text-white p-1.5 rounded text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:bg-orange-600">{t('ticketActions.setReminder', 'Set Reminder')}</button>
                                     </div>
 
                                     {/* Warning banner when a plan is rejected */}
@@ -339,21 +339,23 @@ export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejecte
                                     <div className={`grid gap-2 pt-1 ${hasRejectedPlan ? 'grid-cols-2' : 'grid-cols-2'}`}>
                                         <button
                                             onClick={() => confirmThen(() => handleFinalReview('RETURN_DEPARTMENT'), isRtl ? 'إرجاع إلى القسم' : 'Return to Department', isRtl ? 'ستُرجع التذكرة إلى القسم المختص للمراجعة وإعادة الرد.' : 'The ticket will be returned to the department for revision and re-submission.', 'danger')}
-                                            disabled={!controllerNotes}
+                                            disabled={actionLoading || !controllerNotes}
                                             className="bg-rose-50 border-2 border-rose-300 text-rose-700 p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-rose-100 flex items-center justify-center gap-2"
                                         >
                                             ↩ {isRtl ? 'إرجاع للقسم' : 'Return to Dept'}
                                         </button>
                                         <button
                                             onClick={() => confirmThen(() => handleFinalReview('ESCALATE'), isRtl ? 'تصعيد التذكرة' : 'Escalate Ticket', isRtl ? 'ستُرفع التذكرة للمستوى الأعلى (Safety Manager). لا يمكن التراجع عن هذا الإجراء.' : 'The ticket will be escalated to the Safety Manager. This action cannot be undone.', 'warning')}
-                                            className="bg-amber-500 text-white p-3 rounded-xl text-sm font-bold transition-all hover:bg-amber-600 flex items-center justify-center gap-2"
+                                            disabled={actionLoading}
+                                            className="bg-amber-500 text-white p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-amber-600 flex items-center justify-center gap-2"
                                         >
                                             ⬆ {isRtl ? 'تصعيد' : 'Escalate'}
                                         </button>
                                         {!hasRejectedPlan && (
                                             <button
                                                 onClick={() => handleCloseRequest('FINAL_REVIEW')}
-                                                className="col-span-2 bg-emerald-600 text-white p-3 rounded-xl text-sm font-bold transition-all hover:bg-emerald-700 flex items-center justify-center gap-2"
+                                                disabled={actionLoading}
+                                                className="col-span-2 bg-emerald-600 text-white p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-emerald-700 flex items-center justify-center gap-2"
                                             >
                                                 ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
                                             </button>
@@ -402,20 +404,22 @@ export const SafetyManagerPanel = ({ isSafetyManager, ticket, t, controllerNotes
                                     <div className="grid grid-cols-3 gap-2 pt-1">
                                         <button
                                             onClick={() => confirmThen(() => handleSafetyManagerAction('RETURN'), isRtl ? 'إرجاع للكنترولر' : 'Return to Controller', isRtl ? 'ستُرجع التذكرة إلى الكنترولر للمراجعة.' : 'The ticket will be returned to the controller for review.', 'danger')}
-                                            className="bg-rose-50 border border-rose-200 text-rose-700 p-2 rounded-xl text-xs font-bold transition-all hover:bg-rose-100 flex items-center justify-center gap-1.5"
+                                            disabled={actionLoading}
+                                            className="bg-rose-50 border border-rose-200 text-rose-700 p-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:bg-rose-100 flex items-center justify-center gap-1.5"
                                         >
                                             ↩ {isRtl ? 'إرجاع' : 'Return'}
                                         </button>
                                         <button
                                             onClick={() => confirmThen(() => handleSafetyManagerAction('ESCALATE_DEPT'), isRtl ? 'توجيه للقسم' : 'Route to Dept', isRtl ? 'سيتم توجيه التذكرة للقسم المختار.' : 'Ticket will be routed to the selected department.', 'warning')}
-                                            disabled={!targetDepartmentId}
+                                            disabled={actionLoading || !targetDepartmentId}
                                             className="bg-blue-600 text-white p-2 rounded-xl text-xs font-bold transition-all hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
                                         >
                                             ↗ {isRtl ? 'توجيه' : 'Route'}
                                         </button>
                                         <button
                                             onClick={() => handleCloseRequest('SAFETY_MANAGER')}
-                                            className="bg-emerald-600 text-white p-2 rounded-xl text-xs font-bold transition-all hover:bg-emerald-700 flex items-center justify-center gap-1.5"
+                                            disabled={actionLoading}
+                                            className="bg-emerald-600 text-white p-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:bg-emerald-700 flex items-center justify-center gap-1.5"
                                         >
                                             ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
                                         </button>

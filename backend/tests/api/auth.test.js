@@ -25,7 +25,7 @@ describe('Authentication API', () => {
     it('should return 400 if email is missing', async () => {
       const res = await request(app).post('/api/auth/otp/request').send({});
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe('Email is required');
+      expect(res.body.message).toBe('Valid email is required');
     });
 
     it('should generate OTP and save to valid user', async () => {

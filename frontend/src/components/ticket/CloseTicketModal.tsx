@@ -48,7 +48,8 @@ const CloseTicketModal: React.FC<CloseTicketModalProps> = ({ open, hasEmployeeIn
     useEffect(() => {
         if (open) {
             setLocalServiceProviderId(serviceProviderId || null);
-            setViolationType(hasEmployeeInjury ? 'NONE' : null);
+            // Violation choice is always presented to the controller, regardless of injury
+            setViolationType(null);
             setViolationDescription('');
             setViolationAmount('');
             setViolationHistory([]);
@@ -158,49 +159,47 @@ const CloseTicketModal: React.FC<CloseTicketModalProps> = ({ open, hasEmployeeIn
                         )}
                     </div>
 
-                    {/* Financial violation question */}
-                    {!hasEmployeeInjury && (
-                        <div className="mb-4">
-                            <label className="block text-sm font-bold text-slate-700 mb-2">
-                                {isRtl ? 'هل توجد مخالفة؟' : 'Is there a violation?'}
-                                <span className="text-red-500 ms-1">*</span>
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setViolationType('NONE')}
-                                    className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${violationType === 'NONE'
-                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                                        }`}
-                                >
-                                    {isRtl ? 'لا توجد' : 'None'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViolationType('WARNING')}
-                                    disabled={!localServiceProviderId}
-                                    className={`py-2 rounded-xl text-xs font-bold border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${violationType === 'WARNING'
-                                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                                        }`}
-                                >
-                                    {isRtl ? 'تحذيرية' : 'Warning'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViolationType('FINANCIAL')}
-                                    disabled={!localServiceProviderId}
-                                    className={`py-2 rounded-xl text-xs font-bold border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${violationType === 'FINANCIAL'
-                                        ? 'border-red-500 bg-red-50 text-red-700'
-                                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                                        }`}
-                                >
-                                    {isRtl ? 'مالية' : 'Financial'}
-                                </button>
-                            </div>
+                    {/* Violation question — always shown regardless of injury type */}
+                    <div className="mb-4">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            {isRtl ? 'هل توجد مخالفة؟' : 'Is there a violation?'}
+                            <span className="text-red-500 ms-1">*</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setViolationType('NONE')}
+                                className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${violationType === 'NONE'
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                                    }`}
+                            >
+                                {isRtl ? 'لا توجد' : 'None'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViolationType('WARNING')}
+                                disabled={!localServiceProviderId}
+                                className={`py-2 rounded-xl text-xs font-bold border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${violationType === 'WARNING'
+                                    ? 'border-orange-500 bg-orange-50 text-orange-700'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                                    }`}
+                            >
+                                {isRtl ? 'تحذيرية' : 'Warning'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViolationType('FINANCIAL')}
+                                disabled={!localServiceProviderId}
+                                className={`py-2 rounded-xl text-xs font-bold border-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${violationType === 'FINANCIAL'
+                                    ? 'border-red-500 bg-red-50 text-red-700'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                                    }`}
+                            >
+                                {isRtl ? 'مالية' : 'Financial'}
+                            </button>
                         </div>
-                    )}
+                    </div>
 
                     {/* ── Violation History Panel ── */}
                     {violationType && violationType !== 'NONE' && localServiceProviderId && (

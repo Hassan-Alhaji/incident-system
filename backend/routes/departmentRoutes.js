@@ -5,6 +5,22 @@ const prisma = new PrismaClient();
 const { protect } = require('../middleware/authMiddleware');
 const bcrypt = require('bcryptjs');
 
+// Detect special department types by name pattern to assign correct role
+const FINANCE_PATTERN = /financ|مالي|حساب/i;
+const HR_PATTERN = /human\s*resource|موارد\s*بشري|hr/i;
+
+function resolveRepRole(deptName, deptNameAr) {
+    const combined = `${deptName || ''} ${deptNameAr || ''}`;
+    if (FINANCE_PATTERN.test(combined)) return 'FINANCE_REP';
+    if (HR_PATTERN.test(combined)) return 'HR_REP';
+    return 'DEP_REP';
+}
+
+function resolveManagerRole(deptName, deptNameAr) {
+    // Managers always get DEP_MANAGER — special dept type doesn't change this
+    return 'DEP_MANAGER';
+}
+
 async function provisionUser(data, role) {
     if (!data.name || !data.email) return null;
     let user = await prisma.user.findUnique({ where: { email: data.email } });
@@ -79,9 +95,10 @@ router.post('/', protect, async (req, res) => {
         });
 
         // 3. Provision Representatives and assign them to department
+        const repRole = resolveRepRole(nameEn, nameAr);
         if (representatives && Array.isArray(representatives)) {
              for (const rep of representatives) {
-                 const rUser = await provisionUser(rep, 'DEP_REP');
+                 const rUser = await provisionUser(rep, repRole);
                  if (rUser) {
                      await prisma.user.update({
                          where: { id: rUser.id },
@@ -130,6 +147,11 @@ router.put('/:id', protect, async (req, res) => {
         });
 
         // 3. Handle representatives update
+        // Resolve correct role: look up existing dept name if nameEn not in payload
+        const existingDept = await prisma.department.findUnique({ where: { id: req.params.id }, select: { name: true, nameAr: true } });
+        const effectiveName = nameEn || existingDept?.name || '';
+        const effectiveNameAr = nameAr !== undefined ? nameAr : (existingDept?.nameAr || '');
+        const repRole = resolveRepRole(effectiveName, effectiveNameAr);
         if (representatives && Array.isArray(representatives)) {
             // Disconnect existing reps
             await prisma.user.updateMany({
@@ -139,7 +161,7 @@ router.put('/:id', protect, async (req, res) => {
             // Provision and connect new reps
             for (const rep of representatives) {
                 if (!rep.name || !rep.email) continue;
-                const rUser = await provisionUser(rep, 'DEP_REP');
+                const rUser = await provisionUser(rep, repRole);
                 if (rUser) {
                     await prisma.user.update({
                         where: { id: rUser.id },

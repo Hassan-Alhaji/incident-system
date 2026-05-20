@@ -84,11 +84,11 @@ function sanitizeForReporter(ticket) {
     return safe;
 }
 
-// Finance sees ONLY violation details + vendor identity — nothing else
+// Finance sees ONLY violation details + vendor identity + responsible department — nothing else
 const FINANCE_ALLOWED_TICKET = new Set([
     'id', 'ticketNo', 'status', 'type',
     'hasFinancialViolation', 'violationAmount', 'violationDescription',
-    'forwardedToFinance', 'closedAt', 'closedBy', 'createdAt'
+    'forwardedToFinance', 'closedBy', 'closedAt', 'createdAt'
 ]);
 
 function sanitizeForFinance(ticket) {
@@ -97,12 +97,29 @@ function sanitizeForFinance(ticket) {
     for (const key of FINANCE_ALLOWED_TICKET) {
         if (ticket[key] !== undefined) safe[key] = ticket[key];
     }
-    // Vendor identity only: name + CR number (no rep contacts)
+    // Service Provider (violator) full details
     if (ticket.serviceProvider) {
         safe.serviceProvider = {
             name: ticket.serviceProvider.name,
             nameAr: ticket.serviceProvider.nameAr,
-            commercialRegistrationNumber: ticket.serviceProvider.commercialRegistrationNumber
+            commercialRegistrationNumber: ticket.serviceProvider.commercialRegistrationNumber,
+            representativeName: ticket.serviceProvider.representativeName || null,
+            representativeMobile: ticket.serviceProvider.representativeMobile || null,
+            representativeEmail: ticket.serviceProvider.representativeEmail || null,
+        };
+        // Responsible department for the service provider
+        if (ticket.serviceProvider.department) {
+            safe.serviceProvider.department = {
+                name: ticket.serviceProvider.department.name,
+                nameAr: ticket.serviceProvider.department.nameAr,
+            };
+        }
+    }
+    // Ticket's assigned department (responsible department)
+    if (ticket.department) {
+        safe.department = {
+            name: ticket.department.name,
+            nameAr: ticket.department.nameAr,
         };
     }
     return safe;

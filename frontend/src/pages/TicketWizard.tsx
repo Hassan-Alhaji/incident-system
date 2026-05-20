@@ -67,7 +67,9 @@ const TicketWizard = () => {
   const [submittedId, setSubmittedId] = useState('');
   const [error, setError] = useState('');
   const [showErrors, setShowErrors] = useState(false);
-  const TOTAL_STEPS = 4;
+  const [showAttachmentConfirm, setShowAttachmentConfirm] = useState(false);
+  const [attachmentConfirmed, setAttachmentConfirmed] = useState(false);
+  const submittingRef = React.useRef(false);
 
   // Step 1: Type
   const [incidentType, setIncidentType] = useState('');
@@ -133,6 +135,8 @@ const TicketWizard = () => {
         if (parsed.eventId) setEventId(parsed.eventId);
         if (parsed.lateReportReason) setLateReportReason(parsed.lateReportReason);
         if (parsed.hasInjury) setHasInjury(parsed.hasInjury);
+        if (parsed.injuredPersons) setInjuredPersons(parsed.injuredPersons);
+        if (parsed.witnesses) setWitnesses(parsed.witnesses);
 
       } catch (e) { console.error('Error loading draft', e); }
     }
@@ -140,13 +144,13 @@ const TicketWizard = () => {
 
   useEffect(() => {
     if (!submitted && !submitting) {
-      const draft = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId }; // Omitted injuredPersons & witnesses for privacy
+      const draft = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, injuredPersons, witnesses };
       const timeoutId = setTimeout(() => {
         localStorage.setItem('ticket_wizard_draft', JSON.stringify(draft));
       }, 1500);
       return () => clearTimeout(timeoutId);
     }
-  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, submitted, submitting]);
+  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, eventId, injuredPersons, witnesses, submitted, submitting]);
 
 
   const handleLocationConfirm = (lat: number, lng: number, address: string, zone?: { id: string; name: string } | null) => {
@@ -218,15 +222,9 @@ const TicketWizard = () => {
         if (w.mobile.trim().length < 9) { showToast(t('errors.mobileLength', 'Mobile number must be at least 9 digits.'), 'warning'); return false; }
       }
       
-      if (files.length === 0) {
-        const wantsToAttach = window.confirm(
-          isRtl 
-            ? 'من الأفضل إرفاق إثبات للحادث إذا وجد.\n\nاضغط "موافق (OK)" لإضافة مرفق الآن.\nاضغط "إلغاء (Cancel)" لإكمال التقرير بدون مرفقات.' 
-            : 'It is better to attach proof of the incident if available.\n\nClick "OK" to add an attachment now.\nClick "Cancel" to continue without attachments.'
-        );
-        if (wantsToAttach) {
-          return false; // Stay on the page to attach
-        }
+      if (files.length === 0 && !attachmentConfirmed) {
+        setShowAttachmentConfirm(true);
+        return false;
       }
     }
     if (step === 4) {
@@ -245,6 +243,8 @@ const TicketWizard = () => {
   };
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return; // Prevent double-submit
+    submittingRef.current = true;
     setSubmitting(true); setError('');
     try {
       const payload = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons: hasInjury ? injuredPersons : [], witnesses, lateReportReason: isLateReport() ? lateReportReason : null, serviceProviderId: selectedServiceProviderId || null, zoneId: zoneId || null, eventId: eventId || null };
@@ -254,7 +254,7 @@ const TicketWizard = () => {
       setSubmittedId(ticketId); setSubmitted(true);
       localStorage.removeItem('ticket_wizard_draft');
       setTimeout(() => navigate(`/tickets/${ticketId}`), 5000);
-    } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); } finally { setSubmitting(false); }
+    } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); submittingRef.current = false; } finally { setSubmitting(false); }
   };
 
   if (submitted) return (
@@ -578,6 +578,47 @@ const TicketWizard = () => {
           <button onClick={handleSubmit} disabled={submitting} className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all">{submitting ? <Loader2 className="animate-spin" size={18} /> : <Check size={16} />}{submitting ? t('oc.wizard.submitting', 'Submitting...') : t('oc.wizard.submit', 'Submit Report')}</button>
         )}
       </div>
+
+      {/* Custom Attachment Confirm Modal */}
+      {showAttachmentConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }} dir={isRtl ? 'rtl' : 'ltr'}>
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle className="text-amber-600" size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">
+                {isRtl ? 'لا يوجد مرفقات' : 'No Attachments'}
+              </h3>
+              <p className="text-sm text-slate-500 mb-6">
+                {isRtl 
+                  ? 'من الأفضل إرفاق إثبات للحادث إذا وجد. هل ترغب في الاستمرار بدون مرفقات؟' 
+                  : 'It is better to attach proof of the incident if available. Do you want to continue without attachments?'}
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAttachmentConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all"
+                >
+                  {isRtl ? 'إضافة مرفق' : 'Add Attachment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAttachmentConfirm(false);
+                    setAttachmentConfirmed(true);
+                    setStep(step + 1);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all"
+                >
+                  {isRtl ? 'الاستمرار بدون' : 'Continue without'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

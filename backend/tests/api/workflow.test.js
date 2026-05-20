@@ -40,6 +40,17 @@ jest.mock('../../prismaClient', () => ({
     reminder: {
         create: jest.fn(),
     },
+    actionPlan: {
+        count: jest.fn(),
+    },
+    department: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+    },
+    serviceProvider: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+    },
 }));
 
 jest.mock('../../utils/emailService', () => ({
@@ -119,12 +130,28 @@ const SAFETY_MGR = {
     repDepartmentId: null,
 };
 
+const HR_REP = {
+    id: 'u-hr-rep',
+    name: 'Mona HR',
+    email: 'hr@test.com',
+    role: 'HR_REP',
+    status: 'ACTIVE',
+    isIntakeEnabled: false,
+    mobile: null,
+    userGroup: 'OFF_CIRCUIT',
+    canCloseTickets: false,
+    canPerformRCA: false,
+    serviceProviderId: null,
+    repDepartmentId: null,
+};
+
 // Map user id → user object for auth middleware mock
 const USER_MAP = {
     [REPORTER.id]:    REPORTER,
     [CONTROLLER.id]:  CONTROLLER,
     [DEP_REP.id]:     DEP_REP,
     [SAFETY_MGR.id]:  SAFETY_MGR,
+    [HR_REP.id]:      HR_REP,
 };
 
 // ── Token Helpers ───────────────────────────────────────────────────────────
@@ -157,7 +184,29 @@ const baseTicket = (overrides = {}) => ({
 // ── Setup ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
-    jest.clearAllMocks();
+    // Reset all mock functions to clear queued resolved values and mock implementations
+    prisma.user.findUnique.mockReset();
+    prisma.user.findMany.mockReset();
+    prisma.user.create.mockReset();
+    prisma.user.update.mockReset();
+    
+    prisma.ticket.findUnique.mockReset();
+    prisma.ticket.findMany.mockReset();
+    prisma.ticket.create.mockReset();
+    prisma.ticket.update.mockReset();
+    prisma.ticket.count.mockReset();
+    
+    prisma.offCircuitReport.update.mockReset();
+    prisma.offCircuitReport.create.mockReset();
+    
+    prisma.activityLog.create.mockReset();
+    prisma.notification.create.mockReset();
+    prisma.reminder.create.mockReset();
+    prisma.actionPlan.count.mockReset();
+    prisma.department.findUnique.mockReset();
+    prisma.department.findMany.mockReset();
+    prisma.serviceProvider.findUnique.mockReset();
+    prisma.serviceProvider.findMany.mockReset();
 
     // Auth middleware: resolve user from decoded JWT id
     prisma.user.findUnique.mockImplementation(({ where }) =>
@@ -171,6 +220,13 @@ beforeEach(() => {
     prisma.reminder.create.mockResolvedValue({});
     prisma.user.findMany.mockResolvedValue([]);
     prisma.ticket.count.mockResolvedValue(0);
+    prisma.actionPlan.count.mockResolvedValue(1);
+
+    // Default silent returns for department and serviceProvider
+    prisma.department.findUnique.mockResolvedValue(null);
+    prisma.department.findMany.mockResolvedValue([]);
+    prisma.serviceProvider.findUnique.mockResolvedValue(null);
+    prisma.serviceProvider.findMany.mockResolvedValue([]);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -180,7 +236,7 @@ beforeEach(() => {
 describe('POST /api/tickets — Create Ticket', () => {
     const validBody = {
         incidentType: 'OBSERVATION',
-        incidentDate: '2026-04-26',
+        incidentDate: new Date().toISOString().split('T')[0],
         incidentTime: '08:00',
         whatHappened: 'Slippery floor near entrance',
         locationAddress: 'Gate A',
@@ -267,6 +323,7 @@ describe('POST /api/tickets — Create Ticket', () => {
 describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
     beforeEach(() => {
         prisma.ticket.findUnique.mockImplementation(({ where }) => {
+            console.log("DEBUG: prisma.ticket.findUnique called with where.id =", where.id);
             if (where.id === 'ticket-1') return Promise.resolve(baseTicket());
             return Promise.resolve(USER_MAP[where.id] || null);
         });
@@ -303,7 +360,17 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
             const res = await request(app)
                 .put('/api/tickets/ticket-1/controller-action')
                 .set('Authorization', token(CONTROLLER))
-                .send({ action: 'ASSIGN', severity: 'MAJOR', targetDepartmentId: 'dept-1', notes: 'Critical incident' });
+                .send({
+                    action: 'ASSIGN',
+                    severity: 'MAJOR',
+                    targetDepartmentId: 'dept-1',
+                    notes: 'Critical incident',
+                    rcaCause: 'Equipment failure',
+                    rcaWhy: 'Maintenance skipped',
+                    rcaRootCause: 'No maintenance schedule',
+                    rcaCategory: 'PROCESS_FAILURE',
+                    rcaPreventiveActions: 'Schedule regular maintenance'
+                });
 
             expect(res.status).toBe(200);
             expect(res.body.status).toBe('ASSIGNED');
@@ -316,16 +383,26 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
             );
         });
 
-        it('assigns ticket with MINOR severity and sets rcaRequired=false', async () => {
+        it('assigns ticket with MINOR severity and sets rcaRequired=true', async () => {
             const res = await request(app)
                 .put('/api/tickets/ticket-1/controller-action')
                 .set('Authorization', token(CONTROLLER))
-                .send({ action: 'ASSIGN', severity: 'MINOR', targetDepartmentId: 'dept-1' });
+                .send({
+                    action: 'ASSIGN',
+                    severity: 'MINOR',
+                    targetDepartmentId: 'dept-1',
+                    notes: 'Minor incident notes',
+                    rcaCause: 'Equipment failure',
+                    rcaWhy: 'Maintenance skipped',
+                    rcaRootCause: 'No maintenance schedule',
+                    rcaCategory: 'PROCESS_FAILURE',
+                    rcaPreventiveActions: 'Schedule regular maintenance'
+                });
 
             expect(res.status).toBe(200);
             expect(prisma.offCircuitReport.update).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    data: expect.objectContaining({ rcaRequired: false }),
+                    data: expect.objectContaining({ rcaRequired: true }),
                 })
             );
         });
@@ -357,7 +434,17 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
             const res = await request(app)
                 .put('/api/tickets/ticket-1/controller-action')
                 .set('Authorization', token(CONTROLLER))
-                .send({ action: 'ASSIGN', severity: 'MINOR', targetDepartmentId: 'dept-1' });
+                .send({
+                    action: 'ASSIGN',
+                    severity: 'MINOR',
+                    targetDepartmentId: 'dept-1',
+                    notes: 'Accident notes',
+                    rcaCause: 'Equipment failure',
+                    rcaWhy: 'Maintenance skipped',
+                    rcaRootCause: 'No maintenance schedule',
+                    rcaCategory: 'PROCESS_FAILURE',
+                    rcaPreventiveActions: 'Schedule regular maintenance'
+                });
 
             expect(res.status).toBe(200);
             expect(prisma.offCircuitReport.update).toHaveBeenCalledWith(
@@ -502,7 +589,7 @@ describe('PUT /api/tickets/:id/department-action — Department Action', () => {
         );
     });
 
-    it('submits department response for employee injury with GOSI submitted', async () => {
+    it('submits department response for employee injury', async () => {
         const injuryTicket = baseTicket({
             status: 'ASSIGNED',
             departmentId: 'dept-1',
@@ -522,36 +609,10 @@ describe('PUT /api/tickets/:id/department-action — Department Action', () => {
         const res = await request(app)
             .put('/api/tickets/ticket-1/department-action')
             .set('Authorization', token(DEP_REP))
-            .send({ gosiSubmitted: true, gosiReportDate: '2026-04-20', gosiReportNumber: 'GOSI-001' });
+            .send({});
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('UNDER_REVIEW');
-    });
-
-    it('returns 400 for employee injury when GOSI status is not provided', async () => {
-        const injuryTicket = baseTicket({
-            status: 'ASSIGNED',
-            departmentId: 'dept-1',
-            hasInjury: true,
-            offCircuitReport: {
-                ...baseTicket().offCircuitReport,
-                hasInjury: true,
-                injuredPersons: JSON.stringify([{ type: 'EMPLOYEE' }]),
-            },
-        });
-
-        prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(injuryTicket);
-            return Promise.resolve(USER_MAP[where.id] || null);
-        });
-
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/department-action')
-            .set('Authorization', token(DEP_REP))
-            .send({});
-
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/GOSI submission status required/i);
     });
 
     it('returns 400 when ticket status is not ASSIGNED or RETURNED_TO_DEPARTMENT', async () => {
@@ -640,10 +701,11 @@ describe('PUT /api/tickets/:id/controller-review — Controller Final Review', (
     });
 
     it('SET_REMINDER: sets a reminder and moves to PENDING_REMINDER', async () => {
+        const futureDate = new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0];
         const res = await request(app)
             .put('/api/tickets/ticket-1/controller-review')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'SET_REMINDER', reminderDate: '2026-05-01', reminderMessage: 'Follow up with dept' });
+            .send({ action: 'SET_REMINDER', reminderDate: futureDate, reminderMessage: 'Follow up with dept' });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('PENDING_REMINDER');
@@ -673,40 +735,11 @@ describe('PUT /api/tickets/:id/controller-review — Controller Final Review', (
         );
     });
 
-    it('PROCEED_RCA: moves to UNDER_INVESTIGATION when RCA is required', async () => {
-        prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(baseTicket({
-                status: 'UNDER_REVIEW',
-                offCircuitReport: { ...baseTicket().offCircuitReport, rcaRequired: true },
-                actionPlans: [],
-            }));
-            return Promise.resolve(USER_MAP[where.id] || null);
-        });
-
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/controller-review')
-            .set('Authorization', token(CONTROLLER))
-            .send({ action: 'PROCEED_RCA' });
-
-        expect(res.status).toBe(200);
-        expect(res.body.status).toBe('UNDER_INVESTIGATION');
-    });
-
-    it('PROCEED_RCA: returns 400 when RCA is not required', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/controller-review')
-            .set('Authorization', token(CONTROLLER))
-            .send({ action: 'PROCEED_RCA' });
-
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/RCA not required/i);
-    });
-
     it('CLOSE: closes ticket when no RCA is required', async () => {
         const res = await request(app)
             .put('/api/tickets/ticket-1/controller-review')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'CLOSE', notes: 'All clear' });
+            .send({ action: 'CLOSE', notes: 'All clear', violationType: 'NONE' });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('CLOSED');
@@ -725,7 +758,7 @@ describe('PUT /api/tickets/:id/controller-review — Controller Final Review', (
         const res = await request(app)
             .put('/api/tickets/ticket-1/controller-review')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'CLOSE' });
+            .send({ action: 'CLOSE', violationType: 'NONE' });
 
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/RCA required but not completed/i);
@@ -743,7 +776,7 @@ describe('PUT /api/tickets/:id/controller-review — Controller Final Review', (
             .send({ action: 'CLOSE' });
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/not under review/i);
+        expect(res.body.message).toMatch(/reviewable state/i);
     });
 
     it('returns 403 for a DEP_REP', async () => {
@@ -756,75 +789,58 @@ describe('PUT /api/tickets/:id/controller-review — Controller Final Review', (
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. SUBMIT RCA  (PUT /api/tickets/:id/rca)
+// 6. HR ACTION  (PUT /api/tickets/:id/hr-action)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('PUT /api/tickets/:id/rca — Submit RCA', () => {
-    const investigationTicket = baseTicket({
-        status: 'UNDER_INVESTIGATION',
-        offCircuitReport: { ...baseTicket().offCircuitReport, rcaRequired: true, rcaCompleted: false },
+describe('PUT /api/tickets/:id/hr-action — HR Action', () => {
+    const injuryTicket = baseTicket({
+        status: 'ASSIGNED',
+        departmentId: 'dept-1',
+        hasInjury: true,
+        offCircuitReport: {
+            ...baseTicket().offCircuitReport,
+            hasInjury: true,
+            injuredPersons: JSON.stringify([{ type: 'EMPLOYEE', name: 'Ali' }]),
+        },
     });
-
-    const validRCA = {
-        rcaCause: 'Wet floor due to cleaning without warning signs',
-        rcaWhy: 'No protocol for wet floor signs; cleaning staff untrained',
-        rcaPreventable: true,
-        rcaRootCause: 'Lack of safety awareness training',
-        rcaCategory: 'HUMAN_FACTOR',
-    };
 
     beforeEach(() => {
         prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(investigationTicket);
+            if (where.id === 'ticket-1') return Promise.resolve(injuryTicket);
             return Promise.resolve(USER_MAP[where.id] || null);
         });
     });
 
-    it('submits RCA and moves ticket to UNDER_REVIEW', async () => {
+    it('submits GOSI data successfully', async () => {
         const res = await request(app)
-            .put('/api/tickets/ticket-1/rca')
-            .set('Authorization', token(CONTROLLER))
-            .send(validRCA);
-
+            .put('/api/tickets/ticket-1/hr-action')
+            .set('Authorization', token(HR_REP))
+            .send({
+                injuredPersonsGosi: [{
+                    gosiEmployeeId: 'emp-1',
+                    gosiSubmitted: true,
+                    gosiReportDate: '2026-05-01',
+                    gosiReportNumber: 'GOSI-123'
+                }]
+            });
         expect(res.status).toBe(200);
-        expect(res.body.status).toBe('UNDER_REVIEW');
-        expect(prisma.offCircuitReport.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({ rcaCompleted: true }),
-            })
-        );
+        expect(prisma.offCircuitReport.update).toHaveBeenCalled();
     });
 
-    it('returns 400 when required RCA fields are missing', async () => {
-        const { rcaRootCause, ...partial } = validRCA;
+    it('returns 400 when GOSI data is missing for injured employee', async () => {
         const res = await request(app)
-            .put('/api/tickets/ticket-1/rca')
-            .set('Authorization', token(CONTROLLER))
-            .send(partial);
+            .put('/api/tickets/ticket-1/hr-action')
+            .set('Authorization', token(HR_REP))
+            .send({});
         expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/All RCA fields required/i);
+        expect(res.body.message).toMatch(/GOSI data required/i);
     });
 
-    it('returns 400 when ticket is not UNDER_INVESTIGATION', async () => {
-        prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(baseTicket({ status: 'UNDER_REVIEW' }));
-            return Promise.resolve(USER_MAP[where.id] || null);
-        });
-
+    it('returns 403 for non-HR user', async () => {
         const res = await request(app)
-            .put('/api/tickets/ticket-1/rca')
-            .set('Authorization', token(CONTROLLER))
-            .send(validRCA);
-
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/not under investigation/i);
-    });
-
-    it('returns 403 when a DEP_REP without canPerformRCA tries to submit RCA', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/rca')
+            .put('/api/tickets/ticket-1/hr-action')
             .set('Authorization', token(DEP_REP))
-            .send(validRCA);
+            .send({});
         expect(res.status).toBe(403);
     });
 });
@@ -850,7 +866,7 @@ describe('PUT /api/tickets/:id/safety-manager — Safety Manager Action', () => 
         const res = await request(app)
             .put('/api/tickets/ticket-1/safety-manager')
             .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'CLOSE', notes: 'Issue resolved at management level' });
+            .send({ action: 'CLOSE', notes: 'Issue resolved at management level', violationType: 'NONE' });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('CLOSED');
@@ -860,6 +876,26 @@ describe('PUT /api/tickets/:id/safety-manager — Safety Manager Action', () => 
             })
         );
     });
+
+    it('CLOSE: closes the escalated ticket and updates the serviceProviderId', async () => {
+        const res = await request(app)
+            .put('/api/tickets/ticket-1/safety-manager')
+            .set('Authorization', token(SAFETY_MGR))
+            .send({ action: 'CLOSE', notes: 'Issue resolved', violationType: 'NONE', serviceProviderId: 'sp-test-123' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('CLOSED');
+        expect(prisma.ticket.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 'ticket-1' },
+                data: expect.objectContaining({
+                    status: 'CLOSED',
+                    serviceProviderId: 'sp-test-123'
+                }),
+            })
+        );
+    });
+
 
     it('CLOSE: Safety Manager can close even when RCA required but not completed (override authority)', async () => {
         prisma.ticket.findUnique.mockImplementation(({ where }) => {
@@ -873,7 +909,7 @@ describe('PUT /api/tickets/:id/safety-manager — Safety Manager Action', () => 
         const res = await request(app)
             .put('/api/tickets/ticket-1/safety-manager')
             .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'CLOSE', notes: 'Closing with RCA waiver — safety manager override' });
+            .send({ action: 'CLOSE', notes: 'Closing with RCA waiver — safety manager override', violationType: 'NONE' });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('CLOSED');
@@ -886,53 +922,7 @@ describe('PUT /api/tickets/:id/safety-manager — Safety Manager Action', () => 
             .send({ action: 'RETURN', notes: 'Department needs to revisit action plan' });
 
         expect(res.status).toBe(200);
-        expect(res.body.status).toBe('RETURNED_TO_DEPARTMENT');
-    });
-
-    it('SEND_TO_DEP_MANAGER: assigns ticket to a department manager', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/safety-manager')
-            .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'SEND_TO_DEP_MANAGER', targetDepManagerId: 'u-dep-manager', notes: 'Review required' });
-
-        expect(res.status).toBe(200);
-        expect(prisma.ticket.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({ assignedToId: 'u-dep-manager' }),
-            })
-        );
-    });
-
-    it('SEND_TO_DEP_MANAGER: returns 400 when targetDepManagerId is missing', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/safety-manager')
-            .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'SEND_TO_DEP_MANAGER' });
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/Department Manager ID required/i);
-    });
-
-    it('TRANSFER: transfers ticket to another user', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/safety-manager')
-            .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'TRANSFER', transferToId: 'u-other', notes: 'Reassigned' });
-
-        expect(res.status).toBe(200);
-        expect(prisma.ticket.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({ assignedToId: 'u-other' }),
-            })
-        );
-    });
-
-    it('TRANSFER: returns 400 when transferToId is missing', async () => {
-        const res = await request(app)
-            .put('/api/tickets/ticket-1/safety-manager')
-            .set('Authorization', token(SAFETY_MGR))
-            .send({ action: 'TRANSFER' });
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/Transfer target required/i);
+        expect(res.body.status).toBe('UNDER_REVIEW');
     });
 
     it('returns 400 when ticket status is not ESCALATED', async () => {
@@ -1001,7 +991,7 @@ describe('Full Workflow — Happy Path (OBSERVATION → MINOR → CLOSED)', () =
             .set('Authorization', token(REPORTER))
             .send({
                 incidentType: 'OBSERVATION',
-                incidentDate: '2026-04-26',
+                incidentDate: new Date().toISOString().split('T')[0],
                 incidentTime: '09:00',
                 whatHappened: 'Loose cable near workstation',
                 locationAddress: 'Office Block B',
@@ -1015,7 +1005,17 @@ describe('Full Workflow — Happy Path (OBSERVATION → MINOR → CLOSED)', () =
         const res = await request(app)
             .put('/api/tickets/ticket-1/controller-action')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'ASSIGN', severity: 'MINOR', targetDepartmentId: 'dept-1' });
+            .send({
+                action: 'ASSIGN',
+                severity: 'MINOR',
+                targetDepartmentId: 'dept-1',
+                notes: 'Hazard routing',
+                rcaCause: 'Equipment failure',
+                rcaWhy: 'Maintenance skipped',
+                rcaRootCause: 'No maintenance schedule',
+                rcaCategory: 'PROCESS_FAILURE',
+                rcaPreventiveActions: 'Schedule regular maintenance'
+            });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('ASSIGNED');
@@ -1051,7 +1051,7 @@ describe('Full Workflow — Happy Path (OBSERVATION → MINOR → CLOSED)', () =
         const res = await request(app)
             .put('/api/tickets/ticket-1/controller-review')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'CLOSE', notes: 'All clear. Hazard removed.' });
+            .send({ action: 'CLOSE', notes: 'All clear. Hazard removed.', violationType: 'NONE' });
 
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('CLOSED');
@@ -1062,9 +1062,9 @@ describe('Full Workflow — Happy Path (OBSERVATION → MINOR → CLOSED)', () =
 // 9. RCA PATH  (MAJOR incident requires RCA before closing)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('Full Workflow — RCA Path (ACCIDENT → MAJOR → RCA → CLOSED)', () => {
-    it('completes full RCA cycle: ASSIGNED → UNDER_INVESTIGATION → UNDER_REVIEW → CLOSED', async () => {
-        const rcaTicket = (status, extraOverrides = {}, rcaRequired = true, rcaCompleted = false) => baseTicket({
+describe('Full Workflow — RCA Path (ACCIDENT → MAJOR → ASSIGNED → UNDER_REVIEW → CLOSED)', () => {
+    it('completes full RCA cycle: SUBMITTED → ASSIGNED (with RCA) → UNDER_REVIEW → CLOSED', async () => {
+        const rcaTicket = (status, extraOverrides = {}, rcaRequired = true, rcaCompleted = true) => baseTicket({
             status,
             type: 'ACCIDENT',
             offCircuitReport: { ...baseTicket().offCircuitReport, rcaRequired, rcaCompleted },
@@ -1081,10 +1081,20 @@ describe('Full Workflow — RCA Path (ACCIDENT → MAJOR → RCA → CLOSED)', (
         let res = await request(app)
             .put('/api/tickets/ticket-1/controller-action')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'ASSIGN', severity: 'MAJOR', targetDepartmentId: 'dept-1' });
+            .send({
+                action: 'ASSIGN',
+                severity: 'MAJOR',
+                targetDepartmentId: 'dept-1',
+                notes: 'Critical incident',
+                rcaCause: 'Equipment failure',
+                rcaWhy: 'Maintenance was skipped',
+                rcaRootCause: 'No maintenance schedule',
+                rcaCategory: 'PROCESS_FAILURE',
+                rcaPreventiveActions: 'Schedule regular maintenance'
+            });
         expect(res.status).toBe(200);
 
-        // 2. Dept responds → UNDER_REVIEW (departmentId must match DEP_REP's repDepartmentId)
+        // 2. Dept responds → UNDER_REVIEW
         prisma.ticket.findUnique.mockImplementation(({ where }) => {
             if (where.id === 'ticket-1') return Promise.resolve(rcaTicket('ASSIGNED', { departmentId: 'dept-1' }));
             return Promise.resolve(USER_MAP[where.id] || null);
@@ -1096,38 +1106,7 @@ describe('Full Workflow — RCA Path (ACCIDENT → MAJOR → RCA → CLOSED)', (
             .send({});
         expect(res.status).toBe(200);
 
-        // 3. Controller proceeds to RCA → UNDER_INVESTIGATION
-        prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(rcaTicket('UNDER_REVIEW'));
-            return Promise.resolve(USER_MAP[where.id] || null);
-        });
-
-        res = await request(app)
-            .put('/api/tickets/ticket-1/controller-review')
-            .set('Authorization', token(CONTROLLER))
-            .send({ action: 'PROCEED_RCA' });
-        expect(res.status).toBe(200);
-        expect(res.body.status).toBe('UNDER_INVESTIGATION');
-
-        // 4. RCA submitted → back to UNDER_REVIEW
-        prisma.ticket.findUnique.mockImplementation(({ where }) => {
-            if (where.id === 'ticket-1') return Promise.resolve(rcaTicket('UNDER_INVESTIGATION'));
-            return Promise.resolve(USER_MAP[where.id] || null);
-        });
-
-        res = await request(app)
-            .put('/api/tickets/ticket-1/rca')
-            .set('Authorization', token(CONTROLLER))
-            .send({
-                rcaCause: 'Equipment failure',
-                rcaWhy: 'Maintenance was skipped',
-                rcaRootCause: 'No maintenance schedule',
-                rcaCategory: 'PROCESS_FAILURE',
-            });
-        expect(res.status).toBe(200);
-        expect(res.body.status).toBe('UNDER_REVIEW');
-
-        // 5. Controller closes after RCA completed → CLOSED
+        // 3. Controller closes after RCA completed → CLOSED
         prisma.ticket.findUnique.mockImplementation(({ where }) => {
             if (where.id === 'ticket-1') return Promise.resolve(rcaTicket('UNDER_REVIEW', {}, true, true));
             return Promise.resolve(USER_MAP[where.id] || null);
@@ -1136,7 +1115,7 @@ describe('Full Workflow — RCA Path (ACCIDENT → MAJOR → RCA → CLOSED)', (
         res = await request(app)
             .put('/api/tickets/ticket-1/controller-review')
             .set('Authorization', token(CONTROLLER))
-            .send({ action: 'CLOSE', notes: 'RCA complete. Corrective actions verified.' });
+            .send({ action: 'CLOSE', notes: 'RCA complete. Corrective actions verified.', violationType: 'NONE' });
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('CLOSED');
     });

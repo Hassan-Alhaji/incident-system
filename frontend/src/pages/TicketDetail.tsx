@@ -68,6 +68,8 @@ const TicketDetail = () => {
 
     // Escalation
     const [departments, setDepartments] = useState<any[]>([]);
+    const [serviceProviders, setServiceProviders] = useState<any[]>([]);
+    const [selectedServiceProviderId, setSelectedServiceProviderId] = useState<string>('');
 
     // Close modal
     const [closeModalOpen, setCloseModalOpen] = useState(false);
@@ -230,7 +232,7 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleFinalReview = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string }) => {
+    const handleFinalReview = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string | null }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes, reminderDate, reminderMessage };
@@ -248,7 +250,7 @@ const TicketDetail = () => {
         finally { setActionLoading(false); }
     };
 
-    const handleSafetyManagerAction = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string }) => {
+    const handleSafetyManagerAction = async (action: string, closePayload?: { violationType: 'NONE'|'WARNING'|'FINANCIAL'; violationDescription: string; violationAmount: string; serviceProviderId?: string | null }) => {
         setActionLoading(true);
         try {
             const body: any = { action, notes: controllerNotes };
@@ -259,6 +261,7 @@ const TicketDetail = () => {
                 body.violationType = closePayload.violationType;
                 body.violationDescription = closePayload.violationDescription;
                 body.violationAmount = closePayload.violationAmount;
+                if (closePayload.serviceProviderId !== undefined) body.serviceProviderId = closePayload.serviceProviderId;
             }
             await api.put(`/tickets/${id}/safety-manager`, body);
             await fetchTicket(true);
@@ -375,9 +378,129 @@ const TicketDetail = () => {
 
     const injuredPersons = safeParseJSON(oc.injuredPersons);
     const hasContractorInjury = injuredPersons.some((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
+    const isFinanceRep = role === 'FINANCE_REP';
 
+    // ── FINANCE REP: Dedicated read-only view ──
+    if (isFinanceRep) {
+        return (
+            <div className="max-w-3xl mx-auto space-y-4 pb-8">
+                {/* Header */}
+                <div className="bg-white border rounded-xl p-4 flex items-center gap-3">
+                    <button onClick={() => navigate(-1)} className="p-2 border rounded-lg hover:bg-gray-50 transition"><ArrowLeft size={18} /></button>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold">{ticket.ticketNo}</h1>
+                            <span className="px-2 py-1 rounded-md text-xs font-bold bg-red-100 text-red-700">
+                                {isRtl ? 'مخالفة مالية' : 'Financial Violation'}
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">{t(`oc.incidentTypes.${ticket.type}`, ticket.type) as string} • {formatDate(ticket.closedAt || ticket.createdAt)}</p>
+                    </div>
+                </div>
 
+                {/* Violation Details */}
+                <div className="bg-gradient-to-br from-red-50 to-orange-50/40 border border-red-200 rounded-xl p-5 space-y-4 shadow-sm">
+                    <h3 className="font-black text-red-800 flex items-center gap-2 text-base border-b border-red-200 pb-3">
+                        ⚠️ {isRtl ? 'تفاصيل المخالفة' : 'Violation Details'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-white border border-red-100 rounded-lg p-3">
+                            <span className="text-red-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'نوع المخالفة' : 'Violation Type'}</span>
+                            <span className="font-black text-red-900 text-lg">{isRtl ? 'مالية' : 'Financial'}</span>
+                        </div>
+                        {ticket.violationAmount && (
+                            <div className="bg-white border border-red-100 rounded-lg p-3">
+                                <span className="text-red-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'المبلغ' : 'Amount'}</span>
+                                <span className="font-black text-red-900 text-lg" dir="ltr">{Number(ticket.violationAmount).toLocaleString()} SAR</span>
+                            </div>
+                        )}
+                        <div className="col-span-1 sm:col-span-2 bg-white border border-red-100 rounded-lg p-3">
+                            <span className="text-red-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'وصف المخالفة' : 'Violation Description'}</span>
+                            <p className="text-sm text-red-900 whitespace-pre-wrap leading-relaxed">{ticket.violationDescription || '—'}</p>
+                        </div>
+                        {ticket.closedBy && (
+                            <div className="bg-white border border-red-100 rounded-lg p-3">
+                                <span className="text-red-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'أُغلقت بواسطة' : 'Closed By'}</span>
+                                <span className="font-bold text-slate-800">{ticket.closedBy}</span>
+                            </div>
+                        )}
+                        {ticket.closedAt && (
+                            <div className="bg-white border border-red-100 rounded-lg p-3">
+                                <span className="text-red-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'تاريخ الإغلاق' : 'Closed Date'}</span>
+                                <span className="font-bold text-slate-800">{formatDateTime(ticket.closedAt)}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
+                {/* Service Provider (Violator) */}
+                {ticket.serviceProvider && (
+                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50/40 border border-purple-200 rounded-xl p-5 space-y-4 shadow-sm">
+                        <h3 className="font-black text-purple-800 flex items-center gap-2 text-base border-b border-purple-200 pb-3">
+                            🏗️ {isRtl ? 'بيانات المخالف (مزود الخدمة)' : 'Violator (Service Provider)'}
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="bg-white border border-purple-100 rounded-lg p-3">
+                                <span className="text-purple-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'اسم الشركة' : 'Company Name'}</span>
+                                <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.nameAr || ticket.serviceProvider.name) : ticket.serviceProvider.name}</span>
+                            </div>
+                            {ticket.serviceProvider.commercialRegistrationNumber && (
+                                <div className="bg-white border border-purple-100 rounded-lg p-3">
+                                    <span className="text-purple-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'السجل التجاري' : 'CR Number'}</span>
+                                    <span className="font-mono font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.commercialRegistrationNumber}</span>
+                                </div>
+                            )}
+                            {ticket.serviceProvider.representativeName && (
+                                <div className="bg-white border border-purple-100 rounded-lg p-3">
+                                    <span className="text-purple-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'اسم الممثل' : 'Representative'}</span>
+                                    <span className="font-bold text-slate-800">{ticket.serviceProvider.representativeName}</span>
+                                </div>
+                            )}
+                            {ticket.serviceProvider.representativeMobile && (
+                                <div className="bg-white border border-purple-100 rounded-lg p-3">
+                                    <span className="text-purple-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'جوال الممثل' : 'Rep Mobile'}</span>
+                                    <a href={`tel:${ticket.serviceProvider.representativeMobile}`} className="font-mono font-bold text-blue-600 hover:underline" dir="ltr">{ticket.serviceProvider.representativeMobile}</a>
+                                </div>
+                            )}
+                            {ticket.serviceProvider.representativeEmail && (
+                                <div className="col-span-1 sm:col-span-2 bg-white border border-purple-100 rounded-lg p-3">
+                                    <span className="text-purple-600 block text-[11px] font-bold uppercase tracking-wide mb-1">{isRtl ? 'بريد الممثل' : 'Rep Email'}</span>
+                                    <a href={`mailto:${ticket.serviceProvider.representativeEmail}`} className="font-bold text-blue-600 hover:underline" dir="ltr">{ticket.serviceProvider.representativeEmail}</a>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Responsible Department */}
+                {(ticket.department || ticket.serviceProvider?.department) && (
+                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-200 rounded-xl p-5 shadow-sm">
+                        <h3 className="font-black text-indigo-800 flex items-center gap-2 text-base border-b border-indigo-200 pb-3">
+                            🏢 {isRtl ? 'القسم المسؤول عن مزود الخدمة' : 'Responsible Department'}
+                        </h3>
+                        <div className="mt-3 bg-white border border-indigo-100 rounded-lg p-4">
+                            <span className="font-bold text-lg text-slate-800">
+                                {(() => {
+                                    const dept = ticket.serviceProvider?.department || ticket.department;
+                                    return isRtl ? (dept?.nameAr || dept?.name || '—') : (dept?.name || '—');
+                                })()}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* No service provider warning */}
+                {!ticket.serviceProvider && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                        <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+                        <p className="text-sm text-amber-800 font-medium">
+                            {isRtl ? 'لم يتم ربط مزود خدمة بهذه التذكرة.' : 'No service provider is linked to this ticket.'}
+                        </p>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <>
@@ -641,8 +764,9 @@ const TicketDetail = () => {
                                     {/* Per-person GOSI display or form */}
                                     {(() => {
                                         const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+                                        const hrAlreadyFilled = !!ocSafe.hrFilledBy;
                                         const isEditable =
-                                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) ||
+                                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && !hrAlreadyFilled) ||
                                             (isHrRep);
                                         
                                         return (

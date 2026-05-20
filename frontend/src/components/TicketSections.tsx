@@ -212,14 +212,14 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
   };
 
   // Add files from existing saved plan immediately
-  const handleUploadExisting = async (planId: string, files: FileList) => {
-    await doUpload(planId, Array.from(files));
+  const handleUploadExisting = async (planId: string, files: File[]) => {
+    await doUpload(planId, files);
     onRefresh();
   };
 
   // Add to local pending preview
-  const addPendingFiles = (type: string, files: FileList) => {
-    setPendingFiles(pf => ({ ...pf, [type]: [...(pf[type] || []), ...Array.from(files)] }));
+  const addPendingFiles = (type: string, files: File[]) => {
+    setPendingFiles(pf => ({ ...pf, [type]: [...(pf[type] || []), ...files] }));
   };
 
   const removePendingFile = (type: string, idx: number) => {
@@ -403,8 +403,9 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                             onChange={e => {
                               const fileList = e.target.files;
                               if (!fileList || fileList.length === 0) return;
-                              addPendingFiles(pd.type, fileList);
-                              showToast(`✅ Added ${fileList.length} file(s) to ${pd.type}`, 'success');
+                              const filesArray = Array.from(fileList);
+                              addPendingFiles(pd.type, filesArray);
+                              showToast(`✅ Added ${filesArray.length} file(s) to ${pd.type}`, 'success');
                               e.target.value = '';
                             }}
                           />
@@ -543,7 +544,10 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                           <input type="file" multiple className="sr-only"
                             onChange={e => {
                               const fl = e.target.files;
-                              if (fl) handleUploadExisting(ex!.id, fl);
+                              if (fl && fl.length > 0) {
+                                const filesArray = Array.from(fl);
+                                handleUploadExisting(ex!.id, filesArray);
+                              }
                               e.target.value = '';
                             }} />
                         </label>
