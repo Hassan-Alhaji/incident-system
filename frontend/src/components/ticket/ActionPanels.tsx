@@ -239,26 +239,43 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
 
 
 export const HrPanel = ({ isHrRep, ticket, t, isRtl, hrNotes, setHrNotes, handleHrAction, actionLoading }: any) => {
-    return (
-<div className="space-y-3 bg-teal-50 border border-teal-200 rounded-xl p-4">
-                                    <p className="text-sm font-bold text-teal-800 text-center">🏥 {t('ticketDetail.gosiPrompt')}</p>
-                                    
-                                    <div className="bg-white rounded-xl border border-teal-100 p-1 mb-3">
-                                        <textarea
-                                            placeholder={isRtl ? 'ملاحظات إضافية (اختياري)...' : 'Additional HR Notes (Optional)...'}
-                                            value={hrNotes}
-                                            onChange={(e) => setHrNotes(e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 text-sm p-3 resize-y min-h-[80px] outline-none"
-                                        />
-                                    </div>
+    const isSubmitted = !!ticket.offCircuitReport?.hrFilledBy;
 
-                                    <button
-                                        onClick={handleHrAction}
-                                        disabled={actionLoading}
-                                        className="w-full bg-teal-600 hover:bg-teal-700 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                                    >{actionLoading ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />} {ticket.offCircuitReport?.hrFilledBy ? t('ticketDetail.updateGosi') : t('ticketDetail.submitGosi')}</button>
-                                </div>
-);
+    if (isSubmitted) {
+        return (
+            <div className="space-y-3 bg-teal-50 border border-teal-200 rounded-xl p-4 text-center">
+                <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Check size={24} />
+                </div>
+                <h4 className="font-bold text-teal-800 text-lg">{isRtl ? 'تم الإرسال بنجاح' : 'Submitted'}</h4>
+                <p className="text-sm text-teal-700">{isRtl ? 'إذا كان لديك أي متطلبات إضافية، يرجى التواصل مع قسم السلامة (HSE) وتزويدهم برقم التذكرة.' : 'If you have any additional requirement please contact HSE department with ticket number.'}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3 bg-teal-50 border border-teal-200 rounded-xl p-4">
+            <p className="text-sm font-bold text-teal-800 text-center">🏥 {t('ticketDetail.gosiPrompt')}</p>
+            
+            <div className="bg-white rounded-xl border border-teal-100 p-1 mb-3">
+                <textarea
+                    placeholder={isRtl ? 'ملاحظات إضافية (اختياري)...' : 'Additional HR Notes (Optional)...'}
+                    value={hrNotes}
+                    onChange={(e) => setHrNotes(e.target.value)}
+                    className="w-full bg-transparent border-none focus:ring-0 text-sm p-3 resize-y min-h-[80px] outline-none"
+                />
+            </div>
+
+            <button
+                onClick={handleHrAction}
+                disabled={actionLoading}
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white p-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+                {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />} 
+                {t('ticketDetail.submitGosi')}
+            </button>
+        </div>
+    );
 };
 
 
