@@ -353,6 +353,10 @@ const deleteActionPlan = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to delete this action plan' });
         }
 
+        if (['SUBMITTED', 'APPROVED'].includes(plan.status) && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ message: `Cannot delete a ${plan.status} action plan. Legal records must be preserved.` });
+        }
+
         // Must first delete attachments if any
         await prisma.actionPlanAttachment.deleteMany({ where: { actionPlanId: req.params.id } });
         await prisma.actionPlan.delete({ where: { id: req.params.id } });
@@ -378,6 +382,10 @@ const deleteActionPlanAttachment = async (req, res) => {
 
         if (!isControllerRole && !isDeptRep) {
             return res.status(403).json({ message: 'Not authorized to delete this attachment' });
+        }
+
+        if (['SUBMITTED', 'APPROVED'].includes(plan.status) && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ message: `Cannot delete attachments from a ${plan.status} action plan. Legal records must be preserved.` });
         }
 
         await prisma.actionPlanAttachment.delete({ where: { id: req.params.id } });

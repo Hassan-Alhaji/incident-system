@@ -141,6 +141,11 @@ const controllerAction = async (req, res) => {
         if (!['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role))
             return res.status(403).json({ message: 'Not authorized' });
 
+        // Prevent conflict of interest
+        if (ticket.createdById === req.user.id && role === 'HSE_CONTROLLER') {
+            return res.status(403).json({ message: 'Conflict of Interest: You cannot review a ticket you reported. Another Controller or Safety Manager must review it.' });
+        }
+
         const { action, notes, severity, targetDepartmentId, newType, typeChangeReason, hazardCategory } = req.body;
 
         if (newType && newType !== ticket.type) {
@@ -442,6 +447,19 @@ const controllerFinalReview = async (req, res) => {
                 if (existingPlans === 0) {
                     return res.status(400).json({ message: 'Cannot close: Action plans are required for incidents that underwent RCA or Security incidents.' });
                 }
+            }
+
+            // Prevent premature closure if ANY action plan is not approved
+            const unapprovedPlans = await prisma.actionPlan.count({
+                where: { ticketId: ticket.id, status: { not: 'APPROVED' } }
+            });
+            if (unapprovedPlans > 0) {
+                return res.status(400).json({ message: 'Cannot close: All submitted Action Plans must be APPROVED first.' });
+            }
+
+            // Prevent conflict of interest
+            if (ticket.createdById === req.user.id && req.user.role === 'HSE_CONTROLLER') {
+                return res.status(403).json({ message: 'Conflict of Interest: You cannot close a ticket you reported. Another Controller or Safety Manager must close it.' });
             }
 
             if (!finalViolationType) {
