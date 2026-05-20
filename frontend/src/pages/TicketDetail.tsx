@@ -612,6 +612,148 @@ const TicketDetail = () => {
         );
     };
 
+    const renderContractorAndOtherInjuries = () => {
+        return (
+            <>
+                {/* Combined Service Provider / Contractor Section */}
+                {(ticket.serviceProvider || hasContractorInjury) && (
+                    <div className="bg-purple-50/40 border border-purple-200 rounded-xl p-4 space-y-4 mb-4">
+                        <h3 className="font-bold text-purple-800 flex items-center gap-2 border-b border-purple-200 pb-2">
+                            🏗️ {isRtl ? 'بيانات مزود الخدمة والمقاولين' : 'Service Provider & Contractor Details'}
+                        </h3>
+
+                        {ticket.serviceProvider && (
+                            <div className="bg-white border border-purple-100 rounded-xl p-4 shadow-sm">
+                                <div className="flex items-center gap-2 text-purple-900 font-bold text-sm mb-3">
+                                    🏢 {isRtl ? 'الشركة / مزود الخدمة' : 'Company / Service Provider'}
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                                    <div>
+                                        <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم المورد' : 'Provider Name'}</span>
+                                        <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.nameAr || ticket.serviceProvider.name) : ticket.serviceProvider.name}</span>
+                                    </div>
+                                    {ticket.serviceProvider.commercialRegistrationNumber && (
+                                        <div>
+                                            <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'السجل التجاري' : 'CR Number'}</span>
+                                            <span className="font-mono font-bold text-slate-800">{ticket.serviceProvider.commercialRegistrationNumber}</span>
+                                        </div>
+                                    )}
+                                    {ticket.serviceProvider.department && (
+                                        <div>
+                                            <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'القسم المسؤول' : 'Responsible Department'}</span>
+                                            <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.department.nameAr || ticket.serviceProvider.department.name) : ticket.serviceProvider.department.name}</span>
+                                        </div>
+                                    )}
+                                    {ticket.serviceProvider.representativeName && (
+                                        <div>
+                                            <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم الممثل' : 'Representative'}</span>
+                                            <span className="font-bold text-slate-800">{ticket.serviceProvider.representativeName}</span>
+                                        </div>
+                                    )}
+                                    {ticket.serviceProvider.representativeMobile && (
+                                        <div>
+                                            <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'جوال الممثل' : 'Rep Mobile'}</span>
+                                            <span className="font-mono font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeMobile}</span>
+                                        </div>
+                                    )}
+                                    {ticket.serviceProvider.representativeEmail && (
+                                        <div className="col-span-1 md:col-span-2">
+                                            <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'بريد الممثل' : 'Rep Email'}</span>
+                                            <span className="font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeEmail}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {hasContractorInjury && (() => {
+                            const contractors = injuredPersons.filter((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
+                            const isEditable = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
+                            return (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-sm text-purple-800">{t('ticketActions.contractor', 'Contractor Injuries')} ({contractors.length})</p>
+                                        {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {contractors.map((p: any, i: number) => (
+                                            <div key={i} className="bg-white border border-purple-200 rounded-xl p-3 shadow-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center font-black">{i + 1}</div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
+                                                        {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
+                                                    </div>
+                                                    {p.company && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-md font-bold truncate max-w-[120px]">{p.company}</span>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Company Notification Form */}
+                                    {isEditable ? (
+                                        <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm mt-2">
+                                            <label className="flex items-center gap-2 cursor-pointer mb-3">
+                                                <input type="checkbox" checked={contractorNotified === true} onChange={e => setContractorNotified(e.target.checked)} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
+                                                <span className="text-sm font-bold text-slate-700">{t('ticketActions.companyNotified', 'Was the contractor company notified?')}</span>
+                                            </label>
+                                            {contractorNotified === true && (
+                                                <div className="pt-3 border-t border-blue-100 mt-2">
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reportDate', 'Date of notification')} <span className="text-red-500">*</span></label>
+                                                    <input type="date" value={contractorNotifyDate} onChange={e => setContractorNotifyDate(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
+                                                </div>
+                                            )}
+                                            {contractorNotified === false && (
+                                                <div className="pt-3 border-t border-blue-100 mt-2">
+                                                    <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reason', 'Reason')} <span className="text-red-500">*</span></label>
+                                                    <input placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={contractorNoReason} onChange={e => setContractorNoReason(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {oc.contractorNotified !== null && oc.contractorNotified !== undefined && (
+                                                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm text-sm space-y-2 mt-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-slate-500 font-medium">{t('ticketActions.companyNotified', 'Company Notified?')}:</span> 
+                                                        {oc.contractorNotified ? <span className="text-emerald-600 font-bold flex items-center gap-1"><CheckCircle size={14}/> {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold flex items-center gap-1"><AlertTriangle size={14}/> {t('common.no', 'No')}</span>}
+                                                    </div>
+                                                    {oc.contractorNotified ? (
+                                                        <div className="flex items-center gap-2"><span className="text-slate-500 font-medium">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong className="text-slate-800">{formatDate(oc.contractorNotifyDate)}</strong></div>
+                                                    ) : (
+                                                        <div className="flex items-start gap-2"><span className="text-slate-500 font-medium">{t('ticketActions.reason', 'Reason')}:</span> <strong className="text-red-600">{oc.contractorNoReason}</strong></div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
+
+                {/* OTHER type injured persons — always show */}
+                {injuredPersons.filter((p: any) => p.type === 'OTHER').length > 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-2">
+                            👥 {isRtl ? `أخرى (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})` : `Other (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})`}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {injuredPersons.filter((p: any) => p.type === 'OTHER').map((p: any, i: number) => (
+                                <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                                    <p className="text-sm font-bold text-slate-800">{p.name || `#${i + 1}`}</p>
+                                    {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    };
+
     return (
 
         <>
@@ -692,9 +834,6 @@ const TicketDetail = () => {
             {/* Tab Content */}
             {activeTab === 'details' && (
                 <div className="flex flex-col gap-4">
-                    {/* Employee Injuries Section - Moved to top for HR flow */}
-                    {renderEmployeeInjuries()}
-
                     {/* Reporter Info — visible to controllers / HSE managers only */}
                     {isController && ticket.createdBy && (
                         <div className="bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-200 shadow-sm rounded-xl p-4">
@@ -796,6 +935,10 @@ const TicketDetail = () => {
                             </div>
                         </div>
 
+                        {/* Injuries & Contractor Details */}
+                        {renderEmployeeInjuries()}
+                        {renderContractorAndOtherInjuries()}
+
                         {/* ── Staff-only sections (hidden from reporter to keep their view clean) ── */}
                         {!isReporter && <>
                         {/* Controller Notes - always visible when set */}
@@ -874,144 +1017,6 @@ const TicketDetail = () => {
                         {!oc.hrFilledBy && ticket.hasInjury && isHrRep && (
                             <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 mb-4">
                                 <p className="text-xs text-teal-700 font-semibold text-center">📋 {t('ticketDetail.completeGosiBelow')}</p>
-                            </div>
-                        )}
-
-                        {/* Employee Injuries Section moved to top */}
-
-                        {/* Combined Service Provider / Contractor Section */}
-                        {(ticket.serviceProvider || hasContractorInjury) && (
-                            <div className="bg-purple-50/40 border border-purple-200 rounded-xl p-4 space-y-4 mb-4">
-                                <h3 className="font-bold text-purple-800 flex items-center gap-2 border-b border-purple-200 pb-2">
-                                    🏗️ {isRtl ? 'بيانات مزود الخدمة والمقاولين' : 'Service Provider & Contractor Details'}
-                                </h3>
-
-                                {ticket.serviceProvider && (
-                                    <div className="bg-white border border-purple-100 rounded-xl p-4 shadow-sm">
-                                        <div className="flex items-center gap-2 text-purple-900 font-bold text-sm mb-3">
-                                            🏢 {isRtl ? 'الشركة / مزود الخدمة' : 'Company / Service Provider'}
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-                                            <div>
-                                                <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم المورد' : 'Provider Name'}</span>
-                                                <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.nameAr || ticket.serviceProvider.name) : ticket.serviceProvider.name}</span>
-                                            </div>
-                                            {ticket.serviceProvider.commercialRegistrationNumber && (
-                                                <div>
-                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'السجل التجاري' : 'CR Number'}</span>
-                                                    <span className="font-mono font-bold text-slate-800">{ticket.serviceProvider.commercialRegistrationNumber}</span>
-                                                </div>
-                                            )}
-                                            {ticket.serviceProvider.department && (
-                                                <div>
-                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'القسم المسؤول' : 'Responsible Department'}</span>
-                                                    <span className="font-bold text-slate-800">{isRtl ? (ticket.serviceProvider.department.nameAr || ticket.serviceProvider.department.name) : ticket.serviceProvider.department.name}</span>
-                                                </div>
-                                            )}
-                                            {ticket.serviceProvider.representativeName && (
-                                                <div>
-                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'اسم الممثل' : 'Representative'}</span>
-                                                    <span className="font-bold text-slate-800">{ticket.serviceProvider.representativeName}</span>
-                                                </div>
-                                            )}
-                                            {ticket.serviceProvider.representativeMobile && (
-                                                <div>
-                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'جوال الممثل' : 'Rep Mobile'}</span>
-                                                    <span className="font-mono font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeMobile}</span>
-                                                </div>
-                                            )}
-                                            {ticket.serviceProvider.representativeEmail && (
-                                                <div className="col-span-1 md:col-span-2">
-                                                    <span className="text-purple-700 block mb-1 font-semibold">{isRtl ? 'بريد الممثل' : 'Rep Email'}</span>
-                                                    <span className="font-bold text-slate-800" dir="ltr">{ticket.serviceProvider.representativeEmail}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {hasContractorInjury && (() => {
-                                    const contractors = injuredPersons.filter((p: any) => p.type === 'CONTRACTOR' || p.affiliate === 'Contractor');
-                                    const isEditable = isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status);
-                                    return (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-sm text-purple-800">{t('ticketActions.contractor', 'Contractor Injuries')} ({contractors.length})</p>
-                                                {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {contractors.map((p: any, i: number) => (
-                                                    <div key={i} className="bg-white border border-purple-200 rounded-xl p-3 shadow-sm">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 bg-purple-100 text-purple-700 rounded-lg flex items-center justify-center font-black">{i + 1}</div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
-                                                                {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
-                                                            </div>
-                                                            {p.company && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-md font-bold truncate max-w-[120px]">{p.company}</span>}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Company Notification Form */}
-                                            {isEditable ? (
-                                                <div className="bg-white rounded-xl p-4 border border-blue-200 shadow-sm mt-2">
-                                                    <label className="flex items-center gap-2 cursor-pointer mb-3">
-                                                        <input type="checkbox" checked={contractorNotified === true} onChange={e => setContractorNotified(e.target.checked)} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
-                                                        <span className="text-sm font-bold text-slate-700">{t('ticketActions.companyNotified', 'Was the contractor company notified?')}</span>
-                                                    </label>
-                                                    {contractorNotified === true && (
-                                                        <div className="pt-3 border-t border-blue-100 mt-2">
-                                                            <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reportDate', 'Date of notification')} <span className="text-red-500">*</span></label>
-                                                            <input type="date" value={contractorNotifyDate} onChange={e => setContractorNotifyDate(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
-                                                        </div>
-                                                    )}
-                                                    {contractorNotified === false && (
-                                                        <div className="pt-3 border-t border-blue-100 mt-2">
-                                                            <label className="block text-xs font-bold text-slate-600 mb-1.5">{t('ticketActions.reason', 'Reason')} <span className="text-red-500">*</span></label>
-                                                            <input placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={contractorNoReason} onChange={e => setContractorNoReason(e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-2 rounded-lg text-sm" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {oc.contractorNotified !== null && oc.contractorNotified !== undefined && (
-                                                        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm text-sm space-y-2 mt-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-slate-500 font-medium">{t('ticketActions.companyNotified', 'Company Notified?')}:</span> 
-                                                                {oc.contractorNotified ? <span className="text-emerald-600 font-bold flex items-center gap-1"><CheckCircle size={14}/> {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold flex items-center gap-1"><AlertTriangle size={14}/> {t('common.no', 'No')}</span>}
-                                                            </div>
-                                                            {oc.contractorNotified ? (
-                                                                <div className="flex items-center gap-2"><span className="text-slate-500 font-medium">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong className="text-slate-800">{formatDate(oc.contractorNotifyDate)}</strong></div>
-                                                            ) : (
-                                                                <div className="flex items-start gap-2"><span className="text-slate-500 font-medium">{t('ticketActions.reason', 'Reason')}:</span> <strong className="text-red-600">{oc.contractorNoReason}</strong></div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
-
-                        {/* OTHER type injured persons — always show */}
-                        {injuredPersons.filter((p: any) => p.type === 'OTHER').length > 0 && (
-                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3 mb-4">
-                                <h3 className="font-bold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-2">
-                                    👥 {isRtl ? `أخرى (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})` : `Other (${injuredPersons.filter((p: any) => p.type === 'OTHER').length})`}
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {injuredPersons.filter((p: any) => p.type === 'OTHER').map((p: any, i: number) => (
-                                        <div key={i} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
-                                            <p className="text-sm font-bold text-slate-800">{p.name || `#${i + 1}`}</p>
-                                            {p.mobile && <p className="text-[11px] text-slate-500" dir="ltr">{p.mobile}</p>}
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
                         )}
 
