@@ -507,7 +507,7 @@ const TicketDetail = () => {
         return (
             <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4">
                 <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
-                    {'🏥 ' + t('ticketDetail.hrGosi', 'HR / GOSI')}
+                    {'🏥 ' + (isRtl ? 'بيانات المصابين (الموظفين)' : 'Injured Employees Data')}
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
                     {/* Per-person GOSI display or form */}
@@ -578,7 +578,7 @@ const TicketDetail = () => {
                                         // Read-only display
                                         return (
                                             <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                                                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 mb-2">
+                                                <div className={`flex items-center gap-2 ${p.gosiEmployeeId ? 'pb-2 border-b border-slate-200/60 mb-2' : ''}`}>
                                                     <div className="w-5 h-5 bg-blue-600 rounded text-white text-[10px] flex items-center justify-center font-black">{i + 1}</div>
                                                     <div>
                                                         <p className="font-bold text-sm text-slate-800">{p.name || (isRtl ? `مصاب #${i+1}` : `Injured #${i+1}`)}</p>
@@ -586,7 +586,7 @@ const TicketDetail = () => {
                                                     </div>
                                                     {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
                                                 </div>
-                                                {p.gosiEmployeeId ? (
+                                                {p.gosiEmployeeId && (
                                                     <div className="text-xs space-y-1.5">
                                                         <div><span className="text-slate-500">{t('oc.wizard.employeeId', 'Employee ID')}:</span> <span className="font-bold" dir="ltr">{p.gosiEmployeeId}</span></div>
                                                         <div><span className="text-slate-500">{t('ticketActions.gosiSubmitted', 'GOSI Submitted?')}:</span> {p.gosiSubmitted ? <span className="text-emerald-600 font-bold">✓ {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold">✕ {t('common.no', 'No')}</span>}</div>
@@ -599,8 +599,6 @@ const TicketDetail = () => {
                                                             <div className="text-red-600"><span className="text-slate-500">{t('ticketActions.reason', 'Reason')}:</span> <strong>{p.gosiNoReason}</strong></div>
                                                         )}
                                                     </div>
-                                                ) : (
-                                                    <p className="text-xs text-amber-600 font-medium italic py-2">{t('ticketDetail.gosiDataNotEntered')}</p>
                                                 )}
                                             </div>
                                         );
