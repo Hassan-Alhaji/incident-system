@@ -678,20 +678,23 @@ const TicketDetail = () => {
                 </div>
             )}
 
-            {!isHrRep && (
-                <>
             {/* Main Content Tabs */}
             <div className="flex gap-2 border-b">
                 <button onClick={() => setActiveTab('details')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'details' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.details', 'Details')}</button>
                 {isController && (
                     <button onClick={() => setActiveTab('timeline')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'timeline' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.timeline', 'Timeline')}</button>
                 )}
-                <button onClick={() => setActiveTab('attachments')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'attachments' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>📎 {t('nav.attachments', 'Attachments')} ({ticket.attachments?.length || 0})</button>
+                {!isHrRep && (
+                    <button onClick={() => setActiveTab('attachments')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'attachments' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>📎 {t('nav.attachments', 'Attachments')} ({ticket.attachments?.length || 0})</button>
+                )}
             </div>
 
             {/* Tab Content */}
             {activeTab === 'details' && (
                 <div className="flex flex-col gap-4">
+                    {/* Employee Injuries Section - Moved to top for HR flow */}
+                    {renderEmployeeInjuries()}
+
                     {/* Reporter Info — visible to controllers / HSE managers only */}
                     {isController && ticket.createdBy && (
                         <div className="bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-200 shadow-sm rounded-xl p-4">
@@ -874,8 +877,7 @@ const TicketDetail = () => {
                             </div>
                         )}
 
-                        {/* Employee Injuries Section */}
-                        {renderEmployeeInjuries()}
+                        {/* Employee Injuries Section moved to top */}
 
                         {/* Combined Service Provider / Contractor Section */}
                         {(ticket.serviceProvider || hasContractorInjury) && (
@@ -1281,21 +1283,7 @@ const TicketDetail = () => {
                     {ticket.attachments?.length === 0 && <p className="col-span-full text-center py-10 text-gray-500 text-sm">No attachments available.</p>}
                 </div>
             )}
-            </>
-            )}
 
-            {isHrRep && (
-                <>
-                    <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm mt-2 mb-4">
-                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Lock size={32} />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-800 mb-2">{isRtl ? 'بوابة الموارد البشرية (التأمينات)' : 'HR Portal (GOSI)'}</h3>
-                        <p className="text-gray-500 max-w-md mx-auto">{isRtl ? 'لحماية الخصوصية، تم إخفاء تفاصيل الحادث والمرفقات. الرجاء تعبئة بيانات التأمينات للمصابين أدناه لإتمام الإجراء.' : 'For privacy reasons, incident details and attachments are hidden. Please fill out the GOSI data for the injured below.'}</p>
-                    </div>
-                    {renderEmployeeInjuries()}
-                </>
-            )}
         </div>
 
         {showPrint && <TicketPrintReport ticket={ticket} onClose={() => setShowPrint(false)} />}
