@@ -326,7 +326,7 @@ const Login = () => {
                     { label: 'المبلغ', email: 'reporter@test.com', icon: UserPlus },
                     { label: 'الكنترولر', email: 'c@test.com', icon: Lightbulb },
                     { label: 'المالية', email: 'Fin_rep@test.com', icon: Globe },
-                    { label: 'HR', email: 'HR_rep@test.com', icon: UserPlus },
+                    { label: 'HR', email: 'hr@system.com', icon: UserPlus },
                     { label: 'IT', email: 'IT_rep@test.com', icon: Phone },
                     { label: 'المشتريات', email: 'Pre_rep@test.com', icon: LogIn },
                     { label: 'HSE Mgr', email: 'asamman@saudimotorsport.com', icon: AlertTriangle },
