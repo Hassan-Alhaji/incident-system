@@ -514,9 +514,7 @@ const TicketDetail = () => {
                     {(() => {
                         const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
                         const hrAlreadyFilled = !!ocSafe.hrFilledBy;
-                        const isEditable =
-                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && !hrAlreadyFilled) ||
-                            (isHrRep);
+                        const isEditable = isHrRep;
                         
                         return (
                             <div className="col-span-1 space-y-3">
