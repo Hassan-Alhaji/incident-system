@@ -243,6 +243,22 @@ const createTicket = async (req, res) => {
             if (controllers.length > 0) {
                 await createNotificationsBulk(controllers.map(c => c.id), 'New Incident Report', `New ${incidentType} ticket ${ticket.ticketNo} by ${req.user.name}`, 'NEW_TICKET', `/tickets/${ticket.id}`);
             }
+
+            // Immediately notify HR if an employee is injured (bypassing controller wait)
+            if (hasInjury && injuredPersons) {
+                const injuredArr = typeof injuredPersons === 'string' ? JSON.parse(injuredPersons) : injuredPersons;
+                const hasEmployee = injuredArr.some(p => p.type === 'EMPLOYEE');
+                if (hasEmployee) {
+                    await prisma.offCircuitReport.update({
+                        where: { ticketId: ticket.id },
+                        data: { hrAssignedAt: new Date() }
+                    });
+                    const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
+                    if (hrReps.length > 0) {
+                        await createNotificationsBulk(hrReps.map(hr => hr.id), 'GOSI Data Required', `New Ticket ${ticket.ticketNo}: Please complete GOSI data for injured employee(s).`, 'INFO', `/tickets/${ticket.id}`);
+                    }
+                }
+            }
         } catch(e) { logger.error({ err: e }, 'Notify error:'); }
 
         res.status(201).json(ticket);
