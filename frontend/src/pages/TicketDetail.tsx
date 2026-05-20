@@ -951,7 +951,7 @@ const TicketDetail = () => {
                         )}
 
                         {/* Completed RCA - visible when set */}
-                        {oc.rcaCompleted && (
+                        {oc.rcaCompleted && !isHrRep && (
                             <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 shadow-sm shadow-amber-100 rounded-xl p-4">
                                 <h3 className="font-bold text-amber-800 flex items-center gap-2 border-b border-amber-200/70 pb-2 mb-3">
                                     📋 {isRtl ? 'تحليل السبب الجذري (RCA)' : 'Root Cause Analysis (RCA)'}
@@ -982,7 +982,7 @@ const TicketDetail = () => {
                             </div>
                         )}
 
-                        {oc.depRepFilledBy && (
+                        {oc.depRepFilledBy && !isHrRep && (
                             <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-4 mb-4">
                                 <h3 className="font-bold text-purple-800 flex items-center gap-2 border-b border-purple-200 pb-2">🏢 {t('ticketActions.deptResponse', 'Department Response')}</h3>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -1019,13 +1019,13 @@ const TicketDetail = () => {
                         )}
 
                         {/* ActionPlanSection: dept filling or anyone reviewing */}
-                        {((isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) || (ticket.actionPlans?.length > 0)) && (
+                        {!isHrRep && ((isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) || (ticket.actionPlans?.length > 0)) && (
                             <ActionPlanSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
                         )}
-                        <ReminderSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
+                        {!isHrRep && <ReminderSection ticket={ticket} onRefresh={() => fetchTicket(true)} />}
 
                         {/* FINAL CLOSURE DECISION */}
-                        {ticket.status === 'CLOSED' && (
+                        {ticket.status === 'CLOSED' && !isHrRep && (
                             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mt-4 space-y-3">
                                 <h3 className="font-bold text-emerald-800 flex items-center gap-2 border-b border-emerald-200 pb-2">
                                     <CheckCircle size={18} /> {isRtl ? 'قرار إدارة السلامة النهائي' : 'Final HSE Department Decision'}
