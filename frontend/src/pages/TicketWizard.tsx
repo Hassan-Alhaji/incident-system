@@ -70,6 +70,7 @@ const TicketWizard = () => {
   const [showAttachmentConfirm, setShowAttachmentConfirm] = useState(false);
   const [attachmentConfirmed, setAttachmentConfirmed] = useState(false);
   const submittingRef = React.useRef(false);
+  const TOTAL_STEPS = 4;
 
   // Step 1: Type
   const [incidentType, setIncidentType] = useState('');
