@@ -31,8 +31,8 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ confirmPending, actionLoadi
     const v = variantColors[confirmPending.variant];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}>
-            <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 sm:p-6 pb-safe sm:pb-6" style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}>
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
                 <div className={`h-1.5 w-full ${v.bar}`} />
                 <div className="p-5">
                     <div className="flex items-start gap-3 mb-4">

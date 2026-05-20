@@ -109,11 +109,11 @@ const CloseTicketModal: React.FC<CloseTicketModalProps> = ({ open, hasEmployeeIn
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 sm:p-6 pb-safe sm:pb-6"
             style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
         >
-            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-4 duration-200 safe-area-bottom">
                 <div className="h-1.5 w-full bg-emerald-500 flex-shrink-0" />
                 <div className="p-5 overflow-y-auto">
                     <div className="flex items-start gap-3 mb-5">
