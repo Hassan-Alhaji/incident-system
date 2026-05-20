@@ -7,7 +7,7 @@ import { STATUS_CONFIG } from '../utils/statusConfig';
 import { formatDate, formatDateTime } from '../utils/formatDate';
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
 import { safeParseJSON } from '../utils/safeParseJSON';
-import { ArrowLeft, AlertTriangle, CheckCircle, Send, Loader2, User, Paperclip, Bell, Download, Lock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, Send, Loader2, User, Paperclip, Bell, Download, Lock, ShieldCheck } from 'lucide-react';
 import { ActionPlanSection, ReminderSection } from '../components/TicketSections';
 import { TimelineTab, ConfirmModal, CloseTicketModal } from '../components/ticket';
 import { ControllerSubmittedPanel, HrPanel, DepartmentPanel, ControllerFinalReviewPanel, SafetyManagerPanel } from '../components/ticket/ActionPanels';
@@ -1153,21 +1153,33 @@ const TicketDetail = () => {
                                     isReporter ? (
                                         <div className="text-center py-8 px-4">
                                             <div className="w-14 h-14 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-3">
-                                                <Loader2 className="text-blue-500 animate-spin" size={24} />
+                                                <ShieldCheck className="text-blue-600" size={28} />
                                             </div>
                                             <h4 className="font-black text-slate-800 text-sm mb-1">
                                                 {isRtl ? 'تذكرتك قيد المراجعة' : 'Your Ticket Is Being Reviewed'}
                                             </h4>
                                             <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
                                                 {isRtl
-                                                    ? 'يعمل فريق السلامة على معالجة بلاغك. سيتم إشعارك فور وجود أي تحديث.'
-                                                    : 'The HSE team is working on your report. You will be notified when there is an update.'}
+                                                    ? 'يعمل فريق السلامة على معالجة بلاغك. سيتم إشعارك عند حل التذكرة.'
+                                                    : 'The HSE team is working on your report. You will be notified when the ticket is resolved.'}
                                             </p>
                                             <div className="mt-3 inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-full px-3 py-1">
                                                 <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
                                                 <span className="text-[10px] font-bold text-blue-600">
                                                     {isRtl ? 'قيد المعالجة' : 'In Progress'}
                                                 </span>
+                                            </div>
+
+                                            <div className="mt-8 text-left bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 shadow-sm" dir={isRtl ? 'rtl' : 'ltr'}>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <ShieldCheck className="text-emerald-600" size={18} />
+                                                    <h5 className="font-bold text-emerald-800 text-sm">{isRtl ? 'تعليمات السلامة' : 'Safety Tips'}</h5>
+                                                </div>
+                                                <ul className="text-xs text-emerald-700 space-y-2 list-none m-0 p-0">
+                                                    <li className="flex gap-2"><span className="text-emerald-400">•</span> {isRtl ? 'ابتعد عن منطقة الخطر وتأكد من سلامتك أولاً.' : 'Stay away from the hazard zone and ensure your safety first.'}</li>
+                                                    <li className="flex gap-2"><span className="text-emerald-400">•</span> {isRtl ? 'لا تحاول العبث بمكان الحادث أو إزالة أي أدلة.' : 'Do not attempt to tamper with the incident scene or remove evidence.'}</li>
+                                                    <li className="flex gap-2"><span className="text-emerald-400">•</span> {isRtl ? 'اتبع تعليمات فريق السلامة (HSE) بدقة تامة.' : 'Follow the HSE team instructions strictly.'}</li>
+                                                </ul>
                                             </div>
                                         </div>
                                     ) : (
