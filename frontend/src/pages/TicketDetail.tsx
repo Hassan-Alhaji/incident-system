@@ -502,7 +502,120 @@ const TicketDetail = () => {
         );
     }
 
+    const renderEmployeeInjuries = () => {
+        if (!hasEmployeeInjury) return null;
+        return (
+            <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4">
+                <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
+                    {'🏥 ' + t('ticketDetail.hrGosi', 'HR / GOSI')}
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                    {/* Per-person GOSI display or form */}
+                    {(() => {
+                        const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+                        const hrAlreadyFilled = !!ocSafe.hrFilledBy;
+                        const isEditable =
+                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && !hrAlreadyFilled) ||
+                            (isHrRep);
+                        
+                        return (
+                            <div className="col-span-1 space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <p className="font-bold text-xs text-blue-700">{isRtl ? `بيانات المصابين (${employees.length})` : `Injured Persons (${employees.length})`}</p>
+                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {employees.map((p: any, i: number) => {
+                                        if (isEditable && injuredPersonsGosi[i]) {
+                                            const pg = injuredPersonsGosi[i];
+                                            const updateGosi = (field: keyof GosiEntry, value: any) => {
+                                                const updated = [...injuredPersonsGosi];
+                                                updated[i] = { ...updated[i], [field]: value };
+                                                setInjuredPersonsGosi(updated);
+                                            };
+                                            return (
+                                                <div key={i} className="bg-blue-50/50 border border-blue-200/60 rounded-xl p-4 space-y-3">
+                                                    <div className="flex items-center gap-2 pb-2 border-b border-blue-200/40">
+                                                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black">{i + 1}</div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
+                                                            {p.mobile && <p className="text-[10px] text-slate-400" dir="ltr">{p.mobile}</p>}
+                                                        </div>
+                                                        {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-600 mb-1">{t('ticketDetail.employeeId')} <span className="text-red-500">*</span></label>
+                                                        <input id={`gosiEmployeeId-${i}`} name={`gosiEmployeeId-${i}`} placeholder={t('ticketDetail.enterEmployeeId')} value={pg.gosiEmployeeId} onChange={e => updateGosi('gosiEmployeeId', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-lg text-xs transition-all" dir="ltr" />
+                                                    </div>
+                                                    <div className="bg-white border border-slate-200 p-3 rounded-lg space-y-3">
+                                                        <label className="flex items-center gap-2 cursor-pointer">
+                                                            <input id={`gosiSubmitted-${i}`} name={`gosiSubmitted-${i}`} type="checkbox" checked={pg.gosiSubmitted === true} onChange={e => updateGosi('gosiSubmitted', e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
+                                                            <span className="text-xs font-bold text-slate-700">{t('ticketActions.gosiSubmitted', 'Was GOSI informed?')}</span>
+                                                        </label>
+                                                        {pg.gosiSubmitted === true && (
+                                                            <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-200">
+                                                                <div>
+                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reportDate', 'Report Date')} <span className="text-red-500">*</span></label>
+                                                                    <input id={`gosiReportDate-${i}`} name={`gosiReportDate-${i}`} type="date" min={(() => { try { return new Date(ticket.offCircuitReport?.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10); } catch(e) { return ''; } })()} value={pg.gosiReportDate} onChange={e => updateGosi('gosiReportDate', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.gosiNo', 'GOSI Number')} <span className="text-red-500">*</span></label>
+                                                                    <input id={`gosiReportNumber-${i}`} name={`gosiReportNumber-${i}`} placeholder={t('ticketActions.gosiNo', 'GOSI No.')} value={pg.gosiReportNumber} onChange={e => updateGosi('gosiReportNumber', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" dir="ltr" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {pg.gosiSubmitted === false && (
+                                                            <div className="pt-2 border-t border-slate-200">
+                                                                <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reason', 'Reason for not reporting')} <span className="text-red-500">*</span></label>
+                                                                <input id={`gosiNoReason-${i}`} name={`gosiNoReason-${i}`} placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={pg.gosiNoReason} onChange={e => updateGosi('gosiNoReason', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        
+                                        // Read-only display
+                                        return (
+                                            <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                                                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 mb-2">
+                                                    <div className="w-5 h-5 bg-blue-600 rounded text-white text-[10px] flex items-center justify-center font-black">{i + 1}</div>
+                                                    <div>
+                                                        <p className="font-bold text-sm text-slate-800">{p.name || (isRtl ? `مصاب #${i+1}` : `Injured #${i+1}`)}</p>
+                                                        {p.mobile && <p className="text-[10px] text-slate-500" dir="ltr">{p.mobile}</p>}
+                                                    </div>
+                                                    {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
+                                                </div>
+                                                {p.gosiEmployeeId ? (
+                                                    <div className="text-xs space-y-1.5">
+                                                        <div><span className="text-slate-500">{t('oc.wizard.employeeId', 'Employee ID')}:</span> <span className="font-bold" dir="ltr">{p.gosiEmployeeId}</span></div>
+                                                        <div><span className="text-slate-500">{t('ticketActions.gosiSubmitted', 'GOSI Submitted?')}:</span> {p.gosiSubmitted ? <span className="text-emerald-600 font-bold">✓ {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold">✕ {t('common.no', 'No')}</span>}</div>
+                                                        {p.gosiSubmitted ? (
+                                                            <>
+                                                                <div><span className="text-slate-500">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong>{formatDate(p.gosiReportDate)}</strong></div>
+                                                                <div><span className="text-slate-500">{t('ticketActions.gosiNo', 'GOSI No.')}:</span> <strong dir="ltr">{p.gosiReportNumber}</strong></div>
+                                                            </>
+                                                        ) : (
+                                                            <div className="text-red-600"><span className="text-slate-500">{t('ticketActions.reason', 'Reason')}:</span> <strong>{p.gosiNoReason}</strong></div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs text-amber-600 font-medium italic py-2">{t('ticketDetail.gosiDataNotEntered')}</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            </div>
+        );
+    };
+
     return (
+
         <>
         <div className="max-w-5xl mx-auto space-y-4 pb-8">
             {/* Header */}
@@ -764,114 +877,7 @@ const TicketDetail = () => {
                         )}
 
                         {/* Employee Injuries Section */}
-                        {hasEmployeeInjury && (
-                            <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4">
-                                <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
-                                    {'🏥 ' + t('ticketDetail.hrGosi', 'HR / GOSI')}
-                                </h3>
-                                <div className="grid grid-cols-1 gap-4">
-                                    {/* Per-person GOSI display or form */}
-                                    {(() => {
-                                        const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
-                                        const hrAlreadyFilled = !!ocSafe.hrFilledBy;
-                                        const isEditable =
-                                            (isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && !hrAlreadyFilled) ||
-                                            (isHrRep);
-                                        
-                                        return (
-                                            <div className="col-span-1 space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-xs text-blue-700">{isRtl ? `بيانات المصابين (${employees.length})` : `Injured Persons (${employees.length})`}</p>
-                                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {employees.map((p: any, i: number) => {
-                                                        if (isEditable && injuredPersonsGosi[i]) {
-                                                            const pg = injuredPersonsGosi[i];
-                                                            const updateGosi = (field: keyof GosiEntry, value: any) => {
-                                                                const updated = [...injuredPersonsGosi];
-                                                                updated[i] = { ...updated[i], [field]: value };
-                                                                setInjuredPersonsGosi(updated);
-                                                            };
-                                                            return (
-                                                                <div key={i} className="bg-blue-50/50 border border-blue-200/60 rounded-xl p-4 space-y-3">
-                                                                    <div className="flex items-center gap-2 pb-2 border-b border-blue-200/40">
-                                                                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black">{i + 1}</div>
-                                                                        <div>
-                                                                            <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
-                                                                            {p.mobile && <p className="text-[10px] text-slate-400" dir="ltr">{p.mobile}</p>}
-                                                                        </div>
-                                                                        {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="block text-[10px] font-bold text-slate-600 mb-1">{t('ticketDetail.employeeId')} <span className="text-red-500">*</span></label>
-                                                                        <input id={`gosiEmployeeId-${i}`} name={`gosiEmployeeId-${i}`} placeholder={t('ticketDetail.enterEmployeeId')} value={pg.gosiEmployeeId} onChange={e => updateGosi('gosiEmployeeId', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-lg text-xs transition-all" dir="ltr" />
-                                                                    </div>
-                                                                    <div className="bg-white border border-slate-200 p-3 rounded-lg space-y-3">
-                                                                        <label className="flex items-center gap-2 cursor-pointer">
-                                                                            <input id={`gosiSubmitted-${i}`} name={`gosiSubmitted-${i}`} type="checkbox" checked={pg.gosiSubmitted === true} onChange={e => updateGosi('gosiSubmitted', e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
-                                                                            <span className="text-xs font-bold text-slate-700">{t('ticketActions.gosiSubmitted', 'Was GOSI informed?')}</span>
-                                                                        </label>
-                                                                        {pg.gosiSubmitted === true && (
-                                                                            <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-200">
-                                                                                <div>
-                                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reportDate', 'Report Date')} <span className="text-red-500">*</span></label>
-                                                                                    <input id={`gosiReportDate-${i}`} name={`gosiReportDate-${i}`} type="date" min={(() => { try { return new Date(ticket.offCircuitReport?.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10); } catch(e) { return ''; } })()} value={pg.gosiReportDate} onChange={e => updateGosi('gosiReportDate', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                                                </div>
-                                                                                <div>
-                                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.gosiNo', 'GOSI Number')} <span className="text-red-500">*</span></label>
-                                                                                    <input id={`gosiReportNumber-${i}`} name={`gosiReportNumber-${i}`} placeholder={t('ticketActions.gosiNo', 'GOSI No.')} value={pg.gosiReportNumber} onChange={e => updateGosi('gosiReportNumber', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" dir="ltr" />
-                                                                                </div>
-                                                                            </div>
-                                                                        )}
-                                                                        {pg.gosiSubmitted === false && (
-                                                                            <div className="pt-2 border-t border-slate-200">
-                                                                                <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reason', 'Reason for not reporting')} <span className="text-red-500">*</span></label>
-                                                                                <input id={`gosiNoReason-${i}`} name={`gosiNoReason-${i}`} placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={pg.gosiNoReason} onChange={e => updateGosi('gosiNoReason', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        }
-                                                        
-                                                        // Read-only display
-                                                        return (
-                                                            <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                                                                <div className="flex items-center gap-2 pb-2 border-b border-slate-200/60 mb-2">
-                                                                    <div className="w-5 h-5 bg-blue-600 rounded text-white text-[10px] flex items-center justify-center font-black">{i + 1}</div>
-                                                                    <div>
-                                                                        <p className="font-bold text-sm text-slate-800">{p.name || (isRtl ? `مصاب #${i+1}` : `Injured #${i+1}`)}</p>
-                                                                        {p.mobile && <p className="text-[10px] text-slate-500" dir="ltr">{p.mobile}</p>}
-                                                                    </div>
-                                                                    {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
-                                                                </div>
-                                                                {p.gosiEmployeeId ? (
-                                                                    <div className="text-xs space-y-1.5">
-                                                                        <div><span className="text-slate-500">{t('oc.wizard.employeeId', 'Employee ID')}:</span> <span className="font-bold" dir="ltr">{p.gosiEmployeeId}</span></div>
-                                                                        <div><span className="text-slate-500">{t('ticketActions.gosiSubmitted', 'GOSI Submitted?')}:</span> {p.gosiSubmitted ? <span className="text-emerald-600 font-bold">✓ {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold">✕ {t('common.no', 'No')}</span>}</div>
-                                                                        {p.gosiSubmitted ? (
-                                                                            <>
-                                                                                <div><span className="text-slate-500">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong>{formatDate(p.gosiReportDate)}</strong></div>
-                                                                                <div><span className="text-slate-500">{t('ticketActions.gosiNo', 'GOSI No.')}:</span> <strong dir="ltr">{p.gosiReportNumber}</strong></div>
-                                                                            </>
-                                                                        ) : (
-                                                                            <div className="text-red-600"><span className="text-slate-500">{t('ticketActions.reason', 'Reason')}:</span> <strong>{p.gosiNoReason}</strong></div>
-                                                                        )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <p className="text-xs text-amber-600 font-medium italic py-2">{t('ticketDetail.gosiDataNotEntered')}</p>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
-                        )}
+                        {renderEmployeeInjuries()}
 
                         {/* Combined Service Provider / Contractor Section */}
                         {(ticket.serviceProvider || hasContractorInjury) && (
@@ -1281,13 +1287,16 @@ const TicketDetail = () => {
             )}
 
             {isHrRep && (
-                <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm mt-2">
-                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Lock size={32} />
+                <>
+                    <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm mt-2 mb-4">
+                        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Lock size={32} />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">{isRtl ? 'بوابة الموارد البشرية (التأمينات)' : 'HR Portal (GOSI)'}</h3>
+                        <p className="text-gray-500 max-w-md mx-auto">{isRtl ? 'لحماية الخصوصية، تم إخفاء تفاصيل الحادث والمرفقات. الرجاء تعبئة بيانات التأمينات للمصابين أدناه لإتمام الإجراء.' : 'For privacy reasons, incident details and attachments are hidden. Please fill out the GOSI data for the injured below.'}</p>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">{isRtl ? 'بوابة الموارد البشرية (التأمينات)' : 'HR Portal (GOSI)'}</h3>
-                    <p className="text-gray-500 max-w-md mx-auto">{isRtl ? 'لحماية الخصوصية، تم إخفاء تفاصيل الحادث والمرفقات. الرجاء تعبئة بيانات التأمينات للمصابين في القائمة الجانبية لإتمام الإجراء.' : 'For privacy reasons, incident details and attachments are hidden. Please fill out the GOSI data for the injured in the side panel.'}</p>
-                </div>
+                    {renderEmployeeInjuries()}
+                </>
             )}
         </div>
 
