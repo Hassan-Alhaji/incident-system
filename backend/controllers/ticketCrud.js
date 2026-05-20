@@ -145,11 +145,8 @@ const createTicket = async (req, res) => {
         if (isNaN(reportDateTime.getTime())) {
             return res.status(400).json({ message: 'Invalid incident date or time' });
         }
-        // Allow up to 5 minutes of clock skew between client and server
-        const FUTURE_SKEW_MS = 5 * 60 * 1000;
-        if (reportDateTime.getTime() > Date.now() + FUTURE_SKEW_MS) {
-            return res.status(400).json({ message: 'Incident date/time cannot be in the future' });
-        }
+        // Note: The server is in UTC, but incidentDate/Time are in the user's local timezone.
+        // Strict future validation is handled by the frontend to prevent timezone skew errors.
         const hoursDiff = (Date.now() - reportDateTime.getTime()) / (1000*60*60);
         const isLate = hoursDiff > 24;
         if (isLate && !lateReportReason) {

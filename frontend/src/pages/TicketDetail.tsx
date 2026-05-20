@@ -619,7 +619,14 @@ const TicketDetail = () => {
                                 📋 {t('nav.details', 'Incident Details')}
                             </h3>
                             <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div><span className="text-gray-500 block text-xs">{t('oc.wizard.incidentDate', 'Date/Time')}</span><span className="font-medium">{formatDate(oc.incidentDate)} {oc.incidentTime}</span></div>
+                                <div>
+                                    <span className="text-blue-600 block text-xs font-bold">{t('oc.wizard.submissionDate', 'Report Submission Date/Time')}</span>
+                                    <span className="font-medium">{formatDate(ticket.createdAt)} {new Date(ticket.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                                <div>
+                                    <span className="text-orange-600 block text-xs font-bold">{t('oc.wizard.incidentDate', 'Incident Date/Time')}</span>
+                                    <span className="font-medium">{formatDate(oc.incidentDate)} {oc.incidentTime}</span>
+                                </div>
                                 <div>
                                     <span className="text-gray-500 block text-xs">{t('oc.wizard.location', 'Location')}</span>
                                     <span className="font-medium">
