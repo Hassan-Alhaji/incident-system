@@ -688,7 +688,7 @@ const Settings = () => {
  </div>
  ))}
  </div>
- <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hidden md:block">
+ <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto hidden md:block w-full">
  <table className="w-full text-left text-sm">
  <thead className="bg-white text-gray-800 text-xs">
  <tr><th className="px-4 py-3">Name (EN)</th><th className="px-4 py-3">Name (AR)</th><th className="px-4 py-3">Manager</th><th className="px-4 py-3">Reps</th><th className="px-4 py-3 text-right">Action</th></tr>
@@ -767,7 +767,7 @@ const Settings = () => {
  </div>
  ))}
  </div>
- <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hidden md:block">
+ <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto hidden md:block w-full">
  <table className="w-full text-left text-sm">
  <thead className="bg-white text-gray-800 text-xs">
  <tr><th className="px-4 py-3">CR Number</th><th className="px-4 py-3">Provider Name</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-right">Action</th></tr>

@@ -871,7 +871,7 @@ const TicketDetail = () => {
                             <h3 className="font-bold text-slate-700 border-b border-slate-200 pb-2 flex items-center gap-2">
                                 📋 {t('nav.details', 'Incident Details')}
                             </h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                 <div>
                                     <span className="text-blue-600 block text-xs font-bold">{t('oc.wizard.submissionDate', 'Report Submission Date/Time')}</span>
                                     <span className="font-medium">{formatDate(ticket.createdAt)} {new Date(ticket.createdAt).toLocaleTimeString()}</span>
@@ -985,7 +985,7 @@ const TicketDetail = () => {
                         {oc.depRepFilledBy && (
                             <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-4 mb-4">
                                 <h3 className="font-bold text-purple-800 flex items-center gap-2 border-b border-purple-200 pb-2">🏢 {t('ticketActions.deptResponse', 'Department Response')}</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div><span className="text-purple-600 block text-xs">{t('ticketActions.submittedBy', 'Submitted By')}</span><span className="font-bold text-purple-900">{oc.depRepFilledBy}</span></div>
                                     <div><span className="text-purple-600 block text-xs">{t('oc.wizard.incidentDate', 'Date/Time')}</span><span className="font-bold text-purple-900">{formatDate(oc.depRepFilledAt)}</span></div>
                                 </div>
@@ -996,7 +996,7 @@ const TicketDetail = () => {
                         {oc.hrFilledBy && (
                             <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 mb-4">
                                 <h3 className="font-bold text-teal-800 flex items-center gap-2 border-b border-teal-200 pb-2">🏥 {t('ticketDetail.hrResponse')}</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-3">
                                     <div><span className="text-teal-600 block text-xs">{t('ticketDetail.filledBy')}</span><span className="font-bold text-teal-900">{oc.hrFilledBy}</span></div>
                                     <div><span className="text-teal-600 block text-xs">{t('ticketDetail.filledDate')}</span><span className="font-bold text-teal-900">{formatDate(oc.hrFilledAt)}</span></div>
                                 </div>

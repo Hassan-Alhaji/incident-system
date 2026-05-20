@@ -324,7 +324,7 @@ const TicketWizard = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block text-sm font-bold mb-1.5 ${showErrors && !incidentDate ? 'text-red-500' : 'text-gray-700'}`}><Clock size={12} className="inline mr-1" />{t('oc.wizard.incidentDate', 'Date of Incident')} *</label>
               <input type="date" max={new Date().toISOString().split('T')[0]} value={incidentDate} onChange={e => setIncidentDate(e.target.value)} className={`w-full bg-white border ${showErrors && !incidentDate ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'} rounded-xl px-3 py-2.5 text-sm text-gray-800 transition-all`} dir="ltr" />
@@ -426,8 +426,8 @@ const TicketWizard = () => {
               <p className="text-sm text-blue-800 font-medium">{isRtl ? 'من الأفضل إرفاق إثبات للحادث إذا وجد.' : 'It is better to attach proof of the incident if available.'}</p>
             </div>
 
-            {files.length > 0 && <div className="grid grid-cols-3 gap-2 mb-3">{files.map((f, i) => <FilePreview key={i} file={f} onRemove={() => setFiles(files.filter((_, idx) => idx !== i))} />)}</div>}
-            <div className="grid grid-cols-2 gap-2">
+            {files.length > 0 && <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">{files.map((f, i) => <FilePreview key={i} file={f} onRemove={() => setFiles(files.filter((_, idx) => idx !== i))} />)}</div>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm font-medium cursor-pointer hover:border-blue-400 transition-all"><Upload size={18} />{t('oc.wizard.uploadFiles', 'Upload')}<input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={handleFileAdd} /></label>
               <button onClick={handleCamera} className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm font-medium hover:border-blue-400 transition-all"><Camera size={18} />{t('oc.wizard.takePhoto', 'Camera')}</button>
             </div>
@@ -530,7 +530,7 @@ const TicketWizard = () => {
               {files.length > 0 && (
                 <div className="flex flex-col border-b border-gray-100 pb-2">
                   <span className="text-gray-500 text-xs mb-1.5">{t('oc.wizard.attachments', 'Attachments')} ({files.length})</span>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {files.map((f, i) => <SummaryFilePreview key={i} file={f} />)}
                   </div>
                 </div>
