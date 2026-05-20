@@ -7,7 +7,7 @@ import { STATUS_CONFIG } from '../utils/statusConfig';
 import { formatDate, formatDateTime } from '../utils/formatDate';
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
 import { safeParseJSON } from '../utils/safeParseJSON';
-import { ArrowLeft, AlertTriangle, CheckCircle, Send, Loader2, User, Paperclip, Bell, Download } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, Send, Loader2, User, Paperclip, Bell, Download, Lock } from 'lucide-react';
 import { ActionPlanSection, ReminderSection } from '../components/TicketSections';
 import { TimelineTab, ConfirmModal, CloseTicketModal } from '../components/ticket';
 import { ControllerSubmittedPanel, HrPanel, DepartmentPanel, ControllerFinalReviewPanel, SafetyManagerPanel } from '../components/ticket/ActionPanels';
@@ -567,6 +567,8 @@ const TicketDetail = () => {
                 </div>
             )}
 
+            {!isHrRep && (
+                <>
             {/* Main Content Tabs */}
             <div className="flex gap-2 border-b">
                 <button onClick={() => setActiveTab('details')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'details' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.details', 'Details')}</button>
@@ -1273,6 +1275,18 @@ const TicketDetail = () => {
                         </a>
                     ))}
                     {ticket.attachments?.length === 0 && <p className="col-span-full text-center py-10 text-gray-500 text-sm">No attachments available.</p>}
+                </div>
+            )}
+            </>
+            )}
+
+            {isHrRep && (
+                <div className="bg-white border border-gray-200 rounded-xl p-8 text-center shadow-sm mt-2">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Lock size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">{isRtl ? 'بوابة الموارد البشرية (التأمينات)' : 'HR Portal (GOSI)'}</h3>
+                    <p className="text-gray-500 max-w-md mx-auto">{isRtl ? 'لحماية الخصوصية، تم إخفاء تفاصيل الحادث والمرفقات. الرجاء تعبئة بيانات التأمينات للمصابين في القائمة الجانبية لإتمام الإجراء.' : 'For privacy reasons, incident details and attachments are hidden. Please fill out the GOSI data for the injured in the side panel.'}</p>
                 </div>
             )}
         </div>
