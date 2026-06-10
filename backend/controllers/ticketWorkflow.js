@@ -149,13 +149,13 @@ const controllerAction = async (req, res) => {
         const { action, notes, severity, targetDepartmentId, newType, typeChangeReason, hazardCategory } = req.body;
 
         if (newType && newType !== ticket.type) {
-            if (!['OBSERVATION','SECURITY','ACCIDENT','VIOLATION','NEAR_MISS','INJURY','HEALTH','PROPERTY_DAMAGE','SECURITY_BREACH','OTHER'].includes(newType)) {
+            if (!['OBSERVATION','NEAR_MISS','INJURY','HEALTH','PROPERTY_DAMAGE','OTHER'].includes(newType)) {
                 return res.status(400).json({ message: 'Invalid ticket type provided' });
             }
-            if (!typeChangeReason) return res.status(400).json({ message: 'Reason required when changing type' });
-            await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { originalType: ticket.type, typeChangeReason, incidentType: newType } });
+            if (newType === 'OTHER' && !typeChangeReason) return res.status(400).json({ message: 'Description required when selecting Other type' });
+            await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { originalType: ticket.type, typeChangeReason: typeChangeReason || null, incidentType: newType } });
             await prisma.ticket.update({ where: { id: ticket.id }, data: { type: newType } });
-            await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'STAGE_TYPE_CHANGED', details: `Type changed from ${ticket.type} to ${newType}. Reason: ${typeChangeReason}` } });
+            await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'STAGE_TYPE_CHANGED', details: `Type changed from ${ticket.type} to ${newType}${typeChangeReason ? '. Reason: ' + typeChangeReason : ''}` } });
         }
 
         // Return to reporter
@@ -183,7 +183,7 @@ const controllerAction = async (req, res) => {
             if (!notes || !notes.trim()) return res.status(400).json({ message: 'Controller notes required before routing' });
 
             const effectiveType = newType || ticket.type;
-            const rcaRequired = true; // User requested RCA to always be present for all types
+            const rcaRequired = effectiveType !== 'OBSERVATION';
             
             const { rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions } = req.body;
             
@@ -194,6 +194,7 @@ const controllerAction = async (req, res) => {
             }
 
             // Update OffCircuitReport with Controller info and RCA
+            const hasOptionalRca = Boolean(rcaCause && rcaWhy && rcaRootCause && rcaCategory && rcaPreventiveActions);
             await prisma.offCircuitReport.update({ 
                 where: { ticketId: ticket.id }, 
                 data: { 
@@ -204,9 +205,15 @@ const controllerAction = async (req, res) => {
                     controllerFilledAt: new Date(), 
                     rcaRequired, 
                     responsibleDeptId: targetDepartmentId,
-                    ...(rcaRequired ? { 
-                        rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions, 
-                        rcaCompleted: true, rcaFilledBy: req.user.name, rcaFilledAt: new Date() 
+                    ...(rcaRequired || hasOptionalRca ? { 
+                        rcaCause: rcaCause || null, 
+                        rcaWhy: rcaWhy || null, 
+                        rcaRootCause: rcaRootCause || null, 
+                        rcaCategory: rcaCategory || null, 
+                        rcaPreventiveActions: rcaPreventiveActions || null, 
+                        rcaCompleted: true, 
+                        rcaFilledBy: req.user.name, 
+                        rcaFilledAt: new Date() 
                     } : {})
                 } 
             });
@@ -218,6 +225,8 @@ const controllerAction = async (req, res) => {
                 status: 'ASSIGNED', 
                 severityLevel: severity, 
                 departmentId: targetDepartmentId, 
+                departmentAssignedAt: new Date(),
+                departmentRespondedAt: null,
                 activityLogs: { 
                     create: { 
                         actorId: req.user.id, 
@@ -238,16 +247,18 @@ const controllerAction = async (req, res) => {
             const depReps = await prisma.user.findMany({ where: { repDepartmentId: targetDepartmentId, role: 'DEP_REP', status: 'ACTIVE' }, select: { id: true } });
             if (depReps.length > 0) await createNotificationsBulk(depReps.map(rep => rep.id), 'Ticket Assigned', `Ticket ${ticket.ticketNo} assigned to your department. RCA is ready for review.`, 'ASSIGNED', `/tickets/${ticket.id}`);
             
-            // Check for employee injury to notify HR automatically
+            // Check for employee injury — only notify HR if controller explicitly confirms
             let hasEmployeeInjury = false;
             const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
             hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
-            if (hasEmployeeInjury) {
+            if (hasEmployeeInjury && req.body.notifyHr === true) {
                 await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { hrAssignedAt: new Date() } });
-                await prisma.ticket.update({ where: { id: ticket.id }, data: { activityLogs: { create: { actorId: req.user.id, action: 'STAGE_HR_NOTIFIED', details: `HR automatically notified to provide GOSI data.` } } } });
+                await prisma.ticket.update({ where: { id: ticket.id }, data: { activityLogs: { create: { actorId: req.user.id, action: 'STAGE_HR_NOTIFIED', details: `Controller confirmed: HR notified to provide GOSI data.` } } } });
                 const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
                 if (hrReps.length > 0) await createNotificationsBulk(hrReps.map(hr => hr.id), 'GOSI Data Required', `Ticket ${ticket.ticketNo}: Please complete GOSI data for injured employee(s).`, 'INFO', `/tickets/${ticket.id}`);
+            } else if (hasEmployeeInjury && req.body.notifyHr === false) {
+                await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'HR_NOTIFICATION_SKIPPED', details: 'Controller decided not to notify HR for this injury.' } });
             }
 
             return res.json({ message: 'RCA saved and ticket assigned to department', status: 'ASSIGNED' });
@@ -350,7 +361,7 @@ const departmentAction = async (req, res) => {
         }
 
         await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { depRepFilledBy: req.user.name, depRepFilledAt: new Date() } });
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_REVIEW', activityLogs: { create: { actorId: req.user.id, action: 'STAGE_DEPT_RESPONDED', details: 'Department submitted response & action plans' } } } });
+        await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_REVIEW', departmentRespondedAt: new Date(), activityLogs: { create: { actorId: req.user.id, action: 'STAGE_DEPT_RESPONDED', details: 'Department submitted response & action plans' } } } });
 
         const controllers = await prisma.user.findMany({ where: { role: 'HSE_CONTROLLER', status: 'ACTIVE' }, select: { id: true } });
         if (controllers.length > 0) await createNotificationsBulk(controllers.map(c => c.id), 'Department Response', `Ticket ${ticket.ticketNo}: Department responded`, 'DEP_RESPONSE', `/tickets/${ticket.id}`);
@@ -382,6 +393,8 @@ const controllerFinalReview = async (req, res) => {
                 where: { id: ticket.id }, 
                 data: { 
                     status: newStatus, 
+                    departmentAssignedAt: new Date(),
+                    departmentRespondedAt: null,
                     offCircuitReport: { update: { controllerNotes: notes, controllerFilledBy: req.user.name, controllerFilledAt: new Date() } },
                     activityLogs: { create: { actorId: req.user.id, action: newStatus, details: notes } } 
                 } 
@@ -556,6 +569,11 @@ const safetyManagerAction = async (req, res) => {
         if (!['SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role)) return res.status(403).json({ message: 'Only Safety Manager' });
         if (ticket.status !== 'ESCALATED') return res.status(400).json({ message: 'Ticket not escalated' });
 
+        // Prevent conflict of interest
+        if (ticket.createdById === req.user.id && ['SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(role)) {
+            return res.status(403).json({ message: 'Conflict of Interest: You cannot review or close a ticket you reported. Another administrator or manager must review it.' });
+        }
+
         const { action, notes } = req.body;
 
         
@@ -576,6 +594,8 @@ const safetyManagerAction = async (req, res) => {
                     status: 'ASSIGNED', 
                     escalatedToRole: null, 
                     departmentId: targetDepartmentId, 
+                    departmentAssignedAt: new Date(),
+                    departmentRespondedAt: null,
                     offCircuitReport: { update: { controllerNotes: notes || 'Escalated by Safety Manager', controllerFilledBy: req.user.name, controllerFilledAt: new Date(), responsibleDeptId: targetDepartmentId } },
                     activityLogs: { create: { actorId: req.user.id, action: 'ESCALATED_TO_DEPT', details: `Escalated to department: ${deptName}. Notes: ${notes || ''}` } } 
                 } 

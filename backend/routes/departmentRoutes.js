@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 const bcrypt = require('bcryptjs');
 
 // Detect special department types by name pattern to assign correct role
@@ -71,9 +71,8 @@ router.get('/', protect, async (req, res) => {
 });
 
 // Admin adds a department
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER'), async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN' && req.user.role !== 'HSE_CONTROLLER' && req.user.role !== 'OC_HSE_MANAGER') return res.status(403).json({ message: 'Not authorized' });
         const { nameEn, nameAr, manager, representatives } = req.body;
         
         if (!nameEn) return res.status(400).json({ message: 'English name is required.' });
@@ -124,10 +123,8 @@ router.post('/', protect, async (req, res) => {
 });
 
 // Update department
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER'), async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN' && req.user.role !== 'HSE_CONTROLLER' && req.user.role !== 'OC_HSE_MANAGER') return res.status(403).json({ message: 'Not authorized' });
-        
         const { nameEn, nameAr, manager, representatives } = req.body;
         
         // 1. Update basic department info
@@ -187,9 +184,8 @@ router.put('/:id', protect, async (req, res) => {
 });
 
 // Delete department
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER'), async (req, res) => {
     try {
-        if (req.user.role !== 'ADMIN' && req.user.role !== 'HSE_CONTROLLER' && req.user.role !== 'OC_HSE_MANAGER') return res.status(403).json({ message: 'Not authorized' });
         
         // Check for tickets linked to this department
         const ticketCount = await prisma.ticket.count({ where: { departmentId: req.params.id } });

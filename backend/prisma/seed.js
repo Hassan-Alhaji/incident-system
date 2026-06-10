@@ -88,7 +88,14 @@ const main = async () => {
     });
     console.log('Safety Manager created:', safetyManager.email);
 
-    // 5. HR Representative
+    // 5. HR Representative (under Human Resources department)
+    const hrDept = await prisma.department.upsert({
+        where: { name: 'Human Resources' },
+        update: { nameAr: 'الموارد البشرية' },
+        create: { name: 'Human Resources', nameAr: 'الموارد البشرية' },
+    });
+    console.log('Department created:', hrDept.name);
+
     const hrPassword = await hashPassword('hr123');
     const hrRep = await prisma.user.upsert({
         where: { email: 'hr@system.com' },
@@ -96,52 +103,137 @@ const main = async () => {
             role: 'HR_REP',
             password: hrPassword,
             name: 'HR Representative',
+            repDepartmentId: hrDept.id,
         },
         create: {
             email: 'hr@system.com',
             name: 'HR Representative',
             password: hrPassword,
             role: 'HR_REP',
+            repDepartmentId: hrDept.id,
         },
     });
     console.log('HR Rep created:', hrRep.email);
 
-    // 6. Create a Department
-    const dept = await prisma.department.upsert({
+    // 6. Create Departments
+    const opsDept = await prisma.department.upsert({
         where: { name: 'Operations' },
-        update: { nameAr: 'العمليات' },
-        create: { name: 'Operations', nameAr: 'العمليات' },
+        update: { nameAr: 'التشغيل' },
+        create: { name: 'Operations', nameAr: 'التشغيل' },
     });
-    console.log('Department created:', dept.name);
+    console.log('Department created:', opsDept.name);
 
-    // 7. Department Representative
-    const depRepPassword = await hashPassword('deprep123');
-    const depRep = await prisma.user.upsert({
+    const finDept = await prisma.department.upsert({
+        where: { name: 'Finance' },
+        update: { nameAr: 'المالية' },
+        create: { name: 'Finance', nameAr: 'المالية' },
+    });
+    console.log('Department created:', finDept.name);
+
+    const procDept = await prisma.department.upsert({
+        where: { name: 'Procurement' },
+        update: { nameAr: 'المشتريات' },
+        create: { name: 'Procurement', nameAr: 'المشتريات' },
+    });
+    console.log('Department created:', procDept.name);
+
+    const itDept = await prisma.department.upsert({
+        where: { name: 'IT' },
+        update: { nameAr: 'تقنية المعلومات' },
+        create: { name: 'IT', nameAr: 'تقنية المعلومات' },
+    });
+    console.log('Department created:', itDept.name);
+
+    // 7. Department Representatives
+    const defaultPassword = await hashPassword('deprep123');
+
+    // Operations Rep
+    const opsRep = await prisma.user.upsert({
         where: { email: 'dep_rep@system.com' },
         update: {
             role: 'DEP_REP',
-            password: depRepPassword,
-            name: 'Department Rep',
-            repDepartmentId: dept.id,
+            password: defaultPassword,
+            name: 'Operations Representative',
+            repDepartmentId: opsDept.id,
         },
         create: {
             email: 'dep_rep@system.com',
-            name: 'Department Rep',
-            password: depRepPassword,
+            name: 'Operations Representative',
+            password: defaultPassword,
             role: 'DEP_REP',
-            repDepartmentId: dept.id,
+            repDepartmentId: opsDept.id,
         },
     });
-    console.log('Dep Rep created:', depRep.email);
+    console.log('Operations Rep created:', opsRep.email);
+
+    // Finance Rep
+    const finRep = await prisma.user.upsert({
+        where: { email: 'finance_rep@system.com' },
+        update: {
+            role: 'FINANCE_REP',
+            password: defaultPassword,
+            name: 'Finance Representative',
+            repDepartmentId: finDept.id,
+        },
+        create: {
+            email: 'finance_rep@system.com',
+            name: 'Finance Representative',
+            password: defaultPassword,
+            role: 'FINANCE_REP',
+            repDepartmentId: finDept.id,
+        },
+    });
+    console.log('Finance Rep created:', finRep.email);
+
+    // Procurement Rep
+    const procRep = await prisma.user.upsert({
+        where: { email: 'procurement_rep@system.com' },
+        update: {
+            role: 'DEP_REP',
+            password: defaultPassword,
+            name: 'Procurement Representative',
+            repDepartmentId: procDept.id,
+        },
+        create: {
+            email: 'procurement_rep@system.com',
+            name: 'Procurement Representative',
+            password: defaultPassword,
+            role: 'DEP_REP',
+            repDepartmentId: procDept.id,
+        },
+    });
+    console.log('Procurement Rep created:', procRep.email);
+
+    // IT Rep
+    const itRep = await prisma.user.upsert({
+        where: { email: 'it_rep@system.com' },
+        update: {
+            role: 'DEP_REP',
+            password: defaultPassword,
+            name: 'IT Representative',
+            repDepartmentId: itDept.id,
+        },
+        create: {
+            email: 'it_rep@system.com',
+            name: 'IT Representative',
+            password: defaultPassword,
+            role: 'DEP_REP',
+            repDepartmentId: itDept.id,
+        },
+    });
+    console.log('IT Rep created:', itRep.email);
 
     console.log('\n✅ Seeding finished successfully!');
     console.log('\n📋 Test Accounts:');
-    console.log('  Admin:       al3ren0@gmail.com (OTP)');
-    console.log('  Controller:  controller@system.com / controller123');
-    console.log('  Reporter:    reporter@system.com / reporter123');
-    console.log('  Safety Mgr:  safety_manager@system.com / safety123');
-    console.log('  HR Rep:      hr@system.com / hr123');
-    console.log('  Dep Rep:     dep_rep@system.com / deprep123');
+    console.log('  Admin:           al3ren0@gmail.com (OTP)');
+    console.log('  Controller:      controller@system.com / controller123');
+    console.log('  Reporter:        reporter@system.com / reporter123');
+    console.log('  Safety Mgr:      safety_manager@system.com / safety123');
+    console.log('  HR Rep:          hr@system.com / hr123');
+    console.log('  Ops Rep:         dep_rep@system.com / deprep123');
+    console.log('  Finance Rep:     finance_rep@system.com / deprep123');
+    console.log('  Procurement Rep: procurement_rep@system.com / deprep123');
+    console.log('  IT Rep:          it_rep@system.com / deprep123');
 };
 
 main()

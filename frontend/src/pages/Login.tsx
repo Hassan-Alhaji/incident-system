@@ -323,13 +323,15 @@ const Login = () => {
                 <p className="text-center text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">Dev Login Bypass</p>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {[
-                    { label: 'المبلغ', email: 'reporter@test.com', icon: UserPlus },
-                    { label: 'الكنترولر', email: 'c@test.com', icon: Lightbulb },
-                    { label: 'المالية', email: 'Fin_rep@test.com', icon: Globe },
-                    { label: 'HR', email: 'hr@system.com', icon: UserPlus },
-                    { label: 'IT', email: 'IT_rep@test.com', icon: Phone },
-                    { label: 'المشتريات', email: 'Pre_rep@test.com', icon: LogIn },
-                    { label: 'HSE Mgr', email: 'asamman@saudimotorsport.com', icon: AlertTriangle },
+                    { label: isArabic ? 'المبلغ' : 'Reporter', email: 'reporter@system.com', icon: UserPlus },
+                    { label: isArabic ? 'الكنترولر' : 'Controller', email: 'controller@system.com', icon: Lightbulb },
+                    { label: isArabic ? 'مدير السلامة' : 'Safety Mgr', email: 'safety_manager@system.com', icon: AlertTriangle },
+                    { label: isArabic ? 'المدير' : 'Admin', email: 'al3ren0@gmail.com', icon: LogIn },
+                    { label: isArabic ? 'ممثل التشغيل' : 'Ops Rep', email: 'dep_rep@system.com', icon: Globe },
+                    { label: isArabic ? 'ممثل الموارد البشرية' : 'HR Rep', email: 'hr@system.com', icon: UserPlus },
+                    { label: isArabic ? 'ممثل المالية' : 'Finance Rep', email: 'finance_rep@system.com', icon: Globe },
+                    { label: isArabic ? 'ممثل المشتريات' : 'Procurement Rep', email: 'procurement_rep@system.com', icon: LogIn },
+                    { label: isArabic ? 'ممثل تقنية المعلومات' : 'IT Rep', email: 'it_rep@system.com', icon: Phone },
                   ].map(role => (
                     <button
                       key={role.email}

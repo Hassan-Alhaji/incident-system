@@ -132,10 +132,10 @@ const createTicket = async (req, res) => {
         if (!ROLES.REPORTER.includes(userRole) && userRole !== 'ADMIN') {
             return res.status(403).json({ message: 'Only reporters can create tickets' });
         }
-        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId, departmentId } = req.body;
+        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId, departmentId, reporterDepartmentId } = req.body;
 
-        if (!incidentType || !['OBSERVATION','SECURITY'].includes(incidentType)) {
-            return res.status(400).json({ message: 'Valid incident type required (OBSERVATION, SECURITY)' });
+        if (!incidentType || !['OBSERVATION'].includes(incidentType)) {
+            return res.status(400).json({ message: 'Valid incident type required (OBSERVATION)' });
         }
         if (!incidentDate || !incidentTime) return res.status(400).json({ message: 'Date and time required' });
         if (!whatHappened) return res.status(400).json({ message: 'Description required' });
@@ -165,18 +165,49 @@ const createTicket = async (req, res) => {
             if (missing) return res.status(400).json({ message: `Invalid ${missing.name} reference` });
         }
 
-        // Generate ticket number with retry to prevent race conditions
+        // Generate ticket number using database sequence to prevent race conditions
         const currentYear = new Date().getFullYear();
         let ticket = null;
         let retries = 0;
-        
-        while (!ticket && retries < 10) {
-            // Count ONLY tickets for the current year to reset sequence every year
+        let seqNum;
+
+        try {
+            await prisma.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS "ticket_seq_${currentYear}" START WITH 1`);
+            
+            // Sync sequence with existing records (seed, migrations, etc.) to prevent duplicate key collisions
+            const maxTicket = await prisma.ticket.findFirst({
+                where: { ticketNo: { startsWith: `INC-${currentYear}-` } },
+                orderBy: { ticketNo: 'desc' },
+                select: { ticketNo: true }
+            });
+            if (maxTicket) {
+                const maxNum = parseInt(maxTicket.ticketNo.split('-')[2], 10);
+                if (!isNaN(maxNum)) {
+                    // Check if current value is less than maxNum, adjust if needed
+                    const [{ currval }] = await prisma.$queryRawUnsafe(`
+                        SELECT COALESCE((
+                            SELECT last_value FROM "ticket_seq_${currentYear}"
+                        ), 1) as currval
+                    `);
+                    if (Number(currval) < maxNum) {
+                        await prisma.$executeRawUnsafe(`SELECT setval('"ticket_seq_${currentYear}"', ${maxNum})`);
+                    }
+                }
+            }
+
+            const [{ nextval }] = await prisma.$queryRawUnsafe(`SELECT nextval('"ticket_seq_${currentYear}"') as nextval`);
+            seqNum = Number(nextval);
+        } catch (seqError) {
+            logger.warn({ err: seqError }, 'Failed to use database sequence, falling back to count method');
+            // Fallback count logic
             const count = await prisma.ticket.count({
                 where: { ticketNo: { startsWith: `INC-${currentYear}-` } }
             });
-            
-            const ticketNo = `INC-${currentYear}-${String(count + 1 + retries).padStart(5, '0')}`;
+            seqNum = count + 1;
+        }
+
+        while (!ticket && retries < 10) {
+            const ticketNo = `INC-${currentYear}-${String(seqNum + retries).padStart(5, '0')}`;
             let priority = 'MEDIUM';
             
             try {
@@ -214,7 +245,8 @@ const createTicket = async (req, res) => {
                                 injuredPersons: injuredPersons ? JSON.stringify(injuredPersons) : null,
                                 witnesses: witnesses ? JSON.stringify(witnesses) : null,
                                 reporterFilledBy: req.user.name,
-                                reporterFilledAt: new Date()
+                                reporterFilledAt: new Date(),
+                                reporterDepartmentId: reporterDepartmentId || null
                             }
                         },
                         activityLogs: {

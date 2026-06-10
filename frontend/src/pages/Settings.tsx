@@ -56,7 +56,8 @@ const Settings = () => {
  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
 
- const [form, setForm] = useState({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
+ const [form, setForm] = useState({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false, repDepartmentId: '' });
+ const [userDepartments, setUserDepartments] = useState<any[]>([]);
 
  // Global Entities State
  const [zones, setZones] = useState<any[]>([]);
@@ -86,7 +87,7 @@ const Settings = () => {
  const [eventError, setEventError] = useState('');
 
  useEffect(() => { 
- if (activeTab === 'users') fetchUsers(); 
+ if (activeTab === 'users') { fetchUsers(); api.get('/departments').then(res => setUserDepartments(res.data)).catch(() => {}); }
  if (activeTab === 'zones') fetchZones();
  if (activeTab === 'departments') fetchDepartments();
  if (activeTab === 'providers') fetchServiceProviders();
@@ -245,7 +246,7 @@ const Settings = () => {
  }
  setShowModal(false);
  setEditingUser(null);
- setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
+ setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false, repDepartmentId: '' });
  fetchUsers();
  setTimeout(() => setSuccess(''), 3000);
  } catch (err: any) {
@@ -275,14 +276,14 @@ const Settings = () => {
 
  const openEditModal = (u: any) => {
  setEditingUser(u.id);
- setForm({ name: u.name, email: u.email, role: u.role, mobile: u.mobile || '', canManageUsers: u.canManageUsers || false, canManageEvents: u.canManageEvents || false, canManageServiceProviders: u.canManageServiceProviders || false, canViewAnalytics: u.canViewAnalytics || false, isIntakeEnabled: u.isIntakeEnabled || false });
+ setForm({ name: u.name, email: u.email, role: u.role, mobile: u.mobile || '', canManageUsers: u.canManageUsers || false, canManageEvents: u.canManageEvents || false, canManageServiceProviders: u.canManageServiceProviders || false, canViewAnalytics: u.canViewAnalytics || false, isIntakeEnabled: u.isIntakeEnabled || false, repDepartmentId: u.repDepartmentId || '' });
  setShowModal(true);
  setError('');
  };
 
  const openCreateModal = () => {
  setEditingUser(null);
- setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false });
+ setForm({ name: '', email: '', role: 'OC_REPORTER', mobile: '', canManageUsers: false, canManageEvents: false, canManageServiceProviders: false, canViewAnalytics: false, isIntakeEnabled: false, repDepartmentId: '' });
  setShowModal(true);
  setError('');
  };
@@ -573,6 +574,21 @@ const Settings = () => {
  </select>
  </div>
 
+ {/* Point 9: Department dropdown for DEP_REP / DEP_MANAGER */}
+ {(form.role === 'DEP_REP' || form.role === 'DEP_MANAGER') && (
+ <div>
+ <label className="block text-base font-medium text-gray-800 mb-1">Linked Department (القسم المرتبط) *</label>
+ <select value={form.repDepartmentId} onChange={(e) => setForm({ ...form, repDepartmentId: e.target.value })}
+ className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400">
+ <option value="">-- Select Department --</option>
+ {userDepartments.map((d: any) => (
+ <option key={d.id} value={d.id}>{d.name}{d.nameAr ? ` / ${d.nameAr}` : ''}</option>
+ ))}
+ </select>
+ {!form.repDepartmentId && <p className="text-amber-500 text-[10px] mt-1">⚠ Without a department, this user won't see any tickets</p>}
+ </div>
+ )}
+
  <div>
  <label className="block text-base font-medium text-gray-800 mb-1">Mobile Number *</label>
  <input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/[^0-9+]/g, '') })}
@@ -860,7 +876,7 @@ const Settings = () => {
  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
  <h4 className="text-base font-bold text-blue-500 mb-3 border-b border-gray-200 pb-2">Department Manager</h4>
  <div className="grid md:grid-cols-3 gap-3">
- <div><label className="block text-base text-gray-800 mb-1">Full Name (First Second Last)</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
+ <div><label className="block text-base text-gray-800 mb-1">Full Name</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
  <div><label className="block text-base text-gray-800 mb-1">Email</label><input type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.email} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, email: e.target.value}})} /></div>
  <div><label className="block text-base text-gray-800 mb-1">Mobile</label><input type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.mobile} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, mobile: e.target.value.replace(/[^0-9+]/g, '')}})} /></div>
  </div>
@@ -875,7 +891,7 @@ const Settings = () => {
  {departmentFormData.representatives.map((rep, idx) => (
  <div key={idx} className="flex gap-2 items-start">
  <div className="grid md:grid-cols-3 gap-2 flex-1">
- <input placeholder="Full Name (First Second Last)" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
+ <input placeholder="Full Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].email = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
  </div>
@@ -904,7 +920,7 @@ const Settings = () => {
  <div className="grid md:grid-cols-2 gap-4">
  <div><label className="block text-base font-medium text-gray-800 mb-1">Company Name (English) *</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" value={providerFormData.name} onChange={e => setProviderFormData({...providerFormData, name: e.target.value})} /></div>
  <div><label className="block text-base font-medium text-gray-800 mb-1">اسم الشركة (عربي)</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800" dir="rtl" value={providerFormData.nameAr} onChange={e => setProviderFormData({...providerFormData, nameAr: e.target.value})} /></div>
- <div className="md:col-span-2"><label className="block text-base font-medium text-gray-800 mb-1">Commercial Registration Number * / رقم السجل التجاري</label><input className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 font-mono" value={providerFormData.commercialRegistrationNumber} onChange={e => setProviderFormData({...providerFormData, commercialRegistrationNumber: e.target.value})} /></div>
+ <div className="md:col-span-2"><label className="block text-base font-medium text-gray-800 mb-1">Commercial Registration Number * (Starts with 700) / رقم السجل التجاري * (يبدأ بـ 700)</label><input type="text" placeholder="700xxxxxxx" className="w-full bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2.5 text-base text-gray-800 font-mono" value={providerFormData.commercialRegistrationNumber} onChange={e => setProviderFormData({...providerFormData, commercialRegistrationNumber: e.target.value})} /></div>
  </div>
 
  {/* Primary Representative Block */}
@@ -945,7 +961,7 @@ const Settings = () => {
  {providerFormData.representatives.map((rep, idx) => (
  <div key={idx} className="flex gap-2 items-start">
  <div className="grid md:grid-cols-3 gap-2 flex-1">
- <input placeholder="Full Name (First Second Last)" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].name = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
+ <input placeholder="Full Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].name = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
  <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].email = e.target.value; setProviderFormData({...providerFormData, representatives: newReps}); }} />
  <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...providerFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setProviderFormData({...providerFormData, representatives: newReps}); }} />
  </div>

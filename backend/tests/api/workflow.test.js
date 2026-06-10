@@ -14,6 +14,8 @@ const jwt = require('jsonwebtoken');
 // ── Mocks (hoisted by Jest) ─────────────────────────────────────────────────
 
 jest.mock('../../prismaClient', () => ({
+    $executeRawUnsafe: jest.fn().mockResolvedValue(0),
+    $queryRawUnsafe: jest.fn().mockResolvedValue([{ currval: 1, nextval: 1 }]),
     user: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
@@ -23,6 +25,7 @@ jest.mock('../../prismaClient', () => ({
     ticket: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         count: jest.fn(),
@@ -192,6 +195,7 @@ beforeEach(() => {
     
     prisma.ticket.findUnique.mockReset();
     prisma.ticket.findMany.mockReset();
+    prisma.ticket.findFirst.mockReset();
     prisma.ticket.create.mockReset();
     prisma.ticket.update.mockReset();
     prisma.ticket.count.mockReset();
@@ -220,7 +224,12 @@ beforeEach(() => {
     prisma.reminder.create.mockResolvedValue({});
     prisma.user.findMany.mockResolvedValue([]);
     prisma.ticket.count.mockResolvedValue(0);
-    prisma.actionPlan.count.mockResolvedValue(1);
+    prisma.actionPlan.count.mockImplementation(({ where }) => {
+        if (where && where.status && where.status.not === 'APPROVED') {
+            return Promise.resolve(0);
+        }
+        return Promise.resolve(1);
+    });
 
     // Default silent returns for department and serviceProvider
     prisma.department.findUnique.mockResolvedValue(null);
@@ -357,6 +366,11 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
     // ── ASSIGN ───────────────────────────────────────────────────────────
     describe('action: ASSIGN', () => {
         it('assigns ticket with MAJOR severity and sets rcaRequired=true', async () => {
+            prisma.ticket.findUnique.mockImplementation(({ where }) => {
+                if (where.id === 'ticket-1') return Promise.resolve(baseTicket({ type: 'NEAR_MISS' }));
+                return Promise.resolve(USER_MAP[where.id] || null);
+            });
+
             const res = await request(app)
                 .put('/api/tickets/ticket-1/controller-action')
                 .set('Authorization', token(CONTROLLER))
@@ -384,6 +398,11 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
         });
 
         it('assigns ticket with MINOR severity and sets rcaRequired=true', async () => {
+            prisma.ticket.findUnique.mockImplementation(({ where }) => {
+                if (where.id === 'ticket-1') return Promise.resolve(baseTicket({ type: 'NEAR_MISS' }));
+                return Promise.resolve(USER_MAP[where.id] || null);
+            });
+
             const res = await request(app)
                 .put('/api/tickets/ticket-1/controller-action')
                 .set('Authorization', token(CONTROLLER))
@@ -403,6 +422,25 @@ describe('PUT /api/tickets/:id/controller-action — Controller Action', () => {
             expect(prisma.offCircuitReport.update).toHaveBeenCalledWith(
                 expect.objectContaining({
                     data: expect.objectContaining({ rcaRequired: true }),
+                })
+            );
+        });
+
+        it('assigns OBSERVATION ticket and sets rcaRequired=false, allowing empty RCA fields', async () => {
+            const res = await request(app)
+                .put('/api/tickets/ticket-1/controller-action')
+                .set('Authorization', token(CONTROLLER))
+                .send({
+                    action: 'ASSIGN',
+                    severity: 'MINOR',
+                    targetDepartmentId: 'dept-1',
+                    notes: 'Observation incident notes'
+                });
+
+            expect(res.status).toBe(200);
+            expect(prisma.offCircuitReport.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({ rcaRequired: false }),
                 })
             );
         });

@@ -10,7 +10,7 @@ import {
   FileWarning, ShieldAlert, Flame, Zap, Activity, ChevronRight,
   RefreshCw, Paperclip, Plus, ClipboardList,
   Timer, TrendingUp, Activity as ActivityIcon, MapPin, Sparkles, X,
-  Lightbulb,
+  Lightbulb, Inbox, Lock
 } from 'lucide-react';
 import { STATUS_CONFIG } from '../utils/statusConfig';
 import { SkeletonList } from '../components/Skeleton';
@@ -46,6 +46,8 @@ interface Ticket {
   zone?: { name: string };
   location?: string;
   _count?: { attachments: number };
+  departmentAssignedAt?: string;
+  departmentRespondedAt?: string;
 }
 
 
@@ -90,6 +92,43 @@ const Dashboard = () => {
   const [search,     setSearch]     = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showFilters,  setShowFilters]  = useState(false);
+  const [activeTab,    setActiveTab]    = useState<'NEW' | 'IN_PROGRESS' | 'CLOSED'>('NEW');
+
+  const isDepRepOrManager = user?.role === 'DEP_REP' || user?.role === 'DEP_MANAGER';
+
+  const getTabStatuses = (tab: 'NEW' | 'IN_PROGRESS' | 'CLOSED'): string[] => {
+    // Point 10: For DEP_REP/DEP_MANAGER, ASSIGNED and RETURNED_TO_DEPARTMENT are "New" (department hasn't responded yet)
+    if (isDepRepOrManager) {
+      switch (tab) {
+        case 'NEW':
+          return ['SUBMITTED', 'ASSIGNED', 'RETURNED_TO_DEPARTMENT'];
+        case 'IN_PROGRESS':
+          return ['ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER', 'ESCALATED'];
+        case 'CLOSED':
+          return ['CLOSED', 'CLOSED_REJECTED'];
+        default:
+          return [];
+      }
+    }
+    switch (tab) {
+      case 'NEW':
+        return ['SUBMITTED'];
+      case 'IN_PROGRESS':
+        return ['ASSIGNED', 'ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER', 'ESCALATED'];
+      case 'CLOSED':
+        return ['CLOSED', 'CLOSED_REJECTED'];
+      default:
+        return [];
+    }
+  };
+
+  const getTabAvailableStatuses = (tab: 'NEW' | 'IN_PROGRESS' | 'CLOSED'): string[] => {
+    return ['ALL', ...getTabStatuses(tab)];
+  };
+
+  const newTicketsCount = tickets.filter(t => getTabStatuses('NEW').includes(t.status)).length;
+  const inProgressTicketsCount = tickets.filter(t => getTabStatuses('IN_PROGRESS').includes(t.status)).length;
+  const closedTicketsCount = tickets.filter(t => getTabStatuses('CLOSED').includes(t.status)).length;
 
   // Safety tip state
   const isRtl = i18n.dir() === 'rtl';
@@ -109,7 +148,6 @@ const Dashboard = () => {
 
   useEffect(() => { setSafetyTip(getRandomSafetyTip(currentLang)); }, [currentLang]);
 
-  const isDepRepOrManager = user?.role === 'DEP_REP' || user?.role === 'DEP_MANAGER';
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -130,21 +168,69 @@ const Dashboard = () => {
   const touchStartY  = React.useRef(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (containerRef.current?.scrollTop === 0) { touchStartY.current = e.touches[0].clientY; setIsPulling(true); }
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPulling) return;
-    const y = e.touches[0].clientY - touchStartY.current;
-    if (y > 0 && y < 150) setPullDistance(y);
-  };
-  const handleTouchEnd = async () => {
-    if (pullDistance > 60) { setIsRefreshing(true); setPullDistance(0); await fetchTickets(); setIsRefreshing(false); }
-    else setPullDistance(0);
-    setIsPulling(false);
-  };
+  const isPullingRef = React.useRef(false);
+  const pullDistanceRef = React.useRef(0);
+
+  useEffect(() => {
+    isPullingRef.current = isPulling;
+  }, [isPulling]);
+
+  useEffect(() => {
+    pullDistanceRef.current = pullDistance;
+  }, [pullDistance]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleStart = (e: TouchEvent) => {
+      if (el.scrollTop === 0) {
+        touchStartY.current = e.touches[0].clientY;
+        isPullingRef.current = true;
+        setIsPulling(true);
+      }
+    };
+
+    const handleMove = (e: TouchEvent) => {
+      if (!isPullingRef.current) return;
+      const y = e.touches[0].clientY - touchStartY.current;
+      if (y > 0 && y < 150) {
+        pullDistanceRef.current = y;
+        setPullDistance(y);
+      }
+    };
+
+    const handleEnd = async () => {
+      const dist = pullDistanceRef.current;
+      if (dist > 60) {
+        setIsRefreshing(true);
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+        await fetchTickets();
+        setIsRefreshing(false);
+      } else {
+        pullDistanceRef.current = 0;
+        setPullDistance(0);
+      }
+      isPullingRef.current = false;
+      setIsPulling(false);
+    };
+
+    el.addEventListener('touchstart', handleStart, { passive: true });
+    el.addEventListener('touchmove', handleMove, { passive: true });
+    el.addEventListener('touchend', handleEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', handleStart);
+      el.removeEventListener('touchmove', handleMove);
+      el.removeEventListener('touchend', handleEnd);
+    };
+  }, []);
 
   const filtered = tickets.filter(ticket => {
+    const tabStatuses = getTabStatuses(activeTab);
+    if (!tabStatuses.includes(ticket.status)) return false;
+
     if (search) {
       const q = search.toLowerCase();
       const match =
@@ -176,15 +262,11 @@ const Dashboard = () => {
   const statCards = [
     { label: 'Total',    value: total,       gradient: 'from-indigo-500 to-blue-600',  softBg: 'from-indigo-50 to-blue-50',  icon: <ClipboardList size={18} /> },
     { label: 'Active',   value: activeCount, gradient: 'from-amber-500 to-orange-500', softBg: 'from-amber-50 to-orange-50', icon: <ActivityIcon size={18} /> },
-    { label: 'Closed',   value: closedCount, gradient: 'from-emerald-500 to-teal-600', softBg: 'from-emerald-50 to-teal-50', icon: <CheckCircle size={18} /> },
+    { label: 'Closed',   value: closedCount, gradient: 'from-emerald-500 to-teal-600', softBg: 'from-emerald-50 to-teal-50', icon: <Lock size={18} /> },
     { label: 'Injuries', value: injuryCount, gradient: 'from-rose-500 to-red-600',     softBg: 'from-rose-50 to-red-50',     icon: <AlertTriangle size={18} /> },
   ];
 
-  const statuses = [
-    'ALL', 'SUBMITTED', 'ASSIGNED', 'UNDER_REVIEW',
-    'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER',
-    'PENDING_REMINDER', 'ESCALATED', 'CLOSED',
-  ];
+  const statuses = getTabAvailableStatuses(activeTab);
 
   const getStatusLabel = (s: string) => s === 'ALL' ? t('dashboard.allStatus', 'All Statuses') : t(`status.${s}`, STATUS_CONFIG[s]?.label || s.replace(/_/g, ' '));
 
@@ -192,9 +274,6 @@ const Dashboard = () => {
     <div
       ref={containerRef}
       className="space-y-5"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
     >
       {/* Pull-to-refresh */}
       {(pullDistance > 0 || isRefreshing) && (
@@ -288,6 +367,63 @@ const Dashboard = () => {
           </p>
         </div>
       )}
+
+      {/* ── Tabs selector ── */}
+      <div className="bg-white/80 backdrop-blur border border-slate-100 p-1 rounded-xl flex gap-1 shadow-sm">
+        <button
+          onClick={() => {
+            setActiveTab('NEW');
+            setStatusFilter('ALL');
+          }}
+          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+            activeTab === 'NEW'
+              ? 'bg-gradient-to-br from-sky-50 to-blue-100 text-blue-800 shadow-sm ring-1 ring-blue-200'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Inbox size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'NEW' ? 'text-blue-600' : 'text-slate-400'}`} />
+          <span>{t('oc.dashboard.tabs.new', 'New')}</span>
+          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'NEW' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {newTicketsCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('IN_PROGRESS');
+            setStatusFilter('ALL');
+          }}
+          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+            activeTab === 'IN_PROGRESS'
+              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-orange-800 shadow-sm ring-1 ring-orange-200'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Timer size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'IN_PROGRESS' ? 'text-orange-600' : 'text-slate-400'}`} />
+          <span>{t('oc.dashboard.tabs.inProgress', 'In Progress')}</span>
+          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'IN_PROGRESS' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {inProgressTicketsCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('CLOSED');
+            setStatusFilter('ALL');
+          }}
+          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+            activeTab === 'CLOSED'
+              ? 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-800 shadow-sm ring-1 ring-emerald-200'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Lock size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'CLOSED' ? 'text-emerald-600' : 'text-slate-400'}`} />
+          <span>{t('oc.dashboard.tabs.closed', 'Closed')}</span>
+          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'CLOSED' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {closedTicketsCount}
+          </span>
+        </button>
+      </div>
 
       {/* ── Search + Filter ── */}
       <div className="flex gap-2">
@@ -445,6 +581,19 @@ const Dashboard = () => {
                             {ticket._count?.attachments}
                           </span>
                         )}
+
+                        {/* Point 11: Department response KPI */}
+                        {ticket.departmentAssignedAt && !ticket.departmentRespondedAt && !isClosed && (() => {
+                          const assignedMs = Date.now() - new Date(ticket.departmentAssignedAt!).getTime();
+                          const hrs = Math.floor(assignedMs / 3600000);
+                          const kpiText = hrs > 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
+                          const kpiColor = hrs < 24 ? 'text-emerald-600 bg-emerald-50 ring-emerald-200' : hrs < 48 ? 'text-amber-600 bg-amber-50 ring-amber-200' : 'text-red-600 bg-red-50 ring-red-200';
+                          return (
+                            <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ring-1 shrink-0 ${kpiColor}`} title={isRtl ? 'مدة انتظار رد القسم' : 'Dept response time'}>
+                              ⏱️ {kpiText}
+                            </span>
+                          );
+                        })()}
 
                         <span
                           className={`flex items-center gap-1 text-[11px] shrink-0 ${isClosed ? 'text-slate-300' : 'text-slate-400'}`}

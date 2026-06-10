@@ -112,6 +112,8 @@ model Ticket {
   createdBy           User?                @relation("CreatedTickets", fields: [createdById], references: [id])
   ticketExports       TicketExport[]
   serviceProvider     ServiceProvider?     @relation(fields: [serviceProviderId], references: [id])
+  departmentAssignedAt  DateTime?          // KPI: when ticket was assigned to department
+  departmentRespondedAt DateTime?          // KPI: when department responded
   zoneId              String?
   zone                Zone?                @relation(fields: [zoneId], references: [id])
 
@@ -199,6 +201,7 @@ model OffCircuitReport {
 
   reporterFilledBy        String?
   reporterFilledAt        DateTime?
+  reporterDepartmentId    String?    // Department of the reporter (selected during ticket creation)
 
   // === Controller Stage ===
   // Type change tracking
@@ -229,6 +232,8 @@ model OffCircuitReport {
 
   depRepFilledBy          String?
   depRepFilledAt          DateTime?
+
+
 
   // === HR Stage (GOSI - auto-assigned when employee injured) ===
   hrAssignedAt            DateTime?  // When HR was notified

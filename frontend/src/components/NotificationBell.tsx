@@ -245,6 +245,7 @@ const NotificationBell: React.FC<NotificationBellProps> = () => {
   <button
    id="notification-bell"
    onClick={() => setShowDropdown(!showDropdown)}
+   aria-label={isRtl ? 'الإشعارات' : 'Notifications'}
    className={`p-2 rounded-lg transition-all relative ${
     unreadCount > 0
      ? 'bg-blue-600/20 border border-blue-600/50 text-blue-500'

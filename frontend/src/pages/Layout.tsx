@@ -37,7 +37,7 @@ const Layout = () => {
   const { t, i18n } = useTranslation();
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/40">
           <ShieldCheck className="text-white" size={24} />
@@ -56,15 +56,15 @@ const Layout = () => {
           <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
             <AlertTriangle className="text-red-500" size={32} />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">{t('oc.accessDenied')}</h2>
           <p className="text-slate-500 text-sm mb-7 leading-relaxed">
-            Your account doesn't have permission to access this portal.
+            {t('oc.noPermission')}
           </p>
           <button
             onClick={() => { logout(); navigate('/login'); }}
             className="text-blue-600 hover:text-blue-700 text-sm font-semibold underline underline-offset-2"
           >
-            Return to Login
+            {t('oc.login.title', 'Return to Login')}
           </button>
         </div>
       </div>
@@ -222,7 +222,7 @@ const Layout = () => {
               className="h-8 px-2.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-xs font-bold flex items-center gap-1.5"
             >
               <Globe size={14} />
-              <span>{i18n.language.startsWith('ar') ? 'AR' : 'EN'}</span>
+              <span>{i18n.language.startsWith('ar') ? 'EN' : 'AR'}</span>
             </button>
 
             <NotificationBell portal="OC" />
@@ -253,6 +253,7 @@ const Layout = () => {
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
+                  aria-label={item.label}
                   className={`flex-1 flex flex-col items-center gap-1.5 py-3 min-h-[56px] transition-all relative
                     ${active ? 'text-blue-600' : 'text-slate-500'}`}
                 >

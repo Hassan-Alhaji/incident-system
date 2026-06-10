@@ -88,7 +88,7 @@ const getUsers = async (req, res) => {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const users = await prisma.user.findMany({
             where: { role: { in: [...OC_USER_ROLES, 'ADMIN'] } },
-            select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, mobile: true, canCloseTickets: true, canPerformRCA: true, canManageEvents: true, canManageServiceProviders: true, canViewAnalytics: true, isIntakeEnabled: true, canManageUsers: true },
+            select: { id: true, name: true, email: true, role: true, status: true, createdAt: true, mobile: true, canCloseTickets: true, canPerformRCA: true, canManageEvents: true, canManageServiceProviders: true, canViewAnalytics: true, isIntakeEnabled: true, canManageUsers: true, repDepartmentId: true },
             orderBy: { createdAt: 'desc' }
         });
         res.json(users);
@@ -100,7 +100,7 @@ const createUser = async (req, res) => {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const { name, email, role, mobile, canCloseTickets, canPerformRCA,
                 canManageEvents, canManageServiceProviders, canManageUsers,
-                canViewAnalytics, isIntakeEnabled } = req.body;
+                canViewAnalytics, isIntakeEnabled, repDepartmentId } = req.body;
         if (!name || !email) return res.status(400).json({ message: 'Name and email required' });
 
         // Enforce role-assignment safety rules (C3)
@@ -114,6 +114,9 @@ const createUser = async (req, res) => {
         const lastName = parts.length > 1 ? parts.slice(-1)[0] : '';
         const fatherName = parts.length > 2 ? parts.slice(1, -1).join(' ') : '';
 
+        // Point 9: auto-link DEP_REP/DEP_MANAGER to department
+        const effectiveRepDeptId = ['DEP_REP', 'DEP_MANAGER'].includes(role) ? (repDepartmentId || null) : null;
+
         const user = await prisma.user.create({
             data: {
                 name, firstName, fatherName, lastName, email, password: '',
@@ -126,6 +129,7 @@ const createUser = async (req, res) => {
                 canManageUsers: !!canManageUsers,  // gated by rule check above; only ADMIN can set true
                 canViewAnalytics: !!canViewAnalytics,
                 isIntakeEnabled: !!isIntakeEnabled,
+                repDepartmentId: effectiveRepDeptId,
             }
         });
         res.status(201).json({ message: 'User created', user: { id: user.id, name: user.name, email: user.email, role: user.role } });
@@ -140,12 +144,12 @@ const updateUser = async (req, res) => {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
         const { name, email, role, mobile, canCloseTickets, canPerformRCA,
                 canManageEvents, canManageServiceProviders, canManageUsers,
-                canViewAnalytics, isIntakeEnabled } = req.body;
+                canViewAnalytics, isIntakeEnabled, repDepartmentId } = req.body;
 
         // Load existing target to enforce admin-only modification rules
         const existingTarget = await prisma.user.findUnique({
             where: { id: req.params.id },
-            select: { id: true, role: true }
+            select: { id: true, role: true, repDepartmentId: true }
         });
         if (!existingTarget) return res.status(404).json({ message: 'User not found' });
 
@@ -172,6 +176,21 @@ const updateUser = async (req, res) => {
         if (typeof canViewAnalytics === 'boolean') data.canViewAnalytics = canViewAnalytics;
         if (typeof isIntakeEnabled === 'boolean') data.isIntakeEnabled = isIntakeEnabled;
         data.userGroup = 'OFF_CIRCUIT';
+
+        // Point 9: handle repDepartmentId for DEP_REP/DEP_MANAGER
+        const effectiveRole = role || existingTarget.role;
+        if (['DEP_REP', 'DEP_MANAGER'].includes(effectiveRole)) {
+            // If repDepartmentId was provided, use it; otherwise keep existing
+            if (repDepartmentId !== undefined) {
+                data.repDepartmentId = repDepartmentId || null;
+            }
+        } else {
+            // Role is not DEP_REP/DEP_MANAGER → unlink from department
+            if (existingTarget.repDepartmentId) {
+                data.repDepartmentId = null;
+            }
+        }
+
         const user = await prisma.user.update({ where: { id: req.params.id }, data });
         res.json({ message: 'Updated', user: { id: user.id, name: user.name, role: user.role } });
     } catch (error) {

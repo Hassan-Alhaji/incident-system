@@ -4,7 +4,7 @@ import { Check, Loader2, Send, Bell } from 'lucide-react';
 import { HazardIcon, HAZARD_CATEGORIES } from '../HazardIcons';
 import { MagicWandButton } from '../TicketSections';
 
-export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newType, setNewType, typeChangeReason, setTypeChangeReason, severityLevel, setSeverityLevel, hazardCategory, setHazardCategory, controllerNotes, setControllerNotes, rcaCause, setRcaCause, rcaWhy, setRcaWhy, rcaRootCause, setRcaRootCause, rcaCategory, setRcaCategory, rcaPreventiveActions, setRcaPreventiveActions, targetDepartmentId, setTargetDepartmentId, departments, serviceProviders, selectedServiceProviderId, setSelectedServiceProviderId, confirmThen, handleControllerAction, actionLoading, hasEmployeeInjury, oc }: any) => {
+export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newType, setNewType, typeChangeReason, setTypeChangeReason, severityLevel, setSeverityLevel, hazardCategory, setHazardCategory, controllerNotes, setControllerNotes, rcaCause, setRcaCause, rcaWhy, setRcaWhy, rcaRootCause, setRcaRootCause, rcaCategory, setRcaCategory, rcaPreventiveActions, setRcaPreventiveActions, targetDepartmentId, setTargetDepartmentId, departments, serviceProviders, selectedServiceProviderId, setSelectedServiceProviderId, confirmThen, handleControllerAction, actionLoading, hasEmployeeInjury, oc, notifyHr, setNotifyHr }: any) => {
     const injuriesCount = (() => {
         try { return oc?.injuredPersons ? JSON.parse(oc.injuredPersons).length : 0; } catch { return 0; }
     })();
@@ -49,26 +49,25 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                         <div className="grid grid-cols-3 gap-2">
                                             {[
                                                 { value: 'OBSERVATION', labelEn: 'Observation', labelAr: 'ملاحظة', icon: '👁️', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-                                                { value: 'SECURITY', labelEn: 'Security', labelAr: 'أمني', icon: '🛡️', color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200' },
-                                                { value: 'VIOLATION', labelEn: 'Violation', labelAr: 'مخالفة', icon: '⚠️', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
                                                 { value: 'NEAR_MISS', labelEn: 'Near Miss', labelAr: 'حادث وشيك', icon: '🎯', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
                                                 { value: 'INJURY', labelEn: 'Injury', labelAr: 'إصابة', icon: '🤕', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
                                                 { value: 'HEALTH', labelEn: 'Health', labelAr: 'الصحة', icon: '⚕️', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
                                                 { value: 'PROPERTY_DAMAGE', labelEn: 'Property Damage', labelAr: 'ضرر في الممتلكات', icon: '🏢', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
-                                                { value: 'SECURITY_BREACH', labelEn: 'Security Breach', labelAr: 'اختراق أمني', icon: '🚨', color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-200' },
                                                 { value: 'OTHER', labelEn: 'Other', labelAr: 'أخرى', icon: '📌', color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-200' }
                                             ].map(type => {
                                                 const isSelected = (newType || ticket.type) === type.value;
+                                                const isDisabledByInjury = ticket.hasInjury === true;
                                                 return (
                                                     <button
                                                         key={type.value}
                                                         type="button"
-                                                        onClick={() => setNewType(type.value)}
+                                                        onClick={() => !isDisabledByInjury && setNewType(type.value)}
+                                                        disabled={isDisabledByInjury}
                                                         className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all text-center
                                                             ${isSelected
                                                                 ? `${type.border} ${type.bg} shadow-md scale-[1.02]`
                                                                 : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}
-                                                            cursor-pointer`}
+                                                            ${isDisabledByInjury ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                     >
                                                         <span className="text-3xl mb-1">{type.icon}</span>
                                                         <span className={`text-sm font-bold leading-tight ${isSelected ? type.color : 'text-gray-600'}`}>
@@ -78,7 +77,12 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                                 );
                                             })}
                                         </div>
-                                        {newType && newType !== ticket.type && <input placeholder={t('ticketActions.reasonForChange', 'Reason for change...')} value={typeChangeReason} onChange={e => setTypeChangeReason(e.target.value)} className="w-full mt-2 p-2 border border-gray-200 rounded-lg text-sm" />}
+                                        {ticket.hasInjury && (
+                                            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 font-medium">
+                                                {isRtl ? '⚠️ لا يمكن تغيير النوع لأن التقرير يحتوي على إصابة' : '⚠️ Type cannot be changed because this report contains an injury'}
+                                            </p>
+                                        )}
+                                        {(newType === 'OTHER') && newType !== ticket.type && <input placeholder={isRtl ? 'وصف النوع...' : 'Describe the type...'} value={typeChangeReason} onChange={e => setTypeChangeReason(e.target.value)} className="w-full mt-2 p-2 border border-gray-200 rounded-lg text-sm" />}
                                     </div>
                                     <div className="p-3 bg-white border rounded-lg space-y-2">
                                         <p className="text-xs font-bold text-gray-500">{t('ticketActions.classification', 'Classification')}</p>
@@ -152,39 +156,54 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                         </div>
                                     )}
 
-                                    {/* ── RCA (Root Cause Analysis) — Always required per user request ── */}
-                                    {true && (
-                                        <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 rounded-xl p-4 space-y-3">
-                                            <div className="flex items-start gap-2 pb-2 border-b border-amber-200/70">
-                                                <span className="text-lg">📋</span>
-                                                <div>
-                                                    <h4 className="text-sm font-black text-amber-900">{isRtl ? 'تحليل السبب الجذري (RCA)' : 'Root Cause Analysis (RCA)'}</h4>
-                                                    <p className="text-[11px] text-amber-700 mt-0.5">{isRtl ? 'مطلوب قبل التوجيه — 10 كلمات على الأقل لكل حقل' : 'Required before routing — minimum 10 words per field'}</p>
-                                                </div>
-                                            </div>
-                                            {[
-                                                { num: 1, label: isRtl ? '1. الأسباب المباشرة' : '1. Immediate Causes', value: rcaCause, setter: setRcaCause, type: 'RCA_CAUSE' },
-                                                { num: 2, label: isRtl ? '2. الأسباب الكامنة (لماذا حدث؟)' : '2. Underlying Causes (Why?)', value: rcaWhy, setter: setRcaWhy, type: 'RCA_WHY' },
-                                                { num: 3, label: isRtl ? '3. السبب الجذري' : '3. Root Cause', value: rcaRootCause, setter: setRcaRootCause, type: 'RCA_ROOT_CAUSE' },
-                                                { num: 4, label: isRtl ? '4. الإجراءات التصحيحية' : '4. Corrective Actions', value: rcaCategory, setter: setRcaCategory, type: 'RCA_CORRECTIVE' },
-                                                { num: 5, label: isRtl ? '5. الإجراءات الوقائية' : '5. Preventive Actions', value: rcaPreventiveActions, setter: setRcaPreventiveActions, type: 'RCA_PREVENTIVE' },
-                                            ].map(f => (
-                                                <div key={f.num} className="space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <label className="text-xs font-bold text-slate-700">{f.label}<span className="text-red-500 ms-1">*</span></label>
-                                                        <MagicWandButton text={f.value} context={oc?.whatHappened || ''} type={f.type} onEnhanced={f.setter} />
+                                    {/* ── RCA (Root Cause Analysis) — Required for non-Observations ── */}
+                                    {(() => {
+                                        const rcaRequired = (newType || ticket.type) !== 'OBSERVATION';
+                                        return (
+                                            <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 rounded-xl p-4 space-y-3">
+                                                <div className="flex items-start gap-2 pb-2 border-b border-amber-200/70">
+                                                    <span className="text-lg">📋</span>
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-amber-900">
+                                                            {isRtl 
+                                                                ? `تحليل السبب الجذري (RCA)${rcaRequired ? '' : ' - اختياري'}` 
+                                                                : `Root Cause Analysis (RCA)${rcaRequired ? '' : ' - Optional'}`}
+                                                        </h4>
+                                                        <p className="text-[11px] text-amber-700 mt-0.5">
+                                                            {rcaRequired 
+                                                                ? (isRtl ? 'مطلوب قبل التوجيه — 10 كلمات على الأقل لكل حقل' : 'Required before routing — minimum 10 words per field')
+                                                                : (isRtl ? 'اختياري لبلاغات الملاحظات — يمكنك ملؤه أو تجاوزه' : 'Optional for Observation tickets — you can fill it or skip it')}
+                                                        </p>
                                                     </div>
-                                                    <textarea
-                                                        value={f.value}
-                                                        onChange={e => f.setter(e.target.value)}
-                                                        rows={5}
-                                                        placeholder={isRtl ? 'اكتب إجابتك (10 كلمات على الأقل)...' : 'Write your answer (min 10 words)...'}
-                                                        className="w-full text-sm border border-amber-200 rounded-lg p-2 bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
-                                                    />
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                                {[
+                                                    { num: 1, label: isRtl ? '1. الأسباب المباشرة' : '1. Immediate Causes', value: rcaCause, setter: setRcaCause, type: 'RCA_CAUSE' },
+                                                    { num: 2, label: isRtl ? '2. الأسباب الكامنة (لماذا حدث؟)' : '2. Underlying Causes (Why?)', value: rcaWhy, setter: setRcaWhy, type: 'RCA_WHY' },
+                                                    { num: 3, label: isRtl ? '3. السبب الجذري' : '3. Root Cause', value: rcaRootCause, setter: setRcaRootCause, type: 'RCA_ROOT_CAUSE' },
+                                                    { num: 4, label: isRtl ? '4. الإجراءات التصحيحية' : '4. Corrective Actions', value: rcaCategory, setter: setRcaCategory, type: 'RCA_CORRECTIVE' },
+                                                    { num: 5, label: isRtl ? '5. الإجراءات الوقائية' : '5. Preventive Actions', value: rcaPreventiveActions, setter: setRcaPreventiveActions, type: 'RCA_PREVENTIVE' },
+                                                ].map(f => (
+                                                    <div key={f.num} className="space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <label className="text-xs font-bold text-slate-700">
+                                                                {f.label}{rcaRequired && <span className="text-red-500 ms-1">*</span>}
+                                                            </label>
+                                                            <MagicWandButton text={f.value} context={oc?.whatHappened || ''} type={f.type} onEnhanced={f.setter} />
+                                                        </div>
+                                                        <textarea
+                                                            value={f.value}
+                                                            onChange={e => f.setter(e.target.value)}
+                                                            rows={5}
+                                                            placeholder={rcaRequired 
+                                                                ? (isRtl ? 'اكتب إجابتك (10 كلمات على الأقل)...' : 'Write your answer (min 10 words)...')
+                                                                : (isRtl ? 'اكتب إجابتك (اختياري)...' : 'Write your answer (optional)...')}
+                                                            className="w-full text-sm border border-amber-200 rounded-lg p-2 bg-white focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition-all"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
 
                                     <div className="p-3 bg-white border border-gray-200 rounded-xl space-y-3">
                                         <div>
@@ -205,6 +224,34 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                             <p className="text-[10px] text-slate-400 mt-1">{isRtl ? 'يمكنك تحديده الآن أو تأجيله لمرحلة الإغلاق إذا اتضح المتسبب لاحقاً.' : 'You can set it now or later at closure if the responsible party is identified later.'}</p>
                                         </div>
                                     </div>
+
+                                    {/* Point 8: HR notification confirmation when injury exists */}
+                                    {ticket.hasInjury && (
+                                        <div className="bg-gradient-to-br from-red-50 to-orange-50/40 border border-red-200 rounded-xl p-4 space-y-3">
+                                            <p className="text-sm font-bold text-red-800 flex items-center gap-2">
+                                                🏥 {isRtl ? 'هذا البلاغ يحتوي على إصابة — هل تريد إشعار الموارد البشرية؟' : 'This report contains an injury — Notify HR?'}
+                                            </p>
+                                            <p className="text-xs text-red-700 opacity-80">
+                                                {isRtl ? 'بعض الإصابات البسيطة قد لا تستدعي إشعار الموارد البشرية. قرارك.' : 'Some minor injuries may not require HR notification. It\'s your call.'}
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNotifyHr(true)}
+                                                    className={`p-3 rounded-xl border-2 text-sm font-bold text-center transition-all ${notifyHr === true ? 'border-red-400 bg-red-100 text-red-800 shadow-md scale-[1.02]' : 'border-gray-200 bg-white text-gray-600 hover:border-red-300'}`}
+                                                >
+                                                    ✅ {isRtl ? 'نعم، أشعر HR' : 'Yes, Notify HR'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNotifyHr(false)}
+                                                    className={`p-3 rounded-xl border-2 text-sm font-bold text-center transition-all ${notifyHr === false ? 'border-slate-400 bg-slate-100 text-slate-800 shadow-md scale-[1.02]' : 'border-gray-200 bg-white text-gray-600 hover:border-slate-300'}`}
+                                                >
+                                                    ❌ {isRtl ? 'لا، لا داعي' : 'No, Skip HR'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                     {(!severityLevel || !controllerNotes.trim()) && (
                                         <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1.5">
                                             {!severityLevel && (
@@ -225,13 +272,19 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                         <button
                                             onClick={() => confirmThen(() => handleControllerAction('RETURN_REPORTER'), isRtl ? 'إرجاع إلى المبلّغ' : 'Return to Reporter', isRtl ? `ستُرجع التذكرة للمبلّغ.\nالملاحظات: "${controllerNotes}"` : `Ticket returned to reporter.\nNotes: "${controllerNotes}"`, 'danger')}
                                             disabled={actionLoading || !controllerNotes.trim()}
-                                            className="bg-red-50 border border-red-200 text-red-700 py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-red-100"
-                                        >↩ {t('ticketActions.return', 'إرجاع')}</button>
+                                            className="bg-red-50 border border-red-200 text-red-700 py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-red-100 flex items-center justify-center gap-1.5"
+                                        >
+                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <span>↩</span>}
+                                            {t('ticketActions.return', 'إرجاع')}
+                                        </button>
                                         <button
-    onClick={() => { if (!severityLevel || !targetDepartmentId || !controllerNotes.trim()) return; const deptName = departments.find(d => d.id === targetDepartmentId)?.name || targetDepartmentId; confirmThen(() => handleControllerAction('ASSIGN'), isRtl ? 'توجيه التذكرة' : 'Route Ticket', isRtl ? `سيتم التوجيه إلى "${deptName}" بتصنيف "${severityLevel}".` : `Routing to "${deptName}" with severity "${severityLevel}".`, 'primary'); }}
-    disabled={actionLoading || !targetDepartmentId || !severityLevel || !controllerNotes.trim()}
-    className="bg-blue-600 text-white py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-blue-700 flex items-center justify-center gap-1.5"
->✓ {t('ticketActions.assign', 'توجيه')}</button>
+                                            onClick={() => { if (!severityLevel || !targetDepartmentId || !controllerNotes.trim()) return; const deptName = departments.find(d => d.id === targetDepartmentId)?.name || targetDepartmentId; confirmThen(() => handleControllerAction('ASSIGN'), isRtl ? 'توجيه التذكرة' : 'Route Ticket', isRtl ? `سيتم التوجيه إلى "${deptName}" بتصنيف "${severityLevel}".` : `Routing to "${deptName}" with severity "${severityLevel}".`, 'primary'); }}
+                                            disabled={actionLoading || !targetDepartmentId || !severityLevel || !controllerNotes.trim()}
+                                            className="bg-blue-600 text-white py-2.5 px-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-blue-700 flex items-center justify-center gap-1.5"
+                                        >
+                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <span>✓</span>}
+                                            {t('ticketActions.assign', 'توجيه')}
+                                        </button>
                                     </div>
                                 </div>
 );
@@ -359,14 +412,16 @@ export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejecte
                                             disabled={actionLoading || !controllerNotes}
                                             className="bg-rose-50 border-2 border-rose-300 text-rose-700 p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-rose-100 flex items-center justify-center gap-2"
                                         >
-                                            ↩ {isRtl ? 'إرجاع للقسم' : 'Return to Dept'}
+                                            {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <span>↩</span>}
+                                            {isRtl ? 'إرجاع للقسم' : 'Return to Dept'}
                                         </button>
                                         <button
                                             onClick={() => confirmThen(() => handleFinalReview('ESCALATE'), isRtl ? 'تصعيد التذكرة' : 'Escalate Ticket', isRtl ? 'ستُرفع التذكرة للمستوى الأعلى (Safety Manager). لا يمكن التراجع عن هذا الإجراء.' : 'The ticket will be escalated to the Safety Manager. This action cannot be undone.', 'warning')}
                                             disabled={actionLoading}
                                             className="bg-amber-500 text-white p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-amber-600 flex items-center justify-center gap-2"
                                         >
-                                            ⬆ {isRtl ? 'تصعيد' : 'Escalate'}
+                                            {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <span>⬆</span>}
+                                            {isRtl ? 'تصعيد' : 'Escalate'}
                                         </button>
                                         {!hasRejectedPlan && (
                                             <button
@@ -374,7 +429,8 @@ export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejecte
                                                 disabled={actionLoading}
                                                 className="col-span-2 bg-emerald-600 text-white p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-emerald-700 flex items-center justify-center gap-2"
                                             >
-                                                ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
+                                                {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <span>✓</span>}
+                                                {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
                                             </button>
                                         )}
                                     </div>
@@ -424,21 +480,24 @@ export const SafetyManagerPanel = ({ isSafetyManager, ticket, t, controllerNotes
                                             disabled={actionLoading}
                                             className="bg-rose-50 border border-rose-200 text-rose-700 p-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:bg-rose-100 flex items-center justify-center gap-1.5"
                                         >
-                                            ↩ {isRtl ? 'إرجاع' : 'Return'}
+                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <span>↩</span>}
+                                            {isRtl ? 'إرجاع' : 'Return'}
                                         </button>
                                         <button
                                             onClick={() => confirmThen(() => handleSafetyManagerAction('ESCALATE_DEPT'), isRtl ? 'توجيه للقسم' : 'Route to Dept', isRtl ? 'سيتم توجيه التذكرة للقسم المختار.' : 'Ticket will be routed to the selected department.', 'warning')}
                                             disabled={actionLoading || !targetDepartmentId}
                                             className="bg-blue-600 text-white p-2 rounded-xl text-xs font-bold transition-all hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
                                         >
-                                            ↗ {isRtl ? 'توجيه' : 'Route'}
+                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <span>↗</span>}
+                                            {isRtl ? 'توجيه' : 'Route'}
                                         </button>
                                         <button
                                             onClick={() => handleCloseRequest('SAFETY_MANAGER')}
                                             disabled={actionLoading}
                                             className="bg-emerald-600 text-white p-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:bg-emerald-700 flex items-center justify-center gap-1.5"
                                         >
-                                            ✓ {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
+                                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <span>✓</span>}
+                                            {isRtl ? 'إغلاق التذكرة' : 'Close Ticket'}
                                         </button>
                                     </div>
                                 </div>

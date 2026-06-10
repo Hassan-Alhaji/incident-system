@@ -250,7 +250,12 @@
       "noTicketsHint": "Start by creating your first incident report",
       "createFirst": "Create First Report",
       "assigned": "Assigned",
-      "responded": "Responded"
+      "responded": "Responded",
+      "tabs": {
+        "new": "New",
+        "inProgress": "In Progress",
+        "closed": "Closed"
+      }
     },
     "status": {
       "OPEN": "Open",
@@ -299,8 +304,8 @@
       "OTHER": "Other",
       "ACCIDENT": "Accident / Injury (Legacy)",
       "SAFETY": "Safety",
-      "OBSERVATION": "Observation",
-      "OBSERVATION_desc": "Unsafe condition or act",
+      "OBSERVATION": "Incident",
+      "OBSERVATION_desc": "Safety: Unsafe condition, act, near miss, accident, or observation\nSecurity: Breaches, violations, or observations",
       "ACCIDENT_desc": "Damage to persons or property",
       "SECURITY": "Security",
       "SECURITY_desc": "Security breaches or violations"
@@ -616,7 +621,8 @@
     "plansRejectedEscalated": "Plans rejected & ticket escalated.",
     "rcaFieldsRequired": "All 5 RCA fields are required.",
     "rcaMinWords": "Each field must contain at least 10 words.",
-    "aiUnavailable": "AI temporarily unavailable."
+    "aiUnavailable": "AI temporarily unavailable.",
+    "selectWitnessStatus": "Please select if there is a witness."
   },
   "confirm": {
     "deleteZone": "Delete Zone",
@@ -717,6 +723,11 @@
     "remindHr": "Remind HR (Keep Ticket Open)",
     "skipClose": "Skip & Close Ticket",
     "hrReminded": "HR Reminded Successfully",
-    "hrNotified": "HR was notified about the report"
+    "hrNotified": "HR was notified about the report",
+    "rcaFieldsRequiredToast": "All 5 RCA fields are required before routing",
+    "rcaMinWordsToast": "Each RCA field must contain at least 10 words",
+    "confirmHrNotification": "This report contains an injury — please confirm whether to notify HR",
+    "gosiUpdatedToast": "GOSI data updated successfully",
+    "hrRemindedSuccess": "HR has been reminded successfully"
   }
 }

@@ -59,6 +59,7 @@ const TicketDetail = () => {
     }
     const [injuredPersonsGosi, setInjuredPersonsGosi] = useState<GosiEntry[]>([]);
     const [hrNotes, setHrNotes] = useState('');
+    const [notifyHr, setNotifyHr] = useState<boolean | null>(null);  // Point 8: Manual HR notification confirmation
     const [contractorNotified, setContractorNotified] = useState<boolean | undefined>(undefined);
     const [contractorNotifyDate, setContractorNotifyDate] = useState('');
     const [contractorNoReason, setContractorNoReason] = useState('');
@@ -142,14 +143,19 @@ const TicketDetail = () => {
                 const countWords = (s: string) => s.trim().split(/\s+/).filter(w => w.length > 0).length;
                 const missing = !rcaCause || !rcaWhy || !rcaRootCause || !rcaCategory || !rcaPreventiveActions;
                 if (missing) {
-                    showToast(isRtl ? 'يجب تعبئة جميع حقول تحليل السبب الجذري (RCA) الخمسة قبل التوجيه' : 'All 5 RCA fields are required before routing', 'warning');
+                    showToast(t('ticketDetail.rcaFieldsRequiredToast', 'All 5 RCA fields are required before routing'), 'warning');
                     return;
                 }
                 const tooShort = [rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions].some(v => countWords(v) < 10);
                 if (tooShort) {
-                    showToast(isRtl ? 'يجب أن يحتوي كل حقل من حقول RCA على 10 كلمات على الأقل' : 'Each RCA field must contain at least 10 words', 'warning');
+                    showToast(t('ticketDetail.rcaMinWordsToast', 'Each RCA field must contain at least 10 words'), 'warning');
                     return;
                 }
+            }
+            // Point 8: If there's an injury, controller must confirm whether to notify HR
+            if (ticket.hasInjury && notifyHr === null) {
+                showToast(t('ticketDetail.confirmHrNotification', 'This report contains an injury — please confirm whether to notify HR'), 'warning');
+                return;
             }
         }
 
@@ -171,6 +177,9 @@ const TicketDetail = () => {
                 body.rcaRootCause = rcaRootCause;
                 body.rcaCategory = rcaCategory;
                 body.rcaPreventiveActions = rcaPreventiveActions;
+                if (ticket?.hasInjury) {
+                    body.notifyHr = notifyHr === true;
+                }
             }
             await api.put(`/tickets/${id}/controller-action`, body);
             await fetchTicket(true);
@@ -187,7 +196,7 @@ const TicketDetail = () => {
                 hrNotes 
             });
             await fetchTicket(true);
-            showToast(isRtl ? 'تم تحديث بيانات التأمينات بنجاح' : 'GOSI data updated successfully', 'success');
+            showToast(t('ticketDetail.gosiUpdatedToast', 'GOSI data updated successfully'), 'success');
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
@@ -290,7 +299,7 @@ const TicketDetail = () => {
             await fetchTicket(true);
             setHrReminderModalOpen(false);
             setCloseTargetType(null);
-            showToast(isRtl ? 'تم إرسال تذكير للموارد البشرية بنجاح' : 'HR has been reminded successfully', 'success');
+            showToast(t('ticketDetail.hrRemindedSuccess', 'HR has been reminded successfully'), 'success');
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
@@ -310,7 +319,7 @@ const TicketDetail = () => {
                 : `/tickets/${id}/controller-review`;
             await api.put(endpoint, { action: 'REMIND_HR', notes: controllerNotes });
             await fetchTicket(true);
-            showToast(isRtl ? 'تم إرسال تذكير للموارد البشرية بنجاح' : 'HR has been reminded successfully', 'success');
+            showToast(t('ticketDetail.hrRemindedSuccess', 'HR has been reminded successfully'), 'success');
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
@@ -818,6 +827,40 @@ const TicketDetail = () => {
                 </div>
             )}
 
+            {/* Point 11: Department Response KPI Banner */}
+            {ticket.departmentAssignedAt && (() => {
+                const assignedDate = new Date(ticket.departmentAssignedAt);
+                const respondedDate = ticket.departmentRespondedAt ? new Date(ticket.departmentRespondedAt) : null;
+                const elapsedMs = respondedDate 
+                    ? respondedDate.getTime() - assignedDate.getTime()
+                    : Date.now() - assignedDate.getTime();
+                const hrs = Math.floor(elapsedMs / 3600000);
+                const kpiText = hrs >= 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
+                const isCompleted = !!respondedDate;
+                const kpiColor = isCompleted 
+                    ? 'from-emerald-50 to-green-50 border-emerald-300' 
+                    : hrs < 24 ? 'from-emerald-50 to-green-50 border-emerald-300' 
+                    : hrs < 48 ? 'from-amber-50 to-yellow-50 border-amber-300' 
+                    : 'from-red-50 to-rose-50 border-red-300';
+                const textColor = isCompleted 
+                    ? 'text-emerald-700'
+                    : hrs < 24 ? 'text-emerald-700' : hrs < 48 ? 'text-amber-700' : 'text-red-700';
+                return (
+                    <div className={`bg-gradient-to-r ${kpiColor} border rounded-xl p-3 flex items-center gap-3`}>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted ? 'bg-emerald-100' : hrs < 24 ? 'bg-emerald-100' : hrs < 48 ? 'bg-amber-100' : 'bg-red-100'}`}>
+                            <span className="text-lg">{isCompleted ? '✅' : '⏱️'}</span>
+                        </div>
+                        <div className="flex-1">
+                            <h4 className={`font-bold text-xs ${textColor}`}>
+                                {isRtl ? (isCompleted ? 'زمن استجابة القسم' : 'في انتظار رد القسم') : (isCompleted ? 'Department Response Time' : 'Awaiting Department Response')}
+                            </h4>
+                            <p className={`text-sm font-black ${textColor} mt-0.5`}>{kpiText}</p>
+                        </div>
+                        {isCompleted && <span className="text-[10px] text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'تم الرد' : 'Responded'}</span>}
+                    </div>
+                );
+            })()}
+
             {/* Main Content Tabs */}
             <div className="flex gap-2 border-b">
                 <button onClick={() => setActiveTab('details')} className={`pb-2 px-4 text-sm font-bold ${activeTab === 'details' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500'}`}>{t('nav.details', 'Details')}</button>
@@ -926,6 +969,41 @@ const TicketDetail = () => {
                                     <div className="col-span-1 bg-indigo-50 border border-indigo-200 text-indigo-800 p-2 rounded-lg">
                                         <strong className="block text-xs">{t('ticketActions.routedToDept', 'Routed to Department')}:</strong>
                                         <span className="font-bold">{isRtl && ticket.department.nameAr ? ticket.department.nameAr : ticket.department.name}</span>
+                                    </div>
+                                )}
+                                {oc.reporterDepartmentId && (
+                                    <div className="col-span-1 bg-teal-50 border border-teal-200 text-teal-800 p-2 rounded-lg">
+                                        <strong className="block text-xs">{isRtl ? 'قسم المُبلِّغ' : 'Reporter Department'}:</strong>
+                                        <span className="font-bold">{(() => {
+                                            const dept = departments.find((d: any) => d.id === oc.reporterDepartmentId);
+                                            if (dept) return isRtl ? (dept.nameAr || dept.name) : dept.name;
+                                            return oc.reporterDepartmentId;
+                                        })()}</span>
+                                    </div>
+                                )}
+                                {/* Point 11: Time KPI for department response */}
+                                {!isReporter && ticket.departmentAssignedAt && (
+                                    <div className={`col-span-2 p-2 rounded-lg border ${(() => {
+                                        if (ticket.departmentRespondedAt) return 'bg-emerald-50 border-emerald-200 text-emerald-800';
+                                        const hoursElapsed = (Date.now() - new Date(ticket.departmentAssignedAt).getTime()) / (1000 * 60 * 60);
+                                        if (hoursElapsed > 48) return 'bg-red-50 border-red-200 text-red-800';
+                                        if (hoursElapsed > 24) return 'bg-amber-50 border-amber-200 text-amber-800';
+                                        return 'bg-emerald-50 border-emerald-200 text-emerald-800';
+                                    })()}`}>
+                                        <strong className="block text-xs">{isRtl ? '⏱️ وقت استجابة القسم (KPI)' : '⏱️ Department Response Time (KPI)'}:</strong>
+                                        <span className="font-bold text-sm">{(() => {
+                                            const assignedAt = new Date(ticket.departmentAssignedAt);
+                                            const endTime = ticket.departmentRespondedAt ? new Date(ticket.departmentRespondedAt) : new Date();
+                                            const diffMs = endTime.getTime() - assignedAt.getTime();
+                                            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                                            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                                            const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+                                            if (ticket.departmentRespondedAt) {
+                                                return `✅ ${isRtl ? 'تم الرد خلال' : 'Responded in'} ${timeStr}`;
+                                            }
+                                            const indicator = hours >= 48 ? '🔴' : hours >= 24 ? '🟡' : '🟢';
+                                            return `${indicator} ${isRtl ? 'منذ الإحالة:' : 'Since assignment:'} ${timeStr}`;
+                                        })()}</span>
                                     </div>
                                 )}
                                 <div className="col-span-2"><span className="text-gray-500 block text-xs">{t('oc.wizard.whatHappened', 'Description')}</span><p className="font-medium mt-1 p-2 bg-gray-50 rounded-lg whitespace-pre-wrap">{ticket.description}</p></div>
@@ -1120,7 +1198,7 @@ const TicketDetail = () => {
 
                             {/* CONTROLLER: SUBMITTED (Initial Review) */}
 {isController && ticket.status === 'SUBMITTED' && (
-    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} serviceProviders={serviceProviders} selectedServiceProviderId={selectedServiceProviderId} setSelectedServiceProviderId={setSelectedServiceProviderId} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} />
+    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} serviceProviders={serviceProviders} selectedServiceProviderId={selectedServiceProviderId} setSelectedServiceProviderId={setSelectedServiceProviderId} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} notifyHr={notifyHr} setNotifyHr={setNotifyHr} />
 )}
 
                             {/* HR REP: GOSI form */}
