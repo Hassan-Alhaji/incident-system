@@ -705,4 +705,33 @@ Thank you for your report. The issue has been fully resolved. If you have any qu
     }
 };
 
-module.exports = { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction };
+// ===== UPDATE CONTROLLER NOTES =====
+const updateControllerNotes = async (req, res) => {
+    try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: req.params.id }, include: { offCircuitReport: true } });
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+        const { role } = req.user;
+        if (!['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(role))
+            return res.status(403).json({ message: 'Not authorized' });
+
+        const { notes } = req.body;
+        if (notes === undefined) return res.status(400).json({ message: 'Notes required' });
+
+        await prisma.offCircuitReport.update({
+            where: { ticketId: ticket.id },
+            data: { controllerNotes: notes }
+        });
+
+        await prisma.activityLog.create({
+            data: { ticketId: ticket.id, actorId: req.user.id, action: 'NOTES_UPDATED', details: 'Controller updated their notes' }
+        });
+
+        res.json({ message: 'Controller notes updated successfully' });
+    } catch (error) {
+        logger.error({ err: error }, 'Update Controller Notes Error:');
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction, updateControllerNotes };

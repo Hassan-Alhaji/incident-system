@@ -7,7 +7,7 @@ const fileUpload = multer({ dest: 'uploads/' });
 
 // Import controllers
 const { createTicket, getTickets, getTicketById, reporterReply, uploadAttachments } = require('../controllers/ticketCrud');
-const { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction } = require('../controllers/ticketWorkflow');
+const { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction, updateControllerNotes } = require('../controllers/ticketWorkflow');
 const { createActionPlan, getActionPlans, updateActionPlan, deleteActionPlan, uploadActionPlanAttachment, getActionPlanAttachmentContent, deleteActionPlanAttachment, createReminder, getReminders, completeReminder, getTicketQRCode } = require('../controllers/actionPlanController');
 
 const { getUsers, createUser, updateUser, suspendUser, toggleUserStatus, getAnalytics, downloadUserTemplate, importUsers, exportTickets } = require('../controllers/ticketAdmin');
@@ -29,6 +29,7 @@ router.put('/tickets/:id/hr-action', protect, hrAction);
 router.put('/tickets/:id/department-action', protect, departmentAction);
 router.put('/tickets/:id/controller-review', protect, controllerFinalReview);
 router.put('/tickets/:id/safety-manager', protect, safetyManagerAction);
+router.put('/tickets/:id/controller-notes', protect, updateControllerNotes);
 
 // ===== ATTACHMENTS =====
 router.post('/tickets/:id/attachments', protect, upload.array('files'), uploadAttachments);

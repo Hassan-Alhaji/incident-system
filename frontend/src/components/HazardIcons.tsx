@@ -1,6 +1,6 @@
 import React from 'react';
 
-type HazardCategory = 'Biological Hazards' | 'Chemical Hazards' | 'Physical Hazards' | 'Safety Hazards' | 'Ergonomic Hazards' | 'Psychosocial Hazards' | 'Health and Non';
+type HazardCategory = 'Biological Hazards' | 'Chemical Hazards' | 'Physical Hazards' | 'Safety Hazards' | 'Ergonomic Hazards' | 'Psychosocial Hazards' | 'Health Hazards' | 'Other Hazards';
 
 export const HazardIcon = ({ category, className = "w-9 h-9" }: { category: string, className?: string }) => {
     switch (category) {
@@ -69,11 +69,20 @@ export const HazardIcon = ({ category, className = "w-9 h-9" }: { category: stri
                     <path d="M34 30 C36 28 38 30 38 32" stroke="#FFC107" strokeWidth="1.5" fill="none"/>
                 </svg>
             );
-        case 'Health and Non':
+        case 'Health Hazards':
+        case 'Health and Non': // Backward compatibility
             return (
                 <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="32" cy="32" r="30" fill="#FFC107"/>
                     <path d="M28 16 L36 16 L36 28 L48 28 L48 36 L36 36 L36 48 L28 48 L28 36 L16 36 L16 28 L28 28 Z" fill="#1a1a1a"/>
+                </svg>
+            );
+        case 'Other Hazards':
+            return (
+                <svg viewBox="0 0 64 64" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="30" fill="#FFC107"/>
+                    <path d="M24 24 C24 16 40 16 40 24 C40 32 32 34 32 40" stroke="#1a1a1a" strokeWidth="6" strokeLinecap="round" fill="none"/>
+                    <circle cx="32" cy="48" r="4" fill="#1a1a1a"/>
                 </svg>
             );
         default:
@@ -88,5 +97,6 @@ export const HAZARD_CATEGORIES = [
     { value: 'Safety Hazards', labelAr: 'مخاطر السلامة', labelEn: 'Safety Hazards' },
     { value: 'Ergonomic Hazards', labelAr: 'مخاطر هندسة بشرية', labelEn: 'Ergonomic Hazards' },
     { value: 'Psychosocial Hazards', labelAr: 'مخاطر نفسية-اجتماعية', labelEn: 'Psychosocial Hazards' },
-    { value: 'Health and Non', labelAr: 'صحي وغير ذلك', labelEn: 'Health and Non' },
+    { value: 'Health Hazards', labelAr: 'مخاطر صحية', labelEn: 'Health Hazards' },
+    { value: 'Other Hazards', labelAr: 'أخرى (غير مصنف)', labelEn: 'Other Hazards' },
 ];

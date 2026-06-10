@@ -64,6 +64,28 @@ const TicketDetail = () => {
     const [contractorNotifyDate, setContractorNotifyDate] = useState('');
     const [contractorNoReason, setContractorNoReason] = useState('');
 
+    // Controller Inline Notes Editing
+    const [isEditingControllerNotes, setIsEditingControllerNotes] = useState(false);
+    const [inlineControllerNotes, setInlineControllerNotes] = useState('');
+    const [savingInlineNotes, setSavingInlineNotes] = useState(false);
+
+    const saveInlineControllerNotes = async () => {
+        try {
+            setSavingInlineNotes(true);
+            const res = await api.put(`/tickets/${id}/controller-notes`, { notes: inlineControllerNotes });
+            if (res.data) {
+                showToast(isRtl ? 'تم تحديث الملاحظات بنجاح' : 'Notes updated successfully', 'success');
+                setIsEditingControllerNotes(false);
+                setControllerNotes(inlineControllerNotes);
+                fetchTicket(true); // refresh to get new notes
+            }
+        } catch (err: any) {
+            showToast(err.response?.data?.message || err.message, 'error');
+        } finally {
+            setSavingInlineNotes(false);
+        }
+    };
+
     // Reporter Reply
     const [replyText, setReplyText] = useState('');
 
@@ -133,6 +155,12 @@ const TicketDetail = () => {
         } catch (error) { console.error('Error fetching ticket', error); navigate('/dashboard'); }
         finally { if (!isBackground) setLoading(false); }
     };
+
+    useEffect(() => {
+        if (ticket?.hasInjury && ticket.type !== 'INJURY' && newType !== 'INJURY') {
+            setNewType('INJURY');
+        }
+    }, [ticket]);
 
     const handleControllerAction = async (action: string) => {
         // For ASSIGN: validate RCA fields client-side if non-OBSERVATION
@@ -1017,16 +1045,7 @@ const TicketDetail = () => {
 
                         {/* ── Staff-only sections (hidden from reporter to keep their view clean) ── */}
                         {!isReporter && <>
-                        {/* Controller Notes - always visible when set */}
-                        {oc.controllerNotes && (
-                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 border border-blue-200 shadow-sm shadow-blue-100 rounded-xl p-4">
-                                <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200/70 pb-2 mb-3">
-                                    🎯 {t('ticketDetail.controllerNotes')}
-                                    <span className="text-[10px] text-blue-400 font-normal ltr:ml-auto rtl:mr-auto">{oc.controllerFilledBy} • {formatDate(oc.controllerFilledAt)}</span>
-                                </h3>
-                                <p className="text-sm text-blue-900 whitespace-pre-wrap bg-white rounded-lg p-3 border border-blue-100">{oc.controllerNotes}</p>
-                            </div>
-                        )}
+
 
                         {/* Completed RCA - visible when set */}
                         {oc.rcaCompleted && !isHrRep && (
@@ -1099,6 +1118,59 @@ const TicketDetail = () => {
                         {/* ActionPlanSection: dept filling or anyone reviewing */}
                         {!isHrRep && ((isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status)) || (ticket.actionPlans?.length > 0)) && (
                             <ActionPlanSection ticket={ticket} onRefresh={() => fetchTicket(true)} />
+                        )}
+
+                        {/* Controller Notes - always visible when set, placed after action plans as requested */}
+                        {!isHrRep && oc.controllerNotes && (
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 border border-blue-200 shadow-sm shadow-blue-100 rounded-xl p-4 mt-4">
+                                <div className="flex items-center justify-between border-b border-blue-200/70 pb-2 mb-3">
+                                    <h3 className="font-bold text-blue-800 flex items-center gap-2">
+                                        🎯 {t('ticketDetail.controllerNotes')}
+                                    </h3>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[10px] text-blue-400 font-normal hidden sm:block">
+                                            {oc.controllerFilledBy} • {formatDate(oc.controllerFilledAt)}
+                                        </span>
+                                        {isController && ['SUBMITTED', 'UNDER_REVIEW', 'PENDING_REMINDER', 'RETURNED_TO_REPORTER'].includes(ticket.status) && !isEditingControllerNotes && (
+                                            <button 
+                                                onClick={() => { setInlineControllerNotes(controllerNotes || oc.controllerNotes); setIsEditingControllerNotes(true); }}
+                                                className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded font-bold transition-colors"
+                                            >
+                                                {isRtl ? 'تعديل' : 'Edit'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {isEditingControllerNotes ? (
+                                    <div className="space-y-2">
+                                        <textarea 
+                                            value={inlineControllerNotes} 
+                                            onChange={e => setInlineControllerNotes(e.target.value)}
+                                            className="w-full text-sm text-blue-900 bg-white rounded-lg p-3 border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none min-h-[100px]"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => setIsEditingControllerNotes(false)}
+                                                disabled={savingInlineNotes}
+                                                className="text-xs bg-gray-200 text-gray-700 hover:bg-gray-300 px-3 py-1.5 rounded font-bold transition-colors"
+                                            >
+                                                {isRtl ? 'إلغاء' : 'Cancel'}
+                                            </button>
+                                            <button 
+                                                onClick={saveInlineControllerNotes}
+                                                disabled={savingInlineNotes || !inlineControllerNotes.trim() || inlineControllerNotes === oc.controllerNotes}
+                                                className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                                {savingInlineNotes ? <Loader2 className="animate-spin" size={14} /> : null}
+                                                {isRtl ? 'حفظ التعديلات' : 'Save Notes'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-blue-900 whitespace-pre-wrap bg-white rounded-lg p-3 border border-blue-100">{oc.controllerNotes}</p>
+                                )}
+                            </div>
                         )}
                         {!isHrRep && <ReminderSection ticket={ticket} onRefresh={() => fetchTicket(true)} />}
 
@@ -1183,16 +1255,16 @@ const TicketDetail = () => {
                             {/* SP_REP: closed ticket — informational */}
                             {role === 'SERVICE_PROVIDER_REP' && ticket.status === 'CLOSED' && (
                                 <div className="space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
-                                    <h4 className="font-bold text-gray-800">{t('sp.closedTitle', 'تذكرة مُغلقة')}</h4>
-                                    <p className="text-xs text-gray-600 leading-relaxed">{t('sp.closedDesc', 'للعِلم فقط — تم إغلاق هذه التذكرة ولا يمكن تعديلها.')}</p>
+                                    <h4 className="font-bold text-gray-800">{t('sp.closedTitle', isRtl ? 'تذكرة مُغلقة' : 'Closed Ticket')}</h4>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{t('sp.closedDesc', isRtl ? 'للعِلم فقط — تم إغلاق هذه التذكرة ولا يمكن تعديلها.' : 'For information only — this ticket has been closed and cannot be modified.')}</p>
                                 </div>
                             )}
 
                             {/* CONTROLLER: ticket returned to department — informational */}
                             {isController && ticket.status === 'RETURNED_TO_DEPARTMENT' && (
                                 <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                    <h4 className="font-bold text-amber-800">{t('ctrl.returnedTitle', 'تم إرجاع التذكرة للقسم')}</h4>
-                                    <p className="text-xs text-amber-700 leading-relaxed">{t('ctrl.returnedDesc', 'التذكرة بانتظار رد القسم المختص. لا يمكن إغلاقها حتى يكمل القسم المراجعة.')}</p>
+                                    <h4 className="font-bold text-amber-800">{t('ctrl.returnedTitle', isRtl ? 'تم إرجاع التذكرة للقسم' : 'Ticket Returned to Department')}</h4>
+                                    <p className="text-xs text-amber-700 leading-relaxed">{t('ctrl.returnedDesc', isRtl ? 'التذكرة بانتظار رد القسم المختص. لا يمكن إغلاقها حتى يكمل القسم المراجعة.' : 'The ticket is pending response from the department. It cannot be closed until the review is complete.')}</p>
                                 </div>
                             )}
 

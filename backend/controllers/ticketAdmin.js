@@ -236,13 +236,13 @@ const classifyPyramid = (t) => {
     if (type === 'SECURITY') return 'other';
 
     // Injuries / Actual Incidents
-    if (t.hasInjury || type === 'ACCIDENT') {
+    if (t.hasInjury || type === 'ACCIDENT' || type === 'INJURY') {
         if (HIGH_SEVERITY.has(sev)) return 'lti';
         return 'medical';
     }
 
     // High-severity observation without injury → Near-Miss
-    if (HIGH_SEVERITY.has(sev)) return 'nearMiss';
+    if (HIGH_SEVERITY.has(sev) || type === 'NEAR_MISS') return 'nearMiss';
 
     return 'observation';
 };

@@ -139,13 +139,7 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                             })}
                                         </div>
                                     </div>
-                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                                        <div className="flex items-center justify-between px-2 pt-2">
-                                            <span className="text-xs font-bold text-gray-500">{t('ticketActions.notes', 'Notes')}<span className="text-red-500 ms-1">*</span></span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_ASSIGN_NOTES" onEnhanced={setControllerNotes} />
-                                        </div>
-                                        <textarea id="controllerNotes" name="controllerNotes" placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[120px]" rows={5} />
-                                    </div>
+
                                     {/* Show HR auto-routing notice if employee injured */}
                                     {hasEmployeeInjury && (
                                         <div className="bg-teal-50 border border-teal-200 rounded-xl px-3 py-2.5">
@@ -252,6 +246,15 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                             </div>
                                         </div>
                                     )}
+
+                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+                                        <div className="flex items-center justify-between px-2 pt-2">
+                                            <span className="text-xs font-bold text-gray-500">{isRtl ? 'ملاحظات التوجيه / سبب الإرجاع' : 'Routing Notes / Return Reason'}</span>
+                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_ASSIGN_NOTES" onEnhanced={setControllerNotes} />
+                                        </div>
+                                        <textarea id="controllerNotes" name="controllerNotes" placeholder={isRtl ? 'اكتب ملاحظات لتوجيه التذكرة للقسم، أو سبب إرجاعها للمبلّغ...' : 'Write notes for routing or reason for returning...'} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[100px]" rows={4} />
+                                    </div>
+
                                     {(!severityLevel || !controllerNotes.trim()) && (
                                         <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1.5">
                                             {!severityLevel && (
@@ -350,19 +353,6 @@ export const DepartmentPanel = ({ isDepRep, ticket, t, handleDepartmentAction, a
 export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejectedPlan, controllerNotes, setControllerNotes, oc, reminderDate, setReminderDate, reminderMessage, setReminderMessage, handleFinalReview, actionLoading, confirmThen, isRtl, handleCloseRequest, hrIncomplete, handleStandaloneRemindHr }: any) => {
     return (
 <div className="space-y-3">
-                                    <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
-                                        <div className="flex items-center justify-between px-2 pt-2">
-                                            <span className="text-xs font-bold text-gray-500">{t('ticketActions.reviewNotes', 'Review Notes')}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_REVIEW_NOTES" onEnhanced={setControllerNotes} />
-                                        </div>
-                                        <textarea placeholder={t('ticketActions.reviewNotesPlaceholder', 'Review Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[150px]" rows={6} />
-                                        {!controllerNotes && (
-                                            <p className="text-[10px] text-amber-600 bg-amber-50 border-t border-amber-100 px-3 py-1.5 flex items-center gap-1.5">
-                                                <span className="font-black">!</span>
-                                                {t('ticketDetail.reviewWriteNote')}
-                                            </p>
-                                        )}
-                                    </div>
 
                                     {hrIncomplete && (
                                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
@@ -408,7 +398,7 @@ export const ControllerFinalReviewPanel = ({ isController, ticket, t, hasRejecte
 
                                     <div className={`grid gap-2 pt-1 ${hasRejectedPlan ? 'grid-cols-2' : 'grid-cols-2'}`}>
                                         <button
-                                            onClick={() => confirmThen(() => handleFinalReview('RETURN_DEPARTMENT'), isRtl ? 'إرجاع إلى القسم' : 'Return to Department', isRtl ? 'ستُرجع التذكرة إلى القسم المختص للمراجعة وإعادة الرد.' : 'The ticket will be returned to the department for revision and re-submission.', 'danger')}
+                                            onClick={() => confirmThen(() => handleFinalReview('RETURN_DEPARTMENT'), isRtl ? 'إرجاع إلى القسم' : 'Return to Department', isRtl ? `ستُرجع التذكرة إلى القسم المختص للمراجعة وإعادة الرد.\nالملاحظات: "${controllerNotes}"` : `The ticket will be returned to the department for revision and re-submission.\nNotes: "${controllerNotes}"`, 'danger')}
                                             disabled={actionLoading || !controllerNotes}
                                             className="bg-rose-50 border-2 border-rose-300 text-rose-700 p-3 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-rose-100 flex items-center justify-center gap-2"
                                         >

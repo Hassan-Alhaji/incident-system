@@ -94,27 +94,44 @@ const Dashboard = () => {
   const [showFilters,  setShowFilters]  = useState(false);
   const [activeTab,    setActiveTab]    = useState<'NEW' | 'IN_PROGRESS' | 'CLOSED'>('NEW');
 
-  const isDepRepOrManager = user?.role === 'DEP_REP' || user?.role === 'DEP_MANAGER';
+  const isDepRepOrManager = ['DEP_REP', 'DEP_MANAGER', 'SERVICE_PROVIDER_REP'].includes(user?.role || '');
 
   const getTabStatuses = (tab: 'NEW' | 'IN_PROGRESS' | 'CLOSED'): string[] => {
-    // Point 10: For DEP_REP/DEP_MANAGER, ASSIGNED and RETURNED_TO_DEPARTMENT are "New" (department hasn't responded yet)
+    // 1. Department Reps & Managers: Inbox (NEW) = ASSIGNED, RETURNED_TO_DEPARTMENT
     if (isDepRepOrManager) {
       switch (tab) {
         case 'NEW':
-          return ['SUBMITTED', 'ASSIGNED', 'RETURNED_TO_DEPARTMENT'];
+          return ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'];
         case 'IN_PROGRESS':
-          return ['ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER', 'ESCALATED'];
+          return ['SUBMITTED', 'ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER', 'ESCALATED'];
         case 'CLOSED':
           return ['CLOSED', 'CLOSED_REJECTED'];
         default:
           return [];
       }
     }
+    
+    // 2. Controllers & HSE Management: Inbox (NEW) = SUBMITTED, UNDER_REVIEW, ESCALATED
+    const isControllerOrAdmin = ['HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER', 'ADMIN'].includes(user?.role || '');
+    if (isControllerOrAdmin) {
+      switch (tab) {
+        case 'NEW':
+          return ['SUBMITTED', 'UNDER_REVIEW', 'ESCALATED'];
+        case 'IN_PROGRESS':
+          return ['ASSIGNED', 'ASSIGNED_TO_HR', 'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER'];
+        case 'CLOSED':
+          return ['CLOSED', 'CLOSED_REJECTED'];
+        default:
+          return [];
+      }
+    }
+
+    // 3. Regular Reporters: Inbox (NEW) = RETURNED_TO_REPORTER
     switch (tab) {
       case 'NEW':
-        return ['SUBMITTED'];
+        return ['RETURNED_TO_REPORTER'];
       case 'IN_PROGRESS':
-        return ['ASSIGNED', 'ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'RETURNED_TO_REPORTER', 'PENDING_REMINDER', 'ESCALATED'];
+        return ['SUBMITTED', 'ASSIGNED', 'ASSIGNED_TO_HR', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'PENDING_REMINDER', 'ESCALATED'];
       case 'CLOSED':
         return ['CLOSED', 'CLOSED_REJECTED'];
       default:
@@ -126,8 +143,14 @@ const Dashboard = () => {
     return ['ALL', ...getTabStatuses(tab)];
   };
 
-  const newTicketsCount = tickets.filter(t => getTabStatuses('NEW').includes(t.status)).length;
-  const inProgressTicketsCount = tickets.filter(t => getTabStatuses('IN_PROGRESS').includes(t.status)).length;
+  const newTicketsCount = user?.role === 'HR_REP' 
+    ? tickets.filter(t => !t.offCircuitReport?.hrFilledBy && !['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length 
+    : tickets.filter(t => getTabStatuses('NEW').includes(t.status)).length;
+    
+  const inProgressTicketsCount = user?.role === 'HR_REP'
+    ? tickets.filter(t => t.offCircuitReport?.hrFilledBy && !['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length
+    : tickets.filter(t => getTabStatuses('IN_PROGRESS').includes(t.status)).length;
+    
   const closedTicketsCount = tickets.filter(t => getTabStatuses('CLOSED').includes(t.status)).length;
 
   // Safety tip state
@@ -228,8 +251,18 @@ const Dashboard = () => {
   }, []);
 
   const filtered = tickets.filter(ticket => {
-    const tabStatuses = getTabStatuses(activeTab);
-    if (!tabStatuses.includes(ticket.status)) return false;
+    if (user?.role === 'HR_REP') {
+      const hrCompleted = !!ticket.offCircuitReport?.hrFilledBy;
+      const isClosed = ['CLOSED', 'CLOSED_REJECTED'].includes(ticket.status);
+      if (activeTab === 'NEW' && (hrCompleted || isClosed)) return false;
+      if (activeTab === 'IN_PROGRESS' && (!hrCompleted || isClosed)) return false;
+      if (activeTab === 'CLOSED' && !isClosed) return false;
+    } else if (user?.role === 'FINANCE_REP') {
+      // Finance sees all their tickets in a single list, no tab filtering
+    } else {
+      const tabStatuses = getTabStatuses(activeTab);
+      if (!tabStatuses.includes(ticket.status)) return false;
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -259,7 +292,13 @@ const Dashboard = () => {
   const activeCount   = tickets.filter(t => !['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
   const closedCount   = tickets.filter(t =>  ['CLOSED', 'CLOSED_REJECTED'].includes(t.status)).length;
   const injuryCount   = tickets.filter(t => t.hasInjury).length;
-  const statCards = [
+  const violationCount = tickets.filter(t => t.hasFinancialViolation).length;
+
+  const isFinanceRep = user?.role === 'FINANCE_REP';
+
+  const statCards = isFinanceRep ? [
+    { label: isRtl ? 'المخالفات المالية' : 'Financial Violations', value: violationCount, gradient: 'from-rose-500 to-red-600', softBg: 'from-rose-50 to-red-50', icon: <AlertTriangle size={18} /> }
+  ] : [
     { label: 'Total',    value: total,       gradient: 'from-indigo-500 to-blue-600',  softBg: 'from-indigo-50 to-blue-50',  icon: <ClipboardList size={18} /> },
     { label: 'Active',   value: activeCount, gradient: 'from-amber-500 to-orange-500', softBg: 'from-amber-50 to-orange-50', icon: <ActivityIcon size={18} /> },
     { label: 'Closed',   value: closedCount, gradient: 'from-emerald-500 to-teal-600', softBg: 'from-emerald-50 to-teal-50', icon: <Lock size={18} /> },
@@ -369,61 +408,63 @@ const Dashboard = () => {
       )}
 
       {/* ── Tabs selector ── */}
-      <div className="bg-white/80 backdrop-blur border border-slate-100 p-1 rounded-xl flex gap-1 shadow-sm">
-        <button
-          onClick={() => {
-            setActiveTab('NEW');
-            setStatusFilter('ALL');
-          }}
-          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
-            activeTab === 'NEW'
-              ? 'bg-gradient-to-br from-sky-50 to-blue-100 text-blue-800 shadow-sm ring-1 ring-blue-200'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Inbox size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'NEW' ? 'text-blue-600' : 'text-slate-400'}`} />
-          <span>{t('oc.dashboard.tabs.new', 'New')}</span>
-          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'NEW' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            {newTicketsCount}
-          </span>
-        </button>
+      {!isFinanceRep && (
+        <div className="bg-white/80 backdrop-blur border border-slate-100 p-1 rounded-xl flex gap-1 shadow-sm">
+          <button
+            onClick={() => {
+              setActiveTab('NEW');
+              setStatusFilter('ALL');
+            }}
+            className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+              activeTab === 'NEW'
+                ? 'bg-gradient-to-br from-sky-50 to-blue-100 text-blue-800 shadow-sm ring-1 ring-blue-200'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Inbox size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'NEW' ? 'text-blue-600' : 'text-slate-400'}`} />
+            <span>{t('oc.dashboard.tabs.new', 'New')}</span>
+            <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'NEW' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              {newTicketsCount}
+            </span>
+          </button>
 
-        <button
-          onClick={() => {
-            setActiveTab('IN_PROGRESS');
-            setStatusFilter('ALL');
-          }}
-          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
-            activeTab === 'IN_PROGRESS'
-              ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-orange-800 shadow-sm ring-1 ring-orange-200'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Timer size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'IN_PROGRESS' ? 'text-orange-600' : 'text-slate-400'}`} />
-          <span>{t('oc.dashboard.tabs.inProgress', 'In Progress')}</span>
-          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'IN_PROGRESS' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            {inProgressTicketsCount}
-          </span>
-        </button>
+          <button
+            onClick={() => {
+              setActiveTab('IN_PROGRESS');
+              setStatusFilter('ALL');
+            }}
+            className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+              activeTab === 'IN_PROGRESS'
+                ? 'bg-gradient-to-br from-amber-50 to-orange-100 text-orange-800 shadow-sm ring-1 ring-orange-200'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Timer size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'IN_PROGRESS' ? 'text-orange-600' : 'text-slate-400'}`} />
+            <span>{t('oc.dashboard.tabs.inProgress', 'In Progress')}</span>
+            <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'IN_PROGRESS' ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              {inProgressTicketsCount}
+            </span>
+          </button>
 
-        <button
-          onClick={() => {
-            setActiveTab('CLOSED');
-            setStatusFilter('ALL');
-          }}
-          className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
-            activeTab === 'CLOSED'
-              ? 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-800 shadow-sm ring-1 ring-emerald-200'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Lock size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'CLOSED' ? 'text-emerald-600' : 'text-slate-400'}`} />
-          <span>{t('oc.dashboard.tabs.closed', 'Closed')}</span>
-          <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'CLOSED' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-            {closedTicketsCount}
-          </span>
-        </button>
-      </div>
+          <button
+            onClick={() => {
+              setActiveTab('CLOSED');
+              setStatusFilter('ALL');
+            }}
+            className={`flex-1 py-2.5 px-2.5 sm:px-4 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold transition-all duration-200 ${
+              activeTab === 'CLOSED'
+                ? 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-800 shadow-sm ring-1 ring-emerald-200'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Lock size={14} className={`sm:w-4 sm:h-4 ${activeTab === 'CLOSED' ? 'text-emerald-600' : 'text-slate-400'}`} />
+            <span>{t('oc.dashboard.tabs.closed', 'Closed')}</span>
+            <span className={`ltr:ml-auto rtl:mr-auto px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black min-w-[22px] text-center ${activeTab === 'CLOSED' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              {closedTicketsCount}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Search + Filter ── */}
       <div className="flex gap-2">
@@ -582,17 +623,24 @@ const Dashboard = () => {
                           </span>
                         )}
 
-                        {/* Point 11: Department response KPI */}
-                        {ticket.departmentAssignedAt && !ticket.departmentRespondedAt && !isClosed && (() => {
-                          const assignedMs = Date.now() - new Date(ticket.departmentAssignedAt!).getTime();
-                          const hrs = Math.floor(assignedMs / 3600000);
-                          const kpiText = hrs > 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
-                          const kpiColor = hrs < 24 ? 'text-emerald-600 bg-emerald-50 ring-emerald-200' : hrs < 48 ? 'text-amber-600 bg-amber-50 ring-amber-200' : 'text-red-600 bg-red-50 ring-red-200';
-                          return (
-                            <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ring-1 shrink-0 ${kpiColor}`} title={isRtl ? 'مدة انتظار رد القسم' : 'Dept response time'}>
-                              ⏱️ {kpiText}
-                            </span>
-                          );
+                        {/* Point 11: Department response KPI / HR response KPI */}
+                        {(() => {
+                          const isHR = user?.role === 'HR_REP';
+                          const startTimeStr = isHR ? ticket.createdAt : ticket.departmentAssignedAt;
+                          const isResponded = isHR ? !!ticket.offCircuitReport?.hrFilledBy : !!ticket.departmentRespondedAt;
+
+                          if (startTimeStr && !isResponded && !isClosed) {
+                            const assignedMs = Date.now() - new Date(startTimeStr).getTime();
+                            const hrs = Math.floor(assignedMs / 3600000);
+                            const kpiText = hrs > 24 ? `${Math.floor(hrs / 24)}d ${hrs % 24}h` : `${hrs}h`;
+                            const kpiColor = hrs < 24 ? 'text-emerald-600 bg-emerald-50 ring-emerald-200' : hrs < 48 ? 'text-amber-600 bg-amber-50 ring-amber-200' : 'text-red-600 bg-red-50 ring-red-200';
+                            return (
+                              <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ring-1 shrink-0 ${kpiColor}`} title={isRtl ? 'مدة الانتظار' : 'Response time'}>
+                                ⏱️ {kpiText}
+                              </span>
+                            );
+                          }
+                          return null;
                         })()}
 
                         <span
