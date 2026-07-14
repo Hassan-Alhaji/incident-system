@@ -118,43 +118,6 @@ const TicketWizard = () => {
     api.get('/events').then(r => setEvents(r.data)).catch(console.error);
   }, []);
 
-  // --- DRAFT SAVING ---
-  useEffect(() => {
-    const draft = localStorage.getItem('ticket_wizard_draft');
-    if (draft) {
-      try {
-        const parsed = JSON.parse(draft);
-        if (parsed.incidentType) setIncidentType(parsed.incidentType);
-        if (parsed.incidentDate) setIncidentDate(parsed.incidentDate);
-        if (parsed.incidentTime) setIncidentTime(parsed.incidentTime);
-        if (parsed.locationLat) setLocationLat(parsed.locationLat);
-        if (parsed.locationLng) setLocationLng(parsed.locationLng);
-        if (parsed.locationAddress) setLocationAddress(parsed.locationAddress);
-        if (parsed.locationDescription) setLocationDescription(parsed.locationDescription);
-        if (parsed.zoneId) setZoneId(parsed.zoneId);
-        if (parsed.zoneName) setZoneName(parsed.zoneName);
-        if (parsed.whatHappened) setWhatHappened(parsed.whatHappened);
-        if (parsed.eventId) setEventId(parsed.eventId);
-        if (parsed.lateReportReason) setLateReportReason(parsed.lateReportReason);
-        if (parsed.hasInjury) setHasInjury(parsed.hasInjury);
-        if (parsed.hasWitness) setHasWitness(parsed.hasWitness);
-        if (parsed.injuredPersons) setInjuredPersons(parsed.injuredPersons);
-        if (parsed.witnesses) setWitnesses(parsed.witnesses);
-        if (parsed.reporterDepartmentId) setReporterDepartmentId(parsed.reporterDepartmentId);
-
-      } catch (e) { console.error('Error loading draft', e); }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!submitted && !submitting) {
-      const draft = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, hasWitness, eventId, injuredPersons, witnesses, reporterDepartmentId };
-      const timeoutId = setTimeout(() => {
-        localStorage.setItem('ticket_wizard_draft', JSON.stringify(draft));
-      }, 1500);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, zoneId, zoneName, whatHappened, lateReportReason, hasInjury, hasWitness, eventId, injuredPersons, witnesses, reporterDepartmentId, submitted, submitting]);
 
 
   const handleLocationConfirm = (lat: number, lng: number, address: string, zone?: { id: string; name: string } | null) => {
@@ -262,7 +225,6 @@ const TicketWizard = () => {
       const ticketId = res.data.id;
       if (files.length > 0) { const fd = new FormData(); files.forEach(f => fd.append('files', f)); await api.post(`/tickets/${ticketId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       setSubmittedId(ticketId); setSubmitted(true);
-      localStorage.removeItem('ticket_wizard_draft');
       setTimeout(() => navigate(`/tickets/${ticketId}`), 5000);
     } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); submittingRef.current = false; } finally { setSubmitting(false); }
   };
