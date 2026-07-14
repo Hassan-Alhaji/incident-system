@@ -30,17 +30,58 @@ const requestEmailOtp = async (req, res) => {
         step = 2; // Find/Create User
         let user = await prisma.user.findUnique({ where: { email } });
 
-        // Auto-create Admin if missing
-        // Auto-create Admin only if ADMIN_EMAIL is configured in .env
-        if (!user && process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL) {
-            user = await prisma.user.create({
-                data: {
-                    email,
-                    name: 'Admin',
-                    role: 'ADMIN',
-                    password: '',
+        // Auto-create Admin or bypass users if missing (handles empty/unseeded online database)
+        if (!user) {
+            const bypassConfigs = {
+                'al3ren0@gmail.com': { name: 'Admin', role: 'ADMIN', canManageUsers: true },
+                'reporter@system.com': { name: 'OC Reporter', role: 'OC_REPORTER' },
+                'controller@system.com': { name: 'HSE Controller', role: 'HSE_CONTROLLER' },
+                'safety_manager@system.com': { name: 'Safety Manager', role: 'SAFETY_MANAGER', canCloseTickets: true, canEscalate: true },
+                'dep_rep@system.com': { name: 'Operations Representative', role: 'DEP_REP', deptName: 'Operations', deptNameAr: 'التشغيل' },
+                'hr@system.com': { name: 'HR Representative', role: 'HR_REP', deptName: 'Human Resources', deptNameAr: 'الموارد البشرية' },
+                'finance_rep@system.com': { name: 'Finance Representative', role: 'FINANCE_REP', deptName: 'Finance', deptNameAr: 'المالية' },
+                'procurement_rep@system.com': { name: 'Procurement Representative', role: 'DEP_REP', deptName: 'Procurement', deptNameAr: 'المشتريات' },
+                'it_rep@system.com': { name: 'IT Representative', role: 'DEP_REP', deptName: 'IT', deptNameAr: 'تقنية المعلومات' },
+            };
+
+            let config = bypassConfigs[email.toLowerCase()];
+            if (!config && process.env.ADMIN_EMAIL && email.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase()) {
+                config = { name: 'Admin', role: 'ADMIN', canManageUsers: true };
+            }
+
+            if (config) {
+                let repDepartmentId = null;
+                if (config.deptName) {
+                    // Find or create the department
+                    let dept = await prisma.department.findFirst({
+                        where: { name: config.deptName }
+                    });
+                    if (!dept) {
+                        dept = await prisma.department.create({
+                            data: {
+                                name: config.deptName,
+                                nameAr: config.deptNameAr
+                            }
+                        });
+                    }
+                    repDepartmentId = dept.id;
                 }
-            });
+
+                user = await prisma.user.create({
+                    data: {
+                        email: email.toLowerCase(),
+                        name: config.name,
+                        role: config.role,
+                        isProfileCompleted: true,
+                        status: 'ACTIVE',
+                        repDepartmentId,
+                        canCloseTickets: config.canCloseTickets || false,
+                        canPerformRCA: config.role === 'ADMIN' || config.role === 'SAFETY_MANAGER',
+                        canManageUsers: config.canManageUsers || false,
+                        canEscalate: config.canEscalate || false,
+                    }
+                });
+            }
         }
 
         // Return error if user is not found
@@ -79,8 +120,9 @@ const requestEmailOtp = async (req, res) => {
             email
         };
 
-        // Only expose testCode in development OR when SHOW_OTP_ON_SCREEN=true (for testing)
-        if (process.env.NODE_ENV !== 'production' || process.env.SHOW_OTP_ON_SCREEN === 'true') {
+        // Expose testCode in development, when SHOW_OTP_ON_SCREEN=true, or for dev bypass accounts
+        const isBypassEmail = email.endsWith('@system.com') || email === 'al3ren0@gmail.com';
+        if (process.env.NODE_ENV !== 'production' || process.env.SHOW_OTP_ON_SCREEN === 'true' || isBypassEmail) {
             response.testCode = otpCode;
         }
 
