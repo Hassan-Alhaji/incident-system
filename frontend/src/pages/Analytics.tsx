@@ -1,15 +1,15 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import {
   AlertTriangle, ShieldCheck, Clock, FileWarning, Activity,
   TrendingUp, TrendingDown, Users, MapPin, BarChart3, Sparkles,
   CheckCircle, XCircle, Eye, AlertOctagon, Calendar, Trophy, Flame,
-  Send, Bot, Download, Filter, X, ChevronRight, ChevronLeft, Briefcase, ChevronDown
+  Download, Filter, X, ChevronRight, ChevronLeft, Briefcase, ChevronDown
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import AnalyticsMap from '../components/AnalyticsMap';
-import { AIChatSidebar, Section, ProgressBar, ServiceProviderCard, TYPE_COLORS } from '../components/analytics';
+import { Section, ProgressBar, ServiceProviderCard, TYPE_COLORS } from '../components/analytics';
 import { SkeletonAnalytics } from '../components/Skeleton';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -77,12 +77,6 @@ const Analytics = () => {
   const [dateTo,   setDateTo]   = useState(today);
   const [applied,  setApplied]  = useState({ from: sixMonthsAgo, to: today });
 
-  // ── AI Chat ──────────────────────────────────────────────────────────────
-  const [aiOpen,    setAiOpen]    = useState(false);
-  const [aiInput,   setAiInput]   = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiHistory, setAiHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const fetchData = async (from: string, to: string) => {
     setLoading(true);
@@ -118,7 +112,6 @@ const Analytics = () => {
     }
   };
 
-  const [aiUnavailable, setAiUnavailable] = useState(false);
 
   if (loading) return <SkeletonAnalytics />;
 
@@ -152,7 +145,6 @@ const Analytics = () => {
   return (
     <div className={`space-y-5 pb-8 relative ${isRtl ? 'font-arabic dir-rtl' : 'font-sans dir-ltr'}`}>
 
-      <AIChatSidebar data={data} applied={applied} isOpen={aiOpen} onClose={() => setAiOpen(false)} />
 
       {/* ── Date range filter bar ── */}
       <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
@@ -189,15 +181,6 @@ const Analytics = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => !aiUnavailable && setAiOpen(o => !o)}
-          className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm ${aiOpen
-                ? 'bg-violet-100 text-violet-700 ring-2 ring-violet-300'
-                : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 text-white'
-          }`}
-        >
-          <Bot size={14} /> {aiUnavailable ? (isRtl ? 'AI غير متاح' : 'AI Unavailable') : t('analytics.ai.button', 'AI Assistant')}
-        </button>
 
       </div>
 

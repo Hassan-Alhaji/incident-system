@@ -36,6 +36,7 @@ model User {
 
   otpCode         String?
   otpExpires      DateTime?
+  otpAttempts     Int?      @default(0)  // Brute-force protection: max 3 wrong attempts
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   activityLogs    ActivityLog[]

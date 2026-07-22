@@ -78,7 +78,9 @@ app.use((req, res, next) => {
 });
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const { sanitizeInput } = require('./middleware/sanitizeMiddleware');
-app.use('/api', sanitizeInput); // Sanitize API inputs only
+const { csrfProtection } = require('./middleware/csrfMiddleware');
+app.use('/api', sanitizeInput);    // Sanitize API inputs (body, query, params)
+app.use('/api', csrfProtection);   // B2: CSRF origin validation for state-changing requests
 // Serve uploads from absolute path to ensure consistency regardless of CWD
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -138,7 +140,6 @@ app.use('/api/attachments', attachmentRoutes);
 app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
-app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
 app.get('/', (req, res) => {
     res.json({

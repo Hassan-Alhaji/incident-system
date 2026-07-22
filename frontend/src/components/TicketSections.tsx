@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { useToast } from './Toast';
 import { resolveAttachmentUrl } from '../utils/resolveAttachmentUrl';
-import { Plus, Upload, Trash2, FileImage, Loader2, Check, AlertTriangle, Sparkles, X, CornerUpRight, RotateCcw } from 'lucide-react';
+import { Plus, Upload, Trash2, FileImage, Loader2, Check, AlertTriangle, X, CornerUpRight, RotateCcw } from 'lucide-react';
 
 /** Fetches a protected image with Bearer token and renders via blob URL */
 const AuthImage = ({ src, alt, className }: { src: string; alt: string; className?: string }) => {
@@ -24,58 +24,6 @@ const AuthImage = ({ src, alt, className }: { src: string; alt: string; classNam
   return <img src={blobUrl} alt={alt} className={className} />;
 };
 
-
-export const MagicWandButton = ({ text, context, type, onEnhanced }: { text: string; context: string; type: string; onEnhanced: (newText: string) => void }) => {
-  const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
-
-  const handleEnhance = async () => {
-    if (!text.trim() || unavailable) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.post('/ai/enhance-text', { text, context, type });
-      onEnhanced(res.data.enhancedText);
-    } catch (err: any) {
-      const data = err.response?.data;
-      const status = err.response?.status;
-      if (status === 503 || data?.unavailable) {
-        setUnavailable(true);
-        setError(t('errors.aiUnavailable'));
-        setTimeout(() => { setError(null); }, 6000);
-      } else {
-        setError(data?.message || t('errors.generic'));
-        setTimeout(() => setError(null), 4000);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="relative inline-flex items-center">
-      <button
-        onClick={handleEnhance}
-        disabled={loading || !text.trim() || unavailable}
-        title={unavailable ? 'AI غير متاح مؤقتاً (تجاوز الحصة المجانية)' : 'Enhance text using AI ✨'}
-        className={`p-1.5 rounded-lg transition-all ${
-          unavailable 
-            ? 'text-gray-300 cursor-not-allowed bg-gray-50' 
-            : 'text-purple-500 hover:bg-purple-100 disabled:opacity-50'
-        }`}
-      >
-        {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-      </button>
-      {error && (
-        <div className="absolute bottom-full right-0 mb-1 z-50 bg-amber-50 border border-amber-200 text-amber-800 text-[10px] rounded-lg px-2 py-1 whitespace-nowrap shadow-md max-w-[250px] leading-relaxed">
-          ⚠️ {error}
-        </div>
-      )}
-    </div>
-  );
-};
 
 
 interface ActionPlan {
@@ -349,15 +297,7 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                       </div>
                     )}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-bold text-gray-700">{isRtl ? 'الوصف' : 'Description'} {pd.required ? <span className="text-red-500">*</span> : <span className="text-gray-400 font-normal">{isRtl ? '(اختياري)' : '(Optional)'}</span>}</label>
-                        <MagicWandButton
-                          text={form.desc}
-                          context={ticket.offCircuitReport?.whatHappened || ''}
-                          type="ACTION_PLAN"
-                          onEnhanced={v => setForms(f => ({ ...f, [pd.type]: { ...f[pd.type], desc: v } }))}
-                        />
-                      </div>
+                      <label className="text-sm font-bold text-gray-700 block mb-2">{isRtl ? 'الوصف' : 'Description'} {pd.required ? <span className="text-red-500">*</span> : <span className="text-gray-400 font-normal">{isRtl ? '(اختياري)' : '(Optional)'}</span>}</label>
                       <textarea
                         id={`action-plan-desc-${pd.type}`} name={`action-plan-desc-${pd.type}`}
                         value={form.desc}

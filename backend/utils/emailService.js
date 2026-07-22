@@ -1,12 +1,25 @@
 const nodemailer = require('nodemailer');
 
+// Microsoft 365 SMTP — smtp.office365.com:587 (STARTTLS)
+// EMAIL_USER   = the account that authenticates (can be the shared mailbox itself)
+// EMAIL_PASS   = password or App Password if MFA is enabled
+// EMAIL_FROM   = the display address (No_reply@saudimotorsport.com)
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.office365.com',
+    port: 587,
+    secure: false,          // STARTTLS — NOT SSL on 465
+    requireTLS: true,       // Force upgrade to TLS before sending credentials
     auth: {
-        user: process.env.EMAIL_USER, // Use environment variables
+        user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        ciphers: 'SSLv3',   // Required by some Office 365 tenants
+        rejectUnauthorized: true
     }
 });
+
+const FROM_ADDRESS = process.env.EMAIL_FROM || process.env.EMAIL_USER;
 
 const sendOTP = async (email, otp) => {
     try {
@@ -18,31 +31,43 @@ const sendOTP = async (email, otp) => {
         }
 
         const mailOptions = {
-            from: '"Incident Portal" <' + process.env.EMAIL_USER + '>',
+            from: `"Saudi Motorsport — Incident Portal" <${FROM_ADDRESS}>`,
             to: email,
-            subject: 'Your Login Code',
+            subject: 'رمز تسجيل الدخول — Login Verification Code',
             html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+                <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; direction: ltr;">
                     <div style="max-width: 500px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                        <h2 style="color: #059669; text-align: center;">Incident Portal Login</h2>
-                        <p style="font-size: 16px; color: #374151;">Use the following code to log in:</p>
-                        <div style="background-color: #ecfdf5; padding: 15px; text-align: center; border-radius: 8px; margin: 20px 0;">
-                            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #047857;">${otp}</span>
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <h2 style="color: #15803d; margin: 0;">Saudi Motorsport</h2>
+                            <p style="color: #6b7280; margin: 4px 0 0;">Incident Management Portal</p>
                         </div>
-                        <p style="font-size: 14px; color: #6b7280; text-align: center;">This code will expire in 10 minutes.</p>
+                        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                        <p style="font-size: 16px; color: #374151;">Use the following one-time code to log in. It will expire in <strong>5 minutes</strong>.</p>
+                        <div style="background-color: #f0fdf4; border: 2px dashed #86efac; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+                            <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #15803d;">${otp}</span>
+                        </div>
+                        <p style="font-size: 13px; color: #9ca3af; text-align: center;">
+                            If you did not request this code, please ignore this email.<br>
+                            لم تطلب هذا الرمز؟ يمكنك تجاهل هذا البريد الإلكتروني.
+                        </p>
+                        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                        <p style="font-size: 12px; color: #d1d5db; text-align: center;">
+                            This is an automated message — please do not reply.<br>
+                            هذه رسالة آلية — لا ترد عليها.
+                        </p>
                     </div>
                 </div>
             `
         };
 
-        // 8-second timeout — prevents login from hanging if SMTP is slow
+        // 10-second timeout — Office 365 can be slightly slower than Gmail
         const sendWithTimeout = Promise.race([
             transporter.sendMail(mailOptions),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout after 8s')), 8000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout after 10s')), 10000))
         ]);
 
         const info = await sendWithTimeout;
-        console.log(`[Email Service] Email sent successfully: ${info.messageId}`);
+        console.log(`[Email Service] OTP sent to ${email} — MessageId: ${info.messageId}`);
         return true;
     } catch (error) {
         console.error('[Email Service] Error sending email:', error.message);

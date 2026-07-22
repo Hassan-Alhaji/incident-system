@@ -2,6 +2,11 @@ const prisma = require('../prismaClient');
 const crypto = require('crypto');
 const { createNotification, createNotificationsBulk } = require('./notificationController');
 const logger = require('../lib/logger').child({ module: 'ticketCrud' });
+const { verifyMagicBytes } = require('../middleware/uploadMiddleware');
+
+// B3: In production, never leak internal error messages to the client
+const isProd = process.env.NODE_ENV === 'production';
+const safeError = (err, fallback = 'An unexpected error occurred. Please try again.') => isProd ? fallback : (err.message || fallback);
 
 const ROLES = {
     REPORTER: ['OC_REPORTER'],
@@ -140,13 +145,15 @@ const createTicket = async (req, res) => {
         if (!incidentDate || !incidentTime) return res.status(400).json({ message: 'Date and time required' });
         if (!whatHappened) return res.status(400).json({ message: 'Description required' });
 
-        // H4: Late report check (and reject future-dated incidents)
+        // H4: Late report check
         const reportDateTime = new Date(`${incidentDate}T${incidentTime}`);
         if (isNaN(reportDateTime.getTime())) {
             return res.status(400).json({ message: 'Invalid incident date or time' });
         }
-        // Note: The server is in UTC, but incidentDate/Time are in the user's local timezone.
-        // Strict future validation is handled by the frontend to prevent timezone skew errors.
+        // C1: Reject future-dated incidents from the server side
+        if (reportDateTime.getTime() > Date.now() + 5 * 60 * 1000) { // 5 min tolerance for clock skew
+            return res.status(400).json({ message: 'Incident date cannot be in the future.' });
+        }
         const hoursDiff = (Date.now() - reportDateTime.getTime()) / (1000*60*60);
         const isLate = hoursDiff > 24;
         if (isLate && !lateReportReason) {
@@ -167,6 +174,10 @@ const createTicket = async (req, res) => {
 
         // Generate ticket number using database sequence to prevent race conditions
         const currentYear = new Date().getFullYear();
+        // A5: Validate year is a safe 4-digit integer before using in raw SQL
+        if (!Number.isInteger(currentYear) || currentYear < 2020 || currentYear > 2099) {
+            return res.status(500).json({ message: 'Server date error. Please contact support.' });
+        }
         let ticket = null;
         let retries = 0;
         let seqNum;
@@ -296,7 +307,7 @@ const createTicket = async (req, res) => {
         res.status(201).json(ticket);
     } catch (error) {
         logger.error({ err: error }, 'Create Ticket Error:');
-        res.status(500).json({ message: error.message || 'Failed to create ticket' });
+        res.status(500).json({ message: safeError(error, 'Failed to create ticket') });
     }
 };
 
@@ -322,7 +333,21 @@ const getTickets = async (req, res) => {
             // HR sees tickets with injury that need GOSI
             where.OR = [{ assignedToId: userId }, { hasInjury: true }];
         } else if (role === 'SERVICE_PROVIDER_REP') {
-            where.OR = [{ assignedToId: userId }, { serviceProviderId: req.user.serviceProviderId }].filter(Boolean);
+            // D3: SP reps see only tickets for service providers under their department
+            // and only active (non-closed) tickets
+            const spFilter = [{ assignedToId: userId }];
+            if (req.user.serviceProviderId) spFilter.push({ serviceProviderId: req.user.serviceProviderId });
+            if (req.user.repDepartmentId) {
+                // Also see tickets for ANY SP linked to their department
+                const deptSPs = await prisma.serviceProvider.findMany({
+                    where: { departmentId: req.user.repDepartmentId },
+                    select: { id: true }
+                });
+                deptSPs.forEach(sp => spFilter.push({ serviceProviderId: sp.id }));
+            }
+            where.OR = spFilter;
+            // Only show non-closed tickets to SP reps
+            where.status = { not: 'CLOSED' };
         } else if (ROLES.FINANCE.includes(role)) {
             where.forwardedToFinance = true;
         } else if (!['ADMIN','HSE_CONTROLLER','SAFETY_MANAGER','OC_HSE_MANAGER'].includes(role)) {
@@ -436,7 +461,17 @@ const getTicketById = async (req, res) => {
             } else if (ROLES.HR.includes(role)) {
                 canView = (ticket.assignedToId === userId) || (ticket.hasInjury === true);
             } else if (role === 'SERVICE_PROVIDER_REP') {
-                canView = (ticket.assignedToId === userId) || (ticket.serviceProviderId === req.user.serviceProviderId);
+                // D3: SP rep can only view active tickets for their SP or their department's SPs
+                if (ticket.status === 'CLOSED') {
+                    canView = false;
+                } else if (ticket.assignedToId === userId || ticket.serviceProviderId === req.user.serviceProviderId) {
+                    canView = true;
+                } else if (req.user.repDepartmentId) {
+                    const sp = ticket.serviceProviderId ? await prisma.serviceProvider.findUnique({
+                        where: { id: ticket.serviceProviderId }, select: { departmentId: true }
+                    }) : null;
+                    canView = sp?.departmentId === req.user.repDepartmentId;
+                }
             } else if (ROLES.FINANCE.includes(role)) {
                 canView = (ticket.forwardedToFinance === true);
             }
@@ -492,7 +527,7 @@ const reporterReply = async (req, res) => {
         const ticket = await prisma.ticket.findUnique({ where: { id } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
         if (ticket.status !== 'RETURNED_TO_REPORTER') return res.status(400).json({ message: 'Ticket not in returned state' });
-        if (ticket.createdById !== req.user.id && req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Only reporter can reply' });
+        if (ticket.createdById !== req.user.id && req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Only the ticket reporter can reply' });
         if (!replyText?.trim()) return res.status(400).json({ message: 'Reply text required' });
 
         await prisma.activityLog.create({ data: { ticketId: id, actorId: req.user.id, action: 'STAGE_REPORTER_REPLY', details: replyText.trim() } });
@@ -534,11 +569,34 @@ const uploadAttachments = async (req, res) => {
         const files = req.files;
         if (!files || files.length === 0) return res.status(400).json({ message: 'No files uploaded' });
 
+        // B1: Verify magic bytes for each uploaded file (prevent MIME spoofing)
+        for (const file of files) {
+            if (!verifyMagicBytes(file.buffer, file.mimetype)) {
+                return res.status(400).json({
+                    message: `عذراً، الملف "${file.originalname}" لا يطابق النوع المُعلن عنه. يُرجى التأكد من إرسال ملف سليم.\nThe file "${file.originalname}" content does not match its declared type. Please upload a valid file.`
+                });
+            }
+        }
+
         const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, include: { attachments: true } });
         if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
         if (ticket.status === 'CLOSED') return res.status(400).json({ message: 'Cannot add attachments to closed ticket' });
 
-        const startCount = ticket.attachments.length;
+        // B5: Enforce maximum 15 attachments per ticket
+        const MAX_ATTACHMENTS = 15;
+        const currentCount = ticket.attachments.length;
+        if (currentCount >= MAX_ATTACHMENTS) {
+            return res.status(400).json({
+                message: `لقد وصلت إلى الحد الأقصى للمرفقات (${MAX_ATTACHMENTS} ملف لكل تذكرة).\nAttachment limit reached: maximum ${MAX_ATTACHMENTS} files allowed per ticket.`
+            });
+        }
+        if (currentCount + files.length > MAX_ATTACHMENTS) {
+            return res.status(400).json({
+                message: `إرفاق ${files.length} ملف سيتجاوز الحد المسموح (${MAX_ATTACHMENTS} ملف). المتاح حالياً: ${MAX_ATTACHMENTS - currentCount} ملف.\nUploading ${files.length} file(s) would exceed the limit of ${MAX_ATTACHMENTS}. Remaining slots: ${MAX_ATTACHMENTS - currentCount}.`
+            });
+        }
+
+        const startCount = currentCount;
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const attachmentId = crypto.randomUUID();
@@ -548,10 +606,10 @@ const uploadAttachments = async (req, res) => {
             });
         }
         await prisma.activityLog.create({ data: { ticketId, actorId: req.user.id, action: 'ATTACHMENT_ADDED', details: `Uploaded ${files.length} file(s)` } });
-        res.json({ message: `${files.length} file(s) uploaded` });
+        res.json({ message: `${files.length} file(s) uploaded successfully` });
     } catch (error) {
         logger.error({ err: error }, 'Upload error:');
-        res.status(500).json({ message: 'Upload failed' });
+        res.status(500).json({ message: 'Upload failed. Please try again.' });
     }
 };
 

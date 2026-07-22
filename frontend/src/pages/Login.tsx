@@ -91,7 +91,17 @@ const Login = () => {
       login(token, userData);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || t('oc.login.invalidCode'));
+      const code = err.response?.data?.code;
+      if (code === 'OTP_LOCKED') {
+        // A3: Too many wrong attempts — return to email step so user can request new code
+        setStep('email');
+        setOtp('');
+        setError(isArabic
+          ? '⚠️ تم تجاوز الحد الأقصى للمحاولات. يرجى طلب رمز جديد.'
+          : '⚠️ Too many incorrect attempts. Please request a new code.');
+      } else {
+        setError(err.response?.data?.message || t('oc.login.invalidCode'));
+      }
     } finally { setLoading(false); }
   };
 
@@ -318,34 +328,38 @@ const Login = () => {
                 </button>
               </div>
 
-              {/* DEV BYPASS SECTION - EASILY REMOVABLE */}
-              <div className="mt-8 pt-6 border-t border-dashed border-slate-200">
-                <p className="text-center text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">Dev Login Bypass</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {[
-                    { label: isArabic ? 'المبلغ' : 'Reporter', email: 'reporter@system.com', icon: UserPlus },
-                    { label: isArabic ? 'الكنترولر' : 'Controller', email: 'controller@system.com', icon: Lightbulb },
-                    { label: isArabic ? 'مدير السلامة' : 'Safety Mgr', email: 'safety_manager@system.com', icon: AlertTriangle },
-                    { label: isArabic ? 'المدير' : 'Admin', email: 'al3ren0@gmail.com', icon: LogIn },
-                    { label: isArabic ? 'ممثل التشغيل' : 'Ops Rep', email: 'dep_rep@system.com', icon: Globe },
-                    { label: isArabic ? 'ممثل الموارد البشرية' : 'HR Rep', email: 'hr@system.com', icon: UserPlus },
-                    { label: isArabic ? 'ممثل المالية' : 'Finance Rep', email: 'finance_rep@system.com', icon: Globe },
-                    { label: isArabic ? 'ممثل المشتريات' : 'Procurement Rep', email: 'procurement_rep@system.com', icon: LogIn },
-                    { label: isArabic ? 'ممثل تقنية المعلومات' : 'IT Rep', email: 'it_rep@system.com', icon: Phone },
-                  ].map(role => (
-                    <button
-                      key={role.email}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => handleBypassLogin(role.email)}
-                      className="flex flex-col items-center justify-center gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all text-slate-500 text-[10px] text-center disabled:opacity-50"
-                    >
-                      <role.icon size={16} />
-                      <span className="font-medium leading-tight">{role.label}</span>
-                    </button>
-                  ))}
+              {/* DEV BYPASS SECTION — auto-removed in production build (import.meta.env.DEV = false) */}
+              {import.meta.env.DEV && (
+                <div className="mt-8 pt-6 border-t border-dashed border-amber-200 bg-amber-50/40 rounded-2xl p-4">
+                  <p className="text-center text-[10px] font-bold text-amber-500 mb-3 uppercase tracking-wider flex items-center justify-center gap-1.5">
+                    <span>🧪</span> Test Accounts (Dev Only)
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {[
+                      { label: isArabic ? 'المبلغ' : 'Reporter', email: 'reporter@system.com', icon: UserPlus },
+                      { label: isArabic ? 'الكنترولر' : 'Controller', email: 'controller@system.com', icon: Lightbulb },
+                      { label: isArabic ? 'مدير السلامة' : 'Safety Mgr', email: 'safety_manager@system.com', icon: AlertTriangle },
+                      { label: isArabic ? 'المدير' : 'Admin', email: 'al3ren0@gmail.com', icon: LogIn },
+                      { label: isArabic ? 'ممثل التشغيل' : 'Ops Rep', email: 'dep_rep@system.com', icon: Globe },
+                      { label: isArabic ? 'ممثل الموارد البشرية' : 'HR Rep', email: 'hr@system.com', icon: UserPlus },
+                      { label: isArabic ? 'ممثل المالية' : 'Finance Rep', email: 'finance_rep@system.com', icon: Globe },
+                      { label: isArabic ? 'ممثل المشتريات' : 'Procurement Rep', email: 'procurement_rep@system.com', icon: LogIn },
+                      { label: isArabic ? 'ممثل تقنية المعلومات' : 'IT Rep', email: 'it_rep@system.com', icon: Phone },
+                    ].map(role => (
+                      <button
+                        key={role.email}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => handleBypassLogin(role.email)}
+                        className="flex flex-col items-center justify-center gap-1.5 p-2 bg-white border border-amber-200 rounded-xl hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700 transition-all text-slate-500 text-[10px] text-center disabled:opacity-50"
+                      >
+                        <role.icon size={16} />
+                        <span className="font-medium leading-tight">{role.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
@@ -375,12 +389,12 @@ const Login = () => {
                 </div>
               )}
 
-              {testCode && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5 text-center">
-                  <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1.5">
-                    {isArabic ? 'وضع التطوير — الرمز الخاص بك' : 'Dev Mode — Your Code'}
+              {import.meta.env.DEV && testCode && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-center">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">
+                    {isArabic ? '🧪 وضع التطوير — الرمز الخاص بك' : '🧪 Dev Mode — Your Code'}
                   </p>
-                  <p className="text-3xl font-black font-mono text-blue-600 tracking-[0.35em]">{testCode}</p>
+                  <p className="text-3xl font-black font-mono text-amber-700 tracking-[0.35em]">{testCode}</p>
                 </div>
               )}
 

@@ -2,7 +2,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Send, Bell } from 'lucide-react';
 import { HazardIcon, HAZARD_CATEGORIES } from '../HazardIcons';
-import { MagicWandButton } from '../TicketSections';
 
 export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newType, setNewType, typeChangeReason, setTypeChangeReason, severityLevel, setSeverityLevel, hazardCategory, setHazardCategory, controllerNotes, setControllerNotes, rcaCause, setRcaCause, rcaWhy, setRcaWhy, rcaRootCause, setRcaRootCause, rcaCategory, setRcaCategory, rcaPreventiveActions, setRcaPreventiveActions, targetDepartmentId, setTargetDepartmentId, departments, serviceProviders, selectedServiceProviderId, setSelectedServiceProviderId, confirmThen, handleControllerAction, actionLoading, hasEmployeeInjury, oc, notifyHr, setNotifyHr }: any) => {
     const injuriesCount = (() => {
@@ -178,12 +177,9 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                                     { num: 5, label: isRtl ? '5. الإجراءات الوقائية' : '5. Preventive Actions', value: rcaPreventiveActions, setter: setRcaPreventiveActions, type: 'RCA_PREVENTIVE' },
                                                 ].map(f => (
                                                     <div key={f.num} className="space-y-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <label className="text-xs font-bold text-slate-700">
-                                                                {f.label}{rcaRequired && <span className="text-red-500 ms-1">*</span>}
-                                                            </label>
-                                                            <MagicWandButton text={f.value} context={oc?.whatHappened || ''} type={f.type} onEnhanced={f.setter} />
-                                                        </div>
+                                                        <label className="text-xs font-bold text-slate-700 block">
+                                                            {f.label}{rcaRequired && <span className="text-red-500 ms-1">*</span>}
+                                                        </label>
                                                         <textarea
                                                             value={f.value}
                                                             onChange={e => f.setter(e.target.value)}
@@ -250,7 +246,6 @@ export const ControllerSubmittedPanel = ({ isController, ticket, t, isRtl, newTy
                                     <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
                                         <div className="flex items-center justify-between px-2 pt-2">
                                             <span className="text-xs font-bold text-gray-500">{isRtl ? 'ملاحظات التوجيه / سبب الإرجاع' : 'Routing Notes / Return Reason'}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_ASSIGN_NOTES" onEnhanced={setControllerNotes} />
                                         </div>
                                         <textarea id="controllerNotes" name="controllerNotes" placeholder={isRtl ? 'اكتب ملاحظات لتوجيه التذكرة للقسم، أو سبب إرجاعها للمبلّغ...' : 'Write notes for routing or reason for returning...'} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[100px]" rows={4} />
                                     </div>
@@ -435,7 +430,6 @@ export const SafetyManagerPanel = ({ isSafetyManager, ticket, t, controllerNotes
                                     <div className="border border-gray-300 rounded-lg bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
                                         <div className="flex items-center justify-between px-2 pt-2">
                                             <span className="text-xs font-bold text-gray-500">{t('ticketActions.closureNotes', 'Closure / Escalation Notes')}</span>
-                                            <MagicWandButton text={controllerNotes} context={oc.whatHappened || ''} type="CONTROLLER_CLOSURE_NOTES" onEnhanced={setControllerNotes} />
                                         </div>
                                         <textarea placeholder={t('ticketActions.notesPlaceholder', 'Notes...')} value={controllerNotes} onChange={e => setControllerNotes(e.target.value)} className="w-full p-3 text-sm border-none focus:ring-0 outline-none resize-y bg-transparent min-h-[150px]" rows={6} />
                                     </div>

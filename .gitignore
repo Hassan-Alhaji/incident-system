@@ -35,3 +35,7 @@ backend/scripts/test_db_connection.js
 backend/scripts/*credentials*
 backend/scripts/*secret*
 **/*.local.js
+
+# Platform snapshots - never commit to git
+backend/snapshots/
+backend/backups/
