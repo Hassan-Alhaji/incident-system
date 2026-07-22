@@ -1,20 +1,18 @@
 const nodemailer = require('nodemailer');
 
-// Microsoft 365 SMTP — smtp.office365.com:587 (STARTTLS)
-// EMAIL_USER   = the account that authenticates (can be the shared mailbox itself)
-// EMAIL_PASS   = password or App Password if MFA is enabled
-// EMAIL_FROM   = the display address (No_reply@saudimotorsport.com)
+// Gmail SMTP — smtp.gmail.com:587 (STARTTLS)
+// EMAIL_USER   = Gmail address (e.g. al3ren0@gmail.com)
+// EMAIL_PASS   = Gmail App Password (16-char, no spaces)
+// EMAIL_FROM   = the display address
 const transporter = nodemailer.createTransport({
-    host: 'smtp.office365.com',
+    host: 'smtp.gmail.com',
     port: 587,
-    secure: false,          // STARTTLS — NOT SSL on 465
-    requireTLS: true,       // Force upgrade to TLS before sending credentials
+    secure: false,          // STARTTLS
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        ciphers: 'SSLv3',   // Required by some Office 365 tenants
         rejectUnauthorized: true
     }
 });
