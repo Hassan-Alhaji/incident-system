@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const logger = require('./lib/logger');
 const cors = require('cors');
 const compression = require('compression');
@@ -69,7 +70,6 @@ app.use(helmet({
 }));
 app.use(compression()); // Gzip/Brotli compress all responses
 app.use(morgan(isProd ? 'combined' : 'dev'));
-const path = require('path');
 // Skip JSON parsing for multipart uploads so Multer gets the raw stream
 app.use((req, res, next) => {
     const ct = req.headers['content-type'] || '';

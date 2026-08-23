@@ -2,6 +2,11 @@ const prisma = require('../prismaClient');
 const { createNotification, createNotificationsBulk } = require('./notificationController');
 const logger = require('../lib/logger').child({ module: 'ticketWorkflow' });
 
+// B3: Never leak internal error details (Prisma messages, stack traces) to the client in production.
+const isProd = process.env.NODE_ENV === 'production';
+const safeError = (err, fallback = 'An unexpected error occurred. Please try again.') =>
+    isProd ? fallback : (err?.message || fallback);
+
 const safeParseJSON = (data, fallback = []) => {
     if (!data) return fallback;
     try { return typeof data === 'string' ? JSON.parse(data) : data; }
@@ -146,10 +151,11 @@ const controllerAction = async (req, res) => {
             return res.status(403).json({ message: 'Conflict of Interest: You cannot review a ticket you reported. Another Controller or Safety Manager must review it.' });
         }
 
-        const { action, notes, severity, targetDepartmentId, newType, typeChangeReason, hazardCategory } = req.body;
+        const { action, notes, severity, targetDepartmentId, newType, typeChangeReason, hazardCategory, classificationType, delegateRcaToDept } = req.body;
 
         if (newType && newType !== ticket.type) {
-            if (!['OBSERVATION','NEAR_MISS','INJURY','HEALTH','PROPERTY_DAMAGE','OTHER'].includes(newType)) {
+            const validTypes = ['UNSAFE_CONDITION', 'UNSAFE_ACT', 'NEAR_MISS', 'ACCIDENT', 'PROPERTY_DAMAGE', 'INJURY', 'OBSERVATION', 'HEALTH', 'SECURITY', 'OTHER'];
+            if (!validTypes.includes(newType)) {
                 return res.status(400).json({ message: 'Invalid ticket type provided' });
             }
             if (newType === 'OTHER' && !typeChangeReason) return res.status(400).json({ message: 'Description required when selecting Other type' });
@@ -176,36 +182,64 @@ const controllerAction = async (req, res) => {
             return res.json({ message: 'HR Notified', status: ticket.status });
         }
 
-        // Route to responsible dept (Controller must fill RCA first!)
+        // Route to responsible dept (Controller can fill RCA now OR delegate to Department Rep)
         if (action === 'ASSIGN') {
             if (!severity) return res.status(400).json({ message: 'Severity required' });
             if (!targetDepartmentId) return res.status(400).json({ message: 'Department required' });
             if (!notes || !notes.trim()) return res.status(400).json({ message: 'Controller notes required before routing' });
 
             const effectiveType = newType || ticket.type;
-            const rcaRequired = effectiveType !== 'OBSERVATION';
-            
+            const injuriesCount = (() => {
+                try { return ticket.offCircuitReport?.injuredPersons ? JSON.parse(ticket.offCircuitReport.injuredPersons).length : 0; } catch { return 0; }
+            })();
+            const hasInjuryCase = Boolean(ticket.hasInjury || injuriesCount > 0 || effectiveType === 'INJURY' || req.body.notifyHr === true);
+
+            // RCA Required Matrix (Standard HSE Matrix):
+            // 1. All MAJOR severity incidents
+            // 2. All incidents involving human injury (or requiring GOSI)
+            // 3. SIGNIFICANT incidents that are INJURY, ACCIDENT, PROPERTY_DAMAGE, or SECURITY
+            // 4. Any SECURITY hazard classification with SIGNIFICANT/MAJOR severity
+            const rcaRequired = Boolean(
+                severity === 'MAJOR' ||
+                hasInjuryCase ||
+                (severity === 'SIGNIFICANT' && ['INJURY', 'ACCIDENT', 'PROPERTY_DAMAGE', 'SECURITY', 'SECURITY_BREACH'].includes(effectiveType)) ||
+                (classificationType === 'SECURITY' && ['SIGNIFICANT', 'MAJOR'].includes(severity))
+            );
+
+            const isDelegated = rcaRequired && (delegateRcaToDept === true);
             const { rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions } = req.body;
             
-            if (rcaRequired) {
+            if (rcaRequired && !isDelegated) {
                 if (!rcaCause || !rcaWhy || !rcaRootCause || !rcaCategory || !rcaPreventiveActions) {
-                    return res.status(400).json({ message: 'All 5 RCA fields are required before assigning to a department.' });
+                    return res.status(400).json({ message: 'All 5 RCA fields are required when writing RCA directly, or you can delegate RCA to the department.' });
                 }
             }
 
-            // Update OffCircuitReport with Controller info and RCA
-            const hasOptionalRca = Boolean(rcaCause && rcaWhy && rcaRootCause && rcaCategory && rcaPreventiveActions);
+            const hasCompletedRca = Boolean(rcaRequired && !isDelegated && rcaCause && rcaWhy && rcaRootCause && rcaCategory && rcaPreventiveActions);
+
+            // Trigger HR notification if requested
+            if (req.body.notifyHr === true) {
+                await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { hrAssignedAt: new Date() } });
+                const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
+                if (hrReps.length > 0) {
+                    await createNotificationsBulk(hrReps.map(hr => hr.id), 'GOSI Data Required', `Ticket ${ticket.ticketNo}: Please complete GOSI data for injured employee(s).`, 'INFO', `/tickets/${ticket.id}`).catch(() => {});
+                }
+            }
+
+            // Update OffCircuitReport with Controller info, Classification, and RCA settings
             await prisma.offCircuitReport.update({ 
                 where: { ticketId: ticket.id }, 
                 data: { 
                     severity, 
                     hazardCategory: hazardCategory || null, 
+                    classificationType: classificationType || null,
                     controllerNotes: notes, 
                     controllerFilledBy: req.user.name, 
                     controllerFilledAt: new Date(), 
                     rcaRequired, 
+                    rcaDelegatedToDept: isDelegated,
                     responsibleDeptId: targetDepartmentId,
-                    ...(rcaRequired || hasOptionalRca ? { 
+                    ...(hasCompletedRca ? { 
                         rcaCause: rcaCause || null, 
                         rcaWhy: rcaWhy || null, 
                         rcaRootCause: rcaRootCause || null, 
@@ -214,12 +248,20 @@ const controllerAction = async (req, res) => {
                         rcaCompleted: true, 
                         rcaFilledBy: req.user.name, 
                         rcaFilledAt: new Date() 
-                    } : {})
+                    } : {
+                        rcaCompleted: !rcaRequired
+                    })
                 } 
             });
 
             const targetDept = await prisma.department.findUnique({ where: { id: targetDepartmentId } });
             const deptName = targetDept ? (targetDept.nameAr || targetDept.name) : 'Unknown';
+
+            const logActionDetails = rcaRequired
+                ? (isDelegated
+                    ? `Controller assigned ticket to ${deptName} and delegated RCA to Department Representative. Severity: ${severity}. ${notes}`
+                    : `Controller completed RCA and assigned to ${deptName}. Severity: ${severity}. ${notes}`)
+                : `Controller assigned ticket to ${deptName} (RCA not required for minor/routine). Severity: ${severity}. ${notes}`;
 
             const ticketUpdateData = { 
                 status: 'ASSIGNED', 
@@ -231,7 +273,7 @@ const controllerAction = async (req, res) => {
                     create: { 
                         actorId: req.user.id, 
                         action: 'STAGE_ASSIGNED', 
-                        details: `Controller completed RCA and assigned to: ${deptName}. Severity: ${severity}. ${notes}` 
+                        details: logActionDetails
                     } 
                 } 
             };
@@ -245,29 +287,34 @@ const controllerAction = async (req, res) => {
             });
 
             const depReps = await prisma.user.findMany({ where: { repDepartmentId: targetDepartmentId, role: 'DEP_REP', status: 'ACTIVE' }, select: { id: true } });
-            if (depReps.length > 0) await createNotificationsBulk(depReps.map(rep => rep.id), 'Ticket Assigned', `Ticket ${ticket.ticketNo} assigned to your department. RCA is ready for review.`, 'ASSIGNED', `/tickets/${ticket.id}`);
+            if (depReps.length > 0) {
+                const notifMessage = isDelegated
+                    ? `Ticket ${ticket.ticketNo} assigned to your department. Please complete RCA and Action Plans.`
+                    : `Ticket ${ticket.ticketNo} assigned to your department. RCA is ready for review.`;
+                await createNotificationsBulk(depReps.map(rep => rep.id), 'Ticket Assigned', notifMessage, 'ASSIGNED', `/tickets/${ticket.id}`);
+            }
             
             // Check for employee injury — only notify HR if controller explicitly confirms
             let hasEmployeeInjury = false;
             const injured = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
             hasEmployeeInjury = injured.some(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
-            if (hasEmployeeInjury && req.body.notifyHr === true) {
+            if ((ticket.hasInjury || hasEmployeeInjury) && req.body.notifyHr === true) {
                 await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { hrAssignedAt: new Date() } });
                 await prisma.ticket.update({ where: { id: ticket.id }, data: { activityLogs: { create: { actorId: req.user.id, action: 'STAGE_HR_NOTIFIED', details: `Controller confirmed: HR notified to provide GOSI data.` } } } });
                 const hrReps = await prisma.user.findMany({ where: { role: 'HR_REP', status: 'ACTIVE' }, select: { id: true } });
                 if (hrReps.length > 0) await createNotificationsBulk(hrReps.map(hr => hr.id), 'GOSI Data Required', `Ticket ${ticket.ticketNo}: Please complete GOSI data for injured employee(s).`, 'INFO', `/tickets/${ticket.id}`);
-            } else if (hasEmployeeInjury && req.body.notifyHr === false) {
-                await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'HR_NOTIFICATION_SKIPPED', details: 'Controller decided not to notify HR for this injury.' } });
+            } else if ((ticket.hasInjury || hasEmployeeInjury) && req.body.notifyHr === false) {
+                await prisma.activityLog.create({ data: { ticketId: ticket.id, actorId: req.user.id, action: 'HR_NOTIFICATION_SKIPPED', details: 'Controller decided not to notify HR for this injury (No GOSI required).' } });
             }
 
-            return res.json({ message: 'RCA saved and ticket assigned to department', status: 'ASSIGNED' });
+            return res.json({ message: isDelegated ? 'Ticket assigned to department with RCA delegated' : 'RCA saved and ticket assigned to department', status: 'ASSIGNED' });
         }
 
         res.status(400).json({ message: 'Invalid action. Use: RETURN_REPORTER, NOTIFY_HR, ASSIGN' });
     } catch (error) {
         logger.error({ err: error }, 'Controller Action Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'Controller action failed') });
     }
 };
 
@@ -281,12 +328,12 @@ const hrAction = async (req, res) => {
         if (!['HR_REP', 'ADMIN'].includes(role)) return res.status(403).json({ message: 'Only HR representatives' });
         // if (ticket.status === 'CLOSED') return res.status(400).json({ message: 'Ticket is closed' }); // Removed to allow HR late updates
 
-        const { injuredPersonsGosi, hrNotes } = req.body;
+        const { injuredPersonsGosi, hrNotes, gosiSubmitted, gosiReportDate, gosiReportNumber, gosiEmployeeId, gosiNoReason } = req.body;
 
         let injuredPersons = safeParseJSON(ticket.offCircuitReport?.injuredPersons, []);
         const employeeInjured = injuredPersons.filter(p => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
 
-        // Validate per-person GOSI
+        // Validate per-person GOSI if employee injuries exist
         if (Array.isArray(injuredPersonsGosi) && injuredPersonsGosi.length > 0) {
             if (injuredPersonsGosi.length !== employeeInjured.length) {
                 return res.status(400).json({ message: 'Must provide GOSI data for ALL injured employees' });
@@ -307,8 +354,6 @@ const hrAction = async (req, res) => {
                 }
                 return p;
             });
-        } else if (employeeInjured.length > 0) {
-            return res.status(400).json({ message: 'GOSI data required for all injured employees' });
         }
 
         const reportUpdate = { injuredPersons: JSON.stringify(injuredPersons), hrFilledBy: req.user.name, hrFilledAt: new Date() };
@@ -321,8 +366,23 @@ const hrAction = async (req, res) => {
             if (submittedGosi.gosiSubmitted) { 
                 reportUpdate.gosiReportDate = submittedGosi.gosiReportDate ? new Date(submittedGosi.gosiReportDate) : null; 
                 reportUpdate.gosiReportNumber = submittedGosi.gosiReportNumber || null; 
+                reportUpdate.gosiNoReason = null;
             } else {
                 reportUpdate.gosiNoReason = submittedGosi.gosiNoReason || null;
+                reportUpdate.gosiReportDate = null;
+                reportUpdate.gosiReportNumber = null;
+            }
+        } else if (gosiSubmitted !== undefined) {
+            reportUpdate.gosiSubmitted = gosiSubmitted === true || gosiSubmitted === 'true';
+            reportUpdate.gosiEmployeeId = gosiEmployeeId || null;
+            if (reportUpdate.gosiSubmitted) {
+                reportUpdate.gosiReportDate = gosiReportDate ? new Date(gosiReportDate) : null;
+                reportUpdate.gosiReportNumber = gosiReportNumber || null;
+                reportUpdate.gosiNoReason = null;
+            } else {
+                reportUpdate.gosiNoReason = gosiNoReason || null;
+                reportUpdate.gosiReportDate = null;
+                reportUpdate.gosiReportNumber = null;
             }
         }
         if (hrNotes !== undefined) reportUpdate.hrNotes = hrNotes;
@@ -333,7 +393,7 @@ const hrAction = async (req, res) => {
         res.json({ message: 'HR notes and GOSI data saved successfully', status: ticket.status });
     } catch (error) {
         logger.error({ err: error }, 'HR Action Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'HR action failed') });
     }
 };
 
@@ -360,8 +420,52 @@ const departmentAction = async (req, res) => {
             });
         }
 
-        await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: { depRepFilledBy: req.user.name, depRepFilledAt: new Date() } });
-        await prisma.ticket.update({ where: { id: ticket.id }, data: { status: 'UNDER_REVIEW', departmentRespondedAt: new Date(), activityLogs: { create: { actorId: req.user.id, action: 'STAGE_DEPT_RESPONDED', details: 'Department submitted response & action plans' } } } });
+        const { rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions } = req.body;
+        const oc = ticket.offCircuitReport;
+        const rcaNeededFromDept = oc?.rcaDelegatedToDept || (oc?.rcaRequired && !oc?.rcaCompleted);
+
+        if (rcaNeededFromDept) {
+            if (!rcaCause || !rcaWhy || !rcaRootCause || !rcaCategory || !rcaPreventiveActions) {
+                return res.status(400).json({
+                    message: 'All 5 Root Cause Analysis (RCA) fields are required before submitting.',
+                    code: 'MISSING_RCA_FIELDS'
+                });
+            }
+        }
+
+        const offCircuitUpdate = {
+            depRepFilledBy: req.user.name,
+            depRepFilledAt: new Date()
+        };
+
+        if (rcaCause && rcaWhy && rcaRootCause && rcaCategory && rcaPreventiveActions) {
+            offCircuitUpdate.rcaCause = rcaCause;
+            offCircuitUpdate.rcaWhy = rcaWhy;
+            offCircuitUpdate.rcaRootCause = rcaRootCause;
+            offCircuitUpdate.rcaCategory = rcaCategory;
+            offCircuitUpdate.rcaPreventiveActions = rcaPreventiveActions;
+            offCircuitUpdate.rcaCompleted = true;
+            offCircuitUpdate.rcaFilledBy = req.user.name;
+            offCircuitUpdate.rcaFilledAt = new Date();
+        }
+
+        await prisma.offCircuitReport.update({ where: { ticketId: ticket.id }, data: offCircuitUpdate });
+        await prisma.ticket.update({ 
+            where: { id: ticket.id }, 
+            data: { 
+                status: 'UNDER_REVIEW', 
+                departmentRespondedAt: new Date(), 
+                activityLogs: { 
+                    create: { 
+                        actorId: req.user.id, 
+                        action: 'STAGE_DEPT_RESPONDED', 
+                        details: rcaNeededFromDept 
+                            ? 'Department submitted RCA and action plans' 
+                            : 'Department submitted response & action plans' 
+                    } 
+                } 
+            } 
+        });
 
         const controllers = await prisma.user.findMany({ where: { role: 'HSE_CONTROLLER', status: 'ACTIVE' }, select: { id: true } });
         if (controllers.length > 0) await createNotificationsBulk(controllers.map(c => c.id), 'Department Response', `Ticket ${ticket.ticketNo}: Department responded`, 'DEP_RESPONSE', `/tickets/${ticket.id}`);
@@ -369,7 +473,7 @@ const departmentAction = async (req, res) => {
         res.json({ message: 'Department response submitted', status: 'UNDER_REVIEW' });
     } catch (error) {
         logger.error({ err: error }, 'Department Action Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'Department action failed') });
     }
 };
 
@@ -556,7 +660,7 @@ Thank you for your report. The issue has been fully resolved. If you have any qu
         res.status(400).json({ message: 'Invalid action' });
     } catch (error) {
         logger.error({ err: error }, 'Controller Review Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'Review action failed') });
     }
 };
 
@@ -701,7 +805,7 @@ Thank you for your report. The issue has been fully resolved. If you have any qu
         res.status(400).json({ message: 'Invalid action' });
     } catch (error) {
         logger.error({ err: error }, 'Safety Manager Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'Safety manager action failed') });
     }
 };
 
@@ -730,7 +834,7 @@ const updateControllerNotes = async (req, res) => {
         res.json({ message: 'Controller notes updated successfully' });
     } catch (error) {
         logger.error({ err: error }, 'Update Controller Notes Error:');
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: safeError(error, 'Failed to update notes') });
     }
 };
 

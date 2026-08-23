@@ -212,9 +212,16 @@ const suspendUser = async (req, res) => {
 const toggleUserStatus = async (req, res) => {
     try {
         if (!ADMIN_ROLES.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
-        await prisma.user.update({ where: { id: req.params.id }, data: { status: req.body.status } });
-        res.json({ message: `Status updated to ${req.body.status}` });
-    } catch (error) { res.status(500).json({ message: 'Error' }); }
+
+        const VALID_STATUSES = ['ACTIVE', 'PENDING', 'SUSPENDED', 'BANNED'];
+        const { status } = req.body;
+        if (!status || !VALID_STATUSES.includes(status)) {
+            return res.status(400).json({ message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
+        }
+
+        await prisma.user.update({ where: { id: req.params.id }, data: { status } });
+        res.json({ message: `Status updated to ${status}` });
+    } catch (error) { res.status(500).json({ message: 'Error updating status' }); }
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -223,8 +230,10 @@ const toggleUserStatus = async (req, res) => {
 // LTI definition: type === LOST_TIME_INJURY OR severityLevel ∈ {MAJOR, SEVERE, CRITICAL, SERIOUS}
 // ════════════════════════════════════════════════════════════════════════════
 const HIGH_SEVERITY = new Set(['MAJOR', 'SEVERE', 'CRITICAL', 'SERIOUS']);
-const LOW_SEVERITY  = new Set(['MINOR', 'MODERATE', 'SIGNIFICANT']);
-const PYRAMID_RATIO = { lti: 1, medical: 10, nearMiss: 30, observation: 100 }; // Saudi industrial
+// PYRAMID_RATIO: Saudi industrial benchmark — 10 Medical : 30 Near-Miss : 100 Observation per 1 LTI.
+// Note: the lti ratio key (= 1) is omitted here because it is the base unit used implicitly;
+// only the multiples for medical, nearMiss, and observation are needed in the deviation calculation.
+const PYRAMID_RATIO = { medical: 10, nearMiss: 30, observation: 100 }; // Saudi industrial
 
 // Classify a ticket into the pyramid level for HSE reporting.
 // Active TicketType values: OBSERVATION, SECURITY, ACCIDENT.
@@ -249,19 +258,78 @@ const classifyPyramid = (t) => {
 
 const getAnalytics = async (req, res) => {
     try {
-        if (!ROLES.ALL.includes(req.user.role)) return res.status(403).json({ message: 'Not authorized' });
+        const { role, canViewAnalytics, repDepartmentId, department: userDept } = req.user;
+        const hasAnalyticsPermission = !!canViewAnalytics || role === 'ADMIN' || ['HSE_CONTROLLER', 'SAFETY_MANAGER'].includes(role);
+        if (!hasAnalyticsPermission) {
+            return res.status(403).json({ message: 'غير مصرح لك بالاطلاع على صفحة الإحصائيات. يجب منحك التصريح من إدارة النظام.' });
+        }
 
-        // Date range filter from query params
-        const { from, to } = req.query;
+        const { from, to, year, quarter, month, departmentId: requestedDeptId, status: requestedStatus, severity: requestedSeverity } = req.query;
+
+        // Department role scoping: DEP_MANAGER and DEP_REP can ONLY see their department!
+        const isDepRestricted = ['DEP_MANAGER', 'DEP_REP'].includes(role);
+        let userDeptRecord = null;
+        if (repDepartmentId) {
+            userDeptRecord = await prisma.department.findUnique({ where: { id: repDepartmentId } });
+        } else if (userDept) {
+            userDeptRecord = await prisma.department.findFirst({
+                where: { OR: [{ id: userDept }, { name: userDept }, { nameAr: userDept }] }
+            });
+        }
+
+        let effectiveDeptId = null;
+        if (isDepRestricted) {
+            effectiveDeptId = userDeptRecord?.id || repDepartmentId || null;
+        } else if (requestedDeptId && requestedDeptId !== 'ALL') {
+            effectiveDeptId = requestedDeptId;
+        }
+
         const where = { userGroup: 'OFF_CIRCUIT' };
-        if (from || to) {
+
+        if (effectiveDeptId) {
+            where.departmentId = effectiveDeptId;
+        }
+
+        // Handle Quarter / Month / Date Range filtering
+        if (quarter && year) {
+            const q = parseInt(quarter, 10);
+            const y = parseInt(year, 10);
+            const startMonth = (q - 1) * 3; // 0, 3, 6, 9
+            const qStart = new Date(Date.UTC(y, startMonth, 1));
+            const qEnd = new Date(Date.UTC(y, startMonth + 3, 0, 23, 59, 59, 999));
+            where.createdAt = { gte: qStart, lte: qEnd };
+        } else if (month && year) {
+            const m = parseInt(month, 10) - 1;
+            const y = parseInt(year, 10);
+            const mStart = new Date(Date.UTC(y, m, 1));
+            const mEnd = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
+            where.createdAt = { gte: mStart, lte: mEnd };
+        } else if (from || to) {
             where.createdAt = {};
             if (from) where.createdAt.gte = new Date(from);
             if (to) {
                 const endDate = new Date(to);
-                endDate.setHours(23, 59, 59, 999); // Include the entire "to" day
+                endDate.setHours(23, 59, 59, 999);
                 where.createdAt.lte = endDate;
             }
+        }
+
+        // Status filter
+        if (requestedStatus && requestedStatus !== 'ALL') {
+            if (requestedStatus === 'OPEN') {
+                where.status = { in: ['SUBMITTED', 'RETURNED_TO_REPORTER'] };
+            } else if (requestedStatus === 'IN_PROGRESS') {
+                where.status = { in: ['ASSIGNED', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'PENDING_REMINDER', 'ESCALATED'] };
+            } else if (requestedStatus === 'CLOSED') {
+                where.status = 'CLOSED';
+            } else {
+                where.status = requestedStatus;
+            }
+        }
+
+        // Severity filter
+        if (requestedSeverity && requestedSeverity !== 'ALL') {
+            where.severityLevel = requestedSeverity;
         }
 
         // Fetch everything in parallel ────────────────────────────────────────
@@ -271,13 +339,15 @@ const getAnalytics = async (req, res) => {
                 select: {
                     id: true, type: true, status: true, priority: true, hasInjury: true,
                     severityLevel: true, createdAt: true, closedAt: true, createdById: true,
+                    description: true,
                     departmentId: true, zoneId: true, eventId: true, serviceProviderId: true, location: true, ticketNo: true,
                     department: { select: { id: true, name: true, nameAr: true } },
                     zone: { select: { id: true, name: true } },
                     event: { select: { id: true, nameEn: true, nameAr: true } },
                     serviceProvider: { select: { id: true, name: true, commercialRegistrationNumber: true, status: true, department: { select: { name: true, nameAr: true } } } },
-                    offCircuitReport: { select: { isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true, locationLat: true, locationLng: true } },
+                    offCircuitReport: { select: { whatHappened: true, incidentDate: true, incidentTime: true, locationAddress: true, locationDescription: true, isLateReport: true, rcaRequired: true, rcaCompleted: true, gosiSubmitted: true, contractorNotified: true, locationLat: true, locationLng: true, detectionSource: true } },
                 },
+                orderBy: { createdAt: 'desc' },
             }),
             prisma.actionPlan.findMany({
                 select: { id: true, ticketId: true, type: true, status: true, targetDate: true, departmentId: true, submittedAt: true, department: { select: { name: true, nameAr: true } } },
@@ -629,16 +699,178 @@ const getAnalytics = async (req, res) => {
             monthlyTrend,
             topReporters,
 
-            // Map Cases
+            // Executive Dashboard Metrics (Matching Royal Commission / Authority Layout)
+            isDepRestricted,
+            userDepartment: userDeptRecord ? { id: userDeptRecord.id, name: userDeptRecord.name, nameAr: userDeptRecord.nameAr || userDeptRecord.name } : null,
+            selectedDepartmentId: effectiveDeptId || 'ALL',
+            departmentsList: departments.map(d => ({ id: d.id, name: d.name, nameAr: d.nameAr || d.name })),
+
+            executiveKpis: {
+                total: totalTickets,
+                resolved: tickets.filter(t => t.status === 'CLOSED').length,
+                inProgress: tickets.filter(t => t.status !== 'CLOSED').length,
+                onTrack: tickets.filter(t => t.status === 'CLOSED' || !t.offCircuitReport?.isLateReport).length,
+                overdue: tickets.filter(t => (t.status !== 'CLOSED' && overdueActionPlans.some(p => p.ticketId === t.id)) || t.offCircuitReport?.isLateReport).length,
+                critical: tickets.filter(t => t.severityLevel === 'MAJOR' || t.priority === 'CRITICAL' || t.hasInjury).length
+            },
+
+            unitsBreakdown: (() => {
+                const safetyTypes = ['OBSERVATION', 'UNSAFE_CONDITION', 'UNSAFE_ACT', 'ACCIDENT', 'NEAR_MISS'];
+                const securityTypes = ['SECURITY', 'SECURITY_BREACH', 'VIOLATION'];
+                const healthTypes = ['HEALTH', 'INJURY', 'PROPERTY_DAMAGE', 'OTHER'];
+
+                const getUnitStats = (types, labelAr, labelEn, icon, color) => {
+                    const unitTickets = tickets.filter(t => types.includes(t.type));
+                    const open = unitTickets.filter(t => ['SUBMITTED', 'RETURNED_TO_REPORTER'].includes(t.status)).length;
+                    const inProgress = unitTickets.filter(t => ['ASSIGNED', 'UNDER_REVIEW', 'RETURNED_TO_DEPARTMENT', 'PENDING_REMINDER', 'ESCALATED'].includes(t.status)).length;
+                    const closed = unitTickets.filter(t => t.status === 'CLOSED').length;
+                    const major = unitTickets.filter(t => t.severityLevel === 'MAJOR').length;
+                    return {
+                        key: labelEn.toLowerCase(),
+                        labelAr,
+                        labelEn,
+                        icon,
+                        color,
+                        total: unitTickets.length,
+                        open,
+                        inProgress,
+                        closed,
+                        major
+                    };
+                };
+
+                return [
+                    getUnitStats(safetyTypes, 'السلامة', 'Safety', '🦺', '#10b981'),
+                    getUnitStats(securityTypes, 'الأمن', 'Security', '🛡️', '#3b82f6'),
+                    getUnitStats(healthTypes, 'الصحة والبيئة', 'Health & Env', '🏥', '#f59e0b')
+                ];
+            })(),
+
+            // trainingHours: returns incident count breakdowns per category.
+            // NOTE: These are NOT computed from actual training records — a dedicated
+            // training module does not exist yet. The counts reflect incident activity only
+            // and should be treated as a proxy metric until real training data is available.
+            trainingHours: (() => {
+                const safetyCount   = tickets.filter(t => ['OBSERVATION', 'UNSAFE_CONDITION', 'UNSAFE_ACT', 'ACCIDENT', 'NEAR_MISS'].includes(t.type)).length;
+                const securityCount = tickets.filter(t => ['SECURITY', 'SECURITY_BREACH', 'VIOLATION'].includes(t.type)).length;
+                const uniqueReporters = new Set(tickets.map(t => t.createdById).filter(Boolean)).size;
+                return {
+                    // Raw counts — no synthetic hour multiplication to avoid misleading metrics
+                    safetyIncidents:   safetyCount,
+                    securityIncidents: securityCount,
+                    totalIncidents:    safetyCount + securityCount,
+                    uniqueReporters,
+                    // Legacy-compatible aliases (retained so existing frontend charts don't break)
+                    safetyHours:   safetyCount,
+                    securityHours: securityCount,
+                    totalHours:    safetyCount + securityCount,
+                    traineesCount: uniqueReporters,
+                    isEstimated: true // flag so UI can show a disclaimer
+                };
+            })(),
+
+            detailsList: tickets.slice(0, 50).map(t => {
+                const isSec = ['SECURITY', 'SECURITY_BREACH', 'VIOLATION'].includes(t.type);
+                const isHealth = ['HEALTH', 'INJURY', 'PROPERTY_DAMAGE'].includes(t.type);
+                const unitNameAr = isSec ? 'الأمن' : isHealth ? 'الصحة والبيئة' : 'السلامة';
+                const unitNameEn = isSec ? 'Security' : isHealth ? 'Health & Env' : 'Safety';
+                return {
+                    id: t.id,
+                    ticketNo: t.ticketNo,
+                    title: t.offCircuitReport?.whatHappened || t.description || 'ملاحظة أمن وسلامة',
+                    unitAr: unitNameAr,
+                    unitEn: unitNameEn,
+                    status: t.status,
+                    severityLevel: t.severityLevel || 'MINOR',
+                    createdAt: t.createdAt,
+                    incidentDate: t.offCircuitReport?.incidentDate || t.createdAt,
+                    location: t.location || t.offCircuitReport?.locationAddress || '-',
+                    departmentName: t.department?.name || 'N/A',
+                    departmentNameAr: t.department?.nameAr || t.department?.name || 'N/A',
+                    detectionSource: t.offCircuitReport?.detectionSource || 'INTERNAL_OBSERVATION'
+                };
+            }),
+
+            severityDistribution: [
+                { key: 'MAJOR', labelAr: 'عالية (Major)', labelEn: 'Major (High)', count: tickets.filter(t => t.severityLevel === 'MAJOR').length, color: '#ef4444' },
+                { key: 'SIGNIFICANT', labelAr: 'متوسطة (Significant)', labelEn: 'Significant (Medium)', count: tickets.filter(t => t.severityLevel === 'SIGNIFICANT').length, color: '#f59e0b' },
+                { key: 'MINOR', labelAr: 'منخفضة (Minor)', labelEn: 'Minor (Low)', count: tickets.filter(t => !t.severityLevel || t.severityLevel === 'MINOR').length, color: '#10b981' }
+            ],
+
+            deptStatusBreakdown: departments.map(d => {
+                const deptTickets = tickets.filter(t => t.departmentId === d.id);
+                const open = deptTickets.filter(t => t.status !== 'CLOSED').length;
+                const closed = deptTickets.filter(t => t.status === 'CLOSED').length;
+                return {
+                    id: d.id,
+                    name: d.name,
+                    nameAr: d.nameAr || d.name,
+                    total: deptTickets.length,
+                    open,
+                    closed
+                };
+            }).sort((a, b) => b.total - a.total).slice(0, 10),
+
+            locationDistribution: (() => {
+                const locMap = {};
+                tickets.forEach(t => {
+                    const loc = t.zone?.name || t.location || 'حلبة كورنيش جدة';
+                    locMap[loc] = (locMap[loc] || 0) + 1;
+                });
+                return Object.entries(locMap)
+                    .map(([name, count]) => ({ name, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 6);
+            })(),
+
+            // Map Cases with real coordinates and ticket details
             mapCases: tickets.map(t => ({
                 id: t.id,
                 ticketNo: t.ticketNo,
                 status: t.status,
                 severityLevel: t.severityLevel || t.offCircuitReport?.severity || 'MINOR',
-                locationLat: t.offCircuitReport?.locationLat || null,
-                locationLng: t.offCircuitReport?.locationLng || null,
-                location: t.location
+                locationLat: t.offCircuitReport?.locationLat || 21.5433,
+                locationLng: t.offCircuitReport?.locationLng || 39.1728,
+                location: t.location || t.offCircuitReport?.locationAddress || 'حلبة كورنيش جدة',
+                departmentName: t.department?.nameAr || t.department?.name || 'N/A'
             })),
+
+            // Detection Sources Breakdown
+            // Compute srcMap once — used by both detectionSources and detectionSourceStats
+            // to avoid iterating tickets twice for the same data.
+            ...(() => {
+                const srcMap = {
+                    INSPECTION: 0,
+                    AUDIT: 0,
+                    INTERNAL_OBSERVATION: 0,
+                    EXTERNAL_SOURCE: 0
+                };
+                tickets.forEach(t => {
+                    const src = t.offCircuitReport?.detectionSource || 'INTERNAL_OBSERVATION';
+                    if (srcMap[src] !== undefined) {
+                        srcMap[src]++;
+                    } else {
+                        srcMap.INTERNAL_OBSERVATION++;
+                    }
+                });
+                return {
+                    detectionSources: { ...srcMap },
+                    detectionSourceStats: [
+                        { key: 'INSPECTION',          labelEn: 'Inspection',          labelAr: 'تفتيش ميداني',  icon: '🔍', count: srcMap.INSPECTION,          percentage: totalTickets > 0 ? Math.round((srcMap.INSPECTION          / totalTickets) * 100) : 0, color: '#3b82f6' },
+                        { key: 'AUDIT',               labelEn: 'Audit',               labelAr: 'تدقيق',         icon: '📋', count: srcMap.AUDIT,               percentage: totalTickets > 0 ? Math.round((srcMap.AUDIT               / totalTickets) * 100) : 0, color: '#8b5cf6' },
+                        { key: 'INTERNAL_OBSERVATION',labelEn: 'Internal Observation',labelAr: 'ملاحظة داخلية',icon: '👁️', count: srcMap.INTERNAL_OBSERVATION, percentage: totalTickets > 0 ? Math.round((srcMap.INTERNAL_OBSERVATION / totalTickets) * 100) : 0, color: '#10b981' },
+                        { key: 'EXTERNAL_SOURCE',     labelEn: 'External Source',     labelAr: 'مصدر خارجي',   icon: '🌐', count: srcMap.EXTERNAL_SOURCE,     percentage: totalTickets > 0 ? Math.round((srcMap.EXTERNAL_SOURCE     / totalTickets) * 100) : 0, color: '#f59e0b' },
+                    ],
+                };
+            })(),
+
+            // Available calendar years — derived from already-loaded tickets array,
+            // no extra DB round-trip needed.
+            availableYears: (() => {
+                const ySet = new Set(tickets.map(t => new Date(t.createdAt).getFullYear()));
+                const arr = Array.from(ySet).sort((a, b) => b - a);
+                return arr.length > 0 ? arr : [new Date().getFullYear()];
+            })(),
 
             // Backward-compatible (if any caller still reads these)
             statusDistribution: byStatus,
@@ -845,11 +1077,26 @@ const exportTickets = async (req, res) => {
             return res.send(buf);
         }
 
-        // BULK EXPORT
-        let where = { userGroup: 'OFF_CIRCUIT' };
-        if (startDate && endDate) { const end = new Date(endDate); end.setHours(23,59,59,999); where.createdAt = { gte: new Date(startDate), lte: end }; }
+        // BULK EXPORT — Apply the same role-based scoping as getTickets to prevent
+        // lower-privilege roles (OC_REPORTER, DEP_REP, etc.) from downloading data
+        // they are not permitted to see through the normal ticket list view.
+        const exportWhere = { userGroup: 'OFF_CIRCUIT' };
+        if (req.user.role === 'OC_REPORTER') {
+            exportWhere.createdById = req.user.id;
+        } else if (req.user.role === 'DEP_REP' || req.user.role === 'DEP_MANAGER') {
+            if (req.user.repDepartmentId) exportWhere.departmentId = req.user.repDepartmentId;
+            else exportWhere.createdById = req.user.id; // fallback: own tickets only
+        } else if (req.user.role === 'FINANCE_REP') {
+            exportWhere.forwardedToFinance = true;
+        }
+        // ADMIN, HSE_CONTROLLER, SAFETY_MANAGER: no additional filter — full access
+        if (startDate && endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            exportWhere.createdAt = { gte: new Date(startDate), lte: end };
+        }
 
-        const tickets = await prisma.ticket.findMany({ where, include: { createdBy: { select: { name: true } }, offCircuitReport: true, actionPlans: true }, orderBy: { createdAt: 'desc' } });
+        const tickets = await prisma.ticket.findMany({ where: exportWhere, include: { createdBy: { select: { name: true } }, offCircuitReport: true, actionPlans: true }, orderBy: { createdAt: 'desc' } });
         const rows = tickets.map(t => {
             const oc = t.offCircuitReport;
             return {

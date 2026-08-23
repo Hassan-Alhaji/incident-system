@@ -38,10 +38,12 @@ const TicketDetail = () => {
     const [newType, setNewType] = useState('');
     const [typeChangeReason, setTypeChangeReason] = useState('');
     const [hazardCategory, setHazardCategory] = useState<string[]>([]);
+    const [classificationType, setClassificationType] = useState<'SAFETY' | 'SECURITY'>('SAFETY');
+    const [delegateRcaToDept, setDelegateRcaToDept] = useState(false);
     const [reminderDate, setReminderDate] = useState('');
     const [reminderMessage, setReminderMessage] = useState('');
 
-    // RCA fields (filled by Controller at ASSIGN step for non-OBSERVATION tickets)
+    // RCA fields
     const [rcaCause, setRcaCause] = useState('');
     const [rcaWhy, setRcaWhy] = useState('');
     const [rcaRootCause, setRcaRootCause] = useState('');
@@ -59,7 +61,12 @@ const TicketDetail = () => {
     }
     const [injuredPersonsGosi, setInjuredPersonsGosi] = useState<GosiEntry[]>([]);
     const [hrNotes, setHrNotes] = useState('');
-    const [notifyHr, setNotifyHr] = useState<boolean | null>(null);  // Point 8: Manual HR notification confirmation
+    const [singleGosiSubmitted, setSingleGosiSubmitted] = useState<boolean | undefined>(undefined);
+    const [singleGosiEmployeeId, setSingleGosiEmployeeId] = useState('');
+    const [singleGosiReportDate, setSingleGosiReportDate] = useState('');
+    const [singleGosiReportNumber, setSingleGosiReportNumber] = useState('');
+    const [singleGosiNoReason, setSingleGosiNoReason] = useState('');
+    const [notifyHr, setNotifyHr] = useState<boolean | null>(null);  // Controller decision on whether HR / GOSI is required
     const [contractorNotified, setContractorNotified] = useState<boolean | undefined>(undefined);
     const [contractorNotifyDate, setContractorNotifyDate] = useState('');
     const [contractorNoReason, setContractorNoReason] = useState('');
@@ -143,6 +150,8 @@ const TicketDetail = () => {
                 setRcaRootCause(prev => prev || oc.rcaRootCause || '');
                 setRcaCategory(prev => prev || oc.rcaCategory || '');
                 setRcaPreventiveActions(prev => prev || oc.rcaPreventiveActions || '');
+                if (oc.classificationType) setClassificationType(oc.classificationType);
+                if (oc.rcaDelegatedToDept !== undefined && oc.rcaDelegatedToDept !== null) setDelegateRcaToDept(Boolean(oc.rcaDelegatedToDept));
                 if (oc.hazardCategory) {
                     try {
                         const parsed = JSON.parse(oc.hazardCategory);
@@ -163,15 +172,15 @@ const TicketDetail = () => {
     }, [ticket]);
 
     const handleControllerAction = async (action: string) => {
-        // For ASSIGN: validate RCA fields client-side if non-OBSERVATION
+        // For ASSIGN: validate RCA fields client-side if non-OBSERVATION and NOT delegated
         if (action === 'ASSIGN') {
             const effectiveType = newType || ticket?.type;
-            const rcaRequired = effectiveType !== 'OBSERVATION';
-            if (rcaRequired) {
+            const rcaRequired = !['OBSERVATION', 'UNSAFE_CONDITION'].includes(effectiveType);
+            if (rcaRequired && !delegateRcaToDept) {
                 const countWords = (s: string) => s.trim().split(/\s+/).filter(w => w.length > 0).length;
                 const missing = !rcaCause || !rcaWhy || !rcaRootCause || !rcaCategory || !rcaPreventiveActions;
                 if (missing) {
-                    showToast(t('ticketDetail.rcaFieldsRequiredToast', 'All 5 RCA fields are required before routing'), 'warning');
+                    showToast(isRtl ? 'جميع حقول تحليل السبب الجذري (RCA) الـ 5 مطلوبة، أو يمكنك تفويضها لممثل القسم' : 'All 5 RCA fields are required, or you can delegate RCA to the department', 'warning');
                     return;
                 }
                 const tooShort = [rcaCause, rcaWhy, rcaRootCause, rcaCategory, rcaPreventiveActions].some(v => countWords(v) < 10);
@@ -180,9 +189,9 @@ const TicketDetail = () => {
                     return;
                 }
             }
-            // Point 8: If there's an injury, controller must confirm whether to notify HR
+            // If there's an injury, controller must confirm whether to notify HR
             if (ticket.hasInjury && notifyHr === null) {
-                showToast(t('ticketDetail.confirmHrNotification', 'This report contains an injury — please confirm whether to notify HR'), 'warning');
+                showToast(isRtl ? 'يحتوي هذا البلاغ على إصابة — يرجى تحديد هل يتطلب رفع تقرير GOSI إلى الموارد البشرية' : 'This report contains an injury — please specify if a GOSI report to HR is required', 'warning');
                 return;
             }
         }
@@ -196,15 +205,19 @@ const TicketDetail = () => {
                 targetDepartmentId,
                 newType: newType || undefined,
                 typeChangeReason,
+                classificationType,
                 hazardCategory: hazardCategory.length > 0 ? JSON.stringify(hazardCategory) : undefined,
                 serviceProviderId: selectedServiceProviderId || undefined,
+                delegateRcaToDept: delegateRcaToDept === true,
             };
             if (action === 'ASSIGN') {
-                body.rcaCause = rcaCause;
-                body.rcaWhy = rcaWhy;
-                body.rcaRootCause = rcaRootCause;
-                body.rcaCategory = rcaCategory;
-                body.rcaPreventiveActions = rcaPreventiveActions;
+                if (!delegateRcaToDept) {
+                    body.rcaCause = rcaCause;
+                    body.rcaWhy = rcaWhy;
+                    body.rcaRootCause = rcaRootCause;
+                    body.rcaCategory = rcaCategory;
+                    body.rcaPreventiveActions = rcaPreventiveActions;
+                }
                 if (ticket?.hasInjury) {
                     body.notifyHr = notifyHr === true;
                 }
@@ -217,21 +230,63 @@ const TicketDetail = () => {
     };
 
     const handleHrAction = async () => {
+        const ocSafe = ticket?.offCircuitReport || {};
+        const injuredPersonsSafe = safeParseJSON(ocSafe.injuredPersons);
+        const employees = injuredPersonsSafe.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+
+        if (employees.length > 0) {
+            for (let i = 0; i < employees.length; i++) {
+                const g = injuredPersonsGosi[i];
+                if (!g?.gosiEmployeeId?.trim()) {
+                    showToast(isRtl ? `الرقم الوظيفي مطلوب للمصاب رقم ${i + 1}` : `Employee ID required for person #${i + 1}`, 'warning');
+                    return;
+                }
+                if (g?.gosiSubmitted === undefined) {
+                    showToast(isRtl ? `يرجى تحديد هل تم إبلاغ التأمينات (GOSI) للمصاب رقم ${i + 1}` : `Please select GOSI status for person #${i + 1}`, 'warning');
+                    return;
+                }
+                if (g?.gosiSubmitted === true && (!g?.gosiReportDate || !g?.gosiReportNumber?.trim())) {
+                    showToast(isRtl ? `تاريخ ورقم بلاغ التأمينات مطلوبان للمصاب رقم ${i + 1}` : `GOSI date and report number required for person #${i + 1}`, 'warning');
+                    return;
+                }
+                if (g?.gosiSubmitted === false && !g?.gosiNoReason?.trim()) {
+                    showToast(isRtl ? `سبب عدم التبليغ في التأمينات مطلوب للمصاب رقم ${i + 1}` : `Reason for not reporting required for person #${i + 1}`, 'warning');
+                    return;
+                }
+            }
+        } else {
+            if (singleGosiSubmitted === undefined) {
+                showToast(isRtl ? 'يرجى تحديد هل تم إبلاغ التأمينات الاجتماعية (GOSI) أم لا' : 'Please select whether GOSI was informed', 'warning');
+                return;
+            }
+            if (singleGosiSubmitted === true && (!singleGosiReportDate || !singleGosiReportNumber?.trim())) {
+                showToast(isRtl ? 'يرجى إدخال تاريخ ورقم بلاغ التأمينات (GOSI)' : 'Please enter GOSI report date and number', 'warning');
+                return;
+            }
+            if (singleGosiSubmitted === false && !singleGosiNoReason?.trim()) {
+                showToast(isRtl ? 'يرجى إدخال سبب عدم التبليغ في التأمينات' : 'Please enter reason for not reporting to GOSI', 'warning');
+                return;
+            }
+        }
+
         setActionLoading(true);
         try {
             await api.put(`/tickets/${id}/hr-action`, { 
-                injuredPersonsGosi: injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined,
+                injuredPersonsGosi: employees.length > 0 && injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined,
+                gosiSubmitted: singleGosiSubmitted,
+                gosiEmployeeId: singleGosiEmployeeId || undefined,
+                gosiReportDate: singleGosiReportDate || undefined,
+                gosiReportNumber: singleGosiReportNumber || undefined,
+                gosiNoReason: singleGosiNoReason || undefined,
                 hrNotes 
             });
             await fetchTicket(true);
-            showToast(t('ticketDetail.gosiUpdatedToast', 'GOSI data updated successfully'), 'success');
+            showToast(t('ticketDetail.gosiUpdatedToast', 'تم حفظ بيانات التأمينات بنجاح'), 'success');
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
 
     const handleDepartmentAction = async () => {
-        // Re-fetch ticket to get the latest action plans from server
-        // (avoids stale state after saving plans)
         let latestPlans = ticket.actionPlans || [];
         try {
             const freshRes = await api.get(`/tickets/${id}`);
@@ -244,8 +299,16 @@ const TicketDetail = () => {
             return;
         }
 
-        // Validate per-person GOSI dates
         const ocSafe = ticket.offCircuitReport || {};
+        const rcaNeededFromDept = ocSafe.rcaDelegatedToDept || (ocSafe.rcaRequired && !ocSafe.rcaCompleted);
+        if (rcaNeededFromDept) {
+            if (!rcaCause?.trim() || !rcaWhy?.trim() || !rcaRootCause?.trim() || !rcaCategory?.trim() || !rcaPreventiveActions?.trim()) {
+                showToast(isRtl ? 'جميع حقول تحليل السبب الجذري (RCA) الـ 5 مطلوبة قبل إرسال الرد للمراجعة.' : 'All 5 RCA fields are required before submitting.', 'warning');
+                return;
+            }
+        }
+
+        // Validate per-person GOSI dates
         let minDateStr = '';
         try {
             minDateStr = new Date(ocSafe.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10);
@@ -260,11 +323,20 @@ const TicketDetail = () => {
 
         setActionLoading(true);
         try {
-            await api.put(`/tickets/${id}/department-action`, {
+            const deptBody: any = {
                 injuredPersonsGosi: injuredPersonsGosi.length > 0 ? injuredPersonsGosi : undefined,
                 contractorNotified, contractorNotifyDate, contractorNoReason
-            });
+            };
+            if (rcaNeededFromDept) {
+                deptBody.rcaCause = rcaCause;
+                deptBody.rcaWhy = rcaWhy;
+                deptBody.rcaRootCause = rcaRootCause;
+                deptBody.rcaCategory = rcaCategory;
+                deptBody.rcaPreventiveActions = rcaPreventiveActions;
+            }
+            await api.put(`/tickets/${id}/department-action`, deptBody);
             await fetchTicket(true);
+            showToast(isRtl ? 'تم إرسال رد القسم وخطط العمل بنجاح' : 'Department response submitted successfully', 'success');
         } catch (err: any) { showToast(err.response?.data?.message || t('errors.generic'), 'error'); }
         finally { setActionLoading(false); }
     };
@@ -397,6 +469,15 @@ const TicketDetail = () => {
                 gosiNoReason: p.gosiNoReason || '',
             })));
         }
+
+        // Initialize single GOSI state for general injury
+        if (ocSafe.gosiSubmitted !== null && ocSafe.gosiSubmitted !== undefined && singleGosiSubmitted === undefined) {
+            setSingleGosiSubmitted(ocSafe.gosiSubmitted);
+        }
+        if (ocSafe.gosiEmployeeId && !singleGosiEmployeeId) setSingleGosiEmployeeId(ocSafe.gosiEmployeeId);
+        if (ocSafe.gosiReportDate && !singleGosiReportDate) setSingleGosiReportDate(new Date(ocSafe.gosiReportDate).toISOString().slice(0, 10));
+        if (ocSafe.gosiReportNumber && !singleGosiReportNumber) setSingleGosiReportNumber(ocSafe.gosiReportNumber);
+        if (ocSafe.gosiNoReason && !singleGosiNoReason) setSingleGosiNoReason(ocSafe.gosiNoReason);
     }, [ticket]);
 
 
@@ -541,107 +622,97 @@ const TicketDetail = () => {
 
     const renderEmployeeInjuries = () => {
         if (!hasEmployeeInjury) return null;
+        const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
+        if (employees.length === 0) return null;
+
         return (
-            <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4">
-                <h3 className="font-bold text-blue-800 flex items-center gap-2 border-b border-blue-200 pb-2">
-                    {'🏥 ' + (isRtl ? 'بيانات المصابين (الموظفين)' : 'Injured Employees Data')}
-                </h3>
-                <div className="grid grid-cols-1 gap-4">
-                    {/* Per-person GOSI display or form */}
-                    {(() => {
-                        const employees = injuredPersons.filter((p: any) => p.type === 'EMPLOYEE' || p.affiliate === 'Employee');
-                        const hrAlreadyFilled = !!ocSafe.hrFilledBy;
-                        const isEditable = isHrRep;
-                        
+            <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 mb-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+                    <h3 className="font-bold text-blue-900 flex items-center gap-2 text-sm sm:text-base">
+                        <span>🏥</span>
+                        <span>{isRtl ? `بيانات المصابين (الموظفين) - ${employees.length}` : `Injured Employees Data (${employees.length})`}</span>
+                    </h3>
+                    <span className="text-[11px] bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full font-semibold border border-blue-200">
+                        {isRtl ? 'موظفي الشركة' : 'Company Employees'}
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {employees.map((p: any, i: number) => {
+                        const hasGosiInfo = p.gosiEmployeeId || p.gosiSubmitted !== undefined;
                         return (
-                            <div className="col-span-1 space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <p className="font-bold text-xs text-blue-700">{isRtl ? `بيانات المصابين (${employees.length})` : `Injured Persons (${employees.length})`}</p>
-                                    {isEditable && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'إلزامي' : 'Required'}</span>}
+                            <div key={i} className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200 space-y-2.5">
+                                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200/70">
+                                    <div className="w-6 h-6 bg-blue-600 rounded-md text-white text-xs flex items-center justify-center font-black flex-shrink-0">
+                                        {i + 1}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-bold text-sm text-slate-800 truncate">
+                                            {p.name || (isRtl ? `موظف مصاب #${i + 1}` : `Injured Employee #${i + 1}`)}
+                                        </p>
+                                        {p.mobile && <p className="text-[11px] text-slate-500 font-mono" dir="ltr">{p.mobile}</p>}
+                                    </div>
+                                    {p.dept && (
+                                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-bold flex-shrink-0">
+                                            {p.dept}
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {employees.map((p: any, i: number) => {
-                                        if (isEditable && injuredPersonsGosi[i]) {
-                                            const pg = injuredPersonsGosi[i];
-                                            const updateGosi = (field: keyof GosiEntry, value: any) => {
-                                                const updated = [...injuredPersonsGosi];
-                                                updated[i] = { ...updated[i], [field]: value };
-                                                setInjuredPersonsGosi(updated);
-                                            };
-                                            return (
-                                                <div key={i} className="bg-blue-50/50 border border-blue-200/60 rounded-xl p-4 space-y-3">
-                                                    <div className="flex items-center gap-2 pb-2 border-b border-blue-200/40">
-                                                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black">{i + 1}</div>
-                                                        <div>
-                                                            <p className="text-sm font-bold text-slate-800">{p.name || (isRtl ? `مصاب #${i + 1}` : `Injured #${i + 1}`)}</p>
-                                                            {p.mobile && <p className="text-[10px] text-slate-400" dir="ltr">{p.mobile}</p>}
-                                                        </div>
-                                                        {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-bold text-slate-600 mb-1">{t('ticketDetail.employeeId')} <span className="text-red-500">*</span></label>
-                                                        <input id={`gosiEmployeeId-${i}`} name={`gosiEmployeeId-${i}`} placeholder={t('ticketDetail.enterEmployeeId')} value={pg.gosiEmployeeId} onChange={e => updateGosi('gosiEmployeeId', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-lg text-xs transition-all" dir="ltr" />
-                                                    </div>
-                                                    <div className="bg-white border border-slate-200 p-3 rounded-lg space-y-3">
-                                                        <label className="flex items-center gap-2 cursor-pointer">
-                                                            <input id={`gosiSubmitted-${i}`} name={`gosiSubmitted-${i}`} type="checkbox" checked={pg.gosiSubmitted === true} onChange={e => updateGosi('gosiSubmitted', e.target.checked)} className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
-                                                            <span className="text-xs font-bold text-slate-700">{t('ticketActions.gosiSubmitted', 'Was GOSI informed?')}</span>
-                                                        </label>
-                                                        {pg.gosiSubmitted === true && (
-                                                            <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-200">
-                                                                <div>
-                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reportDate', 'Report Date')} <span className="text-red-500">*</span></label>
-                                                                    <input id={`gosiReportDate-${i}`} name={`gosiReportDate-${i}`} type="date" min={(() => { try { return new Date(ticket.offCircuitReport?.incidentDate || ticket.createdAt || Date.now()).toISOString().slice(0, 10); } catch(e) { return ''; } })()} value={pg.gosiReportDate} onChange={e => updateGosi('gosiReportDate', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.gosiNo', 'GOSI Number')} <span className="text-red-500">*</span></label>
-                                                                    <input id={`gosiReportNumber-${i}`} name={`gosiReportNumber-${i}`} placeholder={t('ticketActions.gosiNo', 'GOSI No.')} value={pg.gosiReportNumber} onChange={e => updateGosi('gosiReportNumber', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" dir="ltr" />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {pg.gosiSubmitted === false && (
-                                                            <div className="pt-2 border-t border-slate-200">
-                                                                <label className="block text-[10px] font-semibold text-slate-500 mb-1">{t('ticketActions.reason', 'Reason for not reporting')} <span className="text-red-500">*</span></label>
-                                                                <input id={`gosiNoReason-${i}`} name={`gosiNoReason-${i}`} placeholder={t('ticketActions.reasonPlaceholder', 'Reason...')} value={pg.gosiNoReason} onChange={e => updateGosi('gosiNoReason', e.target.value)} className="w-full border-gray-300 border focus:border-blue-500 p-1.5 rounded text-xs" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
-                                        
-                                        // Read-only display
-                                        return (
-                                            <div key={i} className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                                                <div className={`flex items-center gap-2 ${p.gosiEmployeeId ? 'pb-2 border-b border-slate-200/60 mb-2' : ''}`}>
-                                                    <div className="w-5 h-5 bg-blue-600 rounded text-white text-[10px] flex items-center justify-center font-black">{i + 1}</div>
-                                                    <div>
-                                                        <p className="font-bold text-sm text-slate-800">{p.name || (isRtl ? `مصاب #${i+1}` : `Injured #${i+1}`)}</p>
-                                                        {p.mobile && <p className="text-[10px] text-slate-500" dir="ltr">{p.mobile}</p>}
-                                                    </div>
-                                                    {p.dept && <span className="ltr:ml-auto rtl:mr-auto text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">{p.dept}</span>}
-                                                </div>
-                                                {p.gosiEmployeeId && (
-                                                    <div className="text-xs space-y-1.5">
-                                                        <div><span className="text-slate-500">{t('oc.wizard.employeeId', 'Employee ID')}:</span> <span className="font-bold" dir="ltr">{p.gosiEmployeeId}</span></div>
-                                                        <div><span className="text-slate-500">{t('ticketActions.gosiSubmitted', 'GOSI Submitted?')}:</span> {p.gosiSubmitted ? <span className="text-emerald-600 font-bold">✓ {t('common.yes', 'Yes')}</span> : <span className="text-red-600 font-bold">✕ {t('common.no', 'No')}</span>}</div>
-                                                        {p.gosiSubmitted ? (
-                                                            <>
-                                                                <div><span className="text-slate-500">{t('oc.wizard.incidentDate', 'Date')}:</span> <strong>{formatDate(p.gosiReportDate)}</strong></div>
-                                                                <div><span className="text-slate-500">{t('ticketActions.gosiNo', 'GOSI No.')}:</span> <strong dir="ltr">{p.gosiReportNumber}</strong></div>
-                                                            </>
-                                                        ) : (
-                                                            <div className="text-red-600"><span className="text-slate-500">{t('ticketActions.reason', 'Reason')}:</span> <strong>{p.gosiNoReason}</strong></div>
-                                                        )}
+
+                                {hasGosiInfo ? (
+                                    <div className="text-xs space-y-1.5 bg-white p-2.5 rounded-lg border border-slate-200/80">
+                                        {p.gosiEmployeeId && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">{t('oc.wizard.employeeId', 'Employee ID')}:</span>
+                                                <span className="font-bold text-slate-800 font-mono" dir="ltr">{p.gosiEmployeeId}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-500">{t('ticketActions.gosiSubmitted', 'GOSI Status')}:</span>
+                                            {p.gosiSubmitted ? (
+                                                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                                                    ✓ {isRtl ? 'تم التبليغ لدى التأمينات' : 'GOSI Reported'}
+                                                </span>
+                                            ) : (
+                                                <span className="text-red-700 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-200 text-[11px]">
+                                                    ✕ {isRtl ? 'لم يتم التبليغ' : 'Not Reported to GOSI'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {p.gosiSubmitted ? (
+                                            <>
+                                                {p.gosiReportDate && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-500">{t('oc.wizard.incidentDate', 'Report Date')}:</span>
+                                                        <strong className="text-slate-800">{formatDate(p.gosiReportDate)}</strong>
                                                     </div>
                                                 )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                {p.gosiReportNumber && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-500">{t('ticketActions.gosiNo', 'GOSI No.')}:</span>
+                                                        <strong className="text-slate-800 font-mono" dir="ltr">{p.gosiReportNumber}</strong>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            p.gosiNoReason && (
+                                                <div className="text-red-700 pt-1 border-t border-red-100">
+                                                    <span className="text-slate-500 block mb-0.5">{t('ticketActions.reason', 'Reason')}:</span>
+                                                    <p className="font-semibold text-[11px]">{p.gosiNoReason}</p>
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-1.5 px-2 bg-slate-100/70 rounded-lg text-[11px] text-slate-500">
+                                        {ocSafe.hrAssignedAt 
+                                            ? (isRtl ? '⏳ بانتظار استكمال بيانات التأمينات من قِبل HR' : '⏳ Pending GOSI details from HR')
+                                            : (isRtl ? 'ℹ️ لا يتطلب تقرير تأمينات (GOSI)' : 'ℹ️ GOSI report not required')}
+                                    </div>
+                                )}
                             </div>
                         );
-                    })()}
+                    })}
                 </div>
             </div>
         );
@@ -965,6 +1036,18 @@ const TicketDetail = () => {
                                         <span className="font-medium text-emerald-700">🏁 {isRtl ? (ticket.event.nameAr || ticket.event.nameEn) : ticket.event.nameEn}</span>
                                     </div>
                                 )}
+
+                                {oc.detectionSource && (
+                                    <div>
+                                        <span className="text-gray-500 block text-xs">{isRtl ? 'طريقة / مصدر الاكتشاف' : 'Detection Source'}</span>
+                                        <span className="font-semibold text-slate-800 inline-flex items-center gap-1.5 mt-0.5">
+                                            {oc.detectionSource === 'INSPECTION' && <span>🔍 {isRtl ? 'تفتيش ميداني (Inspection)' : 'Inspection'}</span>}
+                                            {oc.detectionSource === 'AUDIT' && <span>📋 {isRtl ? 'تدقيق (Audit)' : 'Audit'}</span>}
+                                            {oc.detectionSource === 'INTERNAL_OBSERVATION' && <span>👁️ {isRtl ? 'ملاحظة داخلية (Internal Observation)' : 'Internal Observation'}</span>}
+                                            {oc.detectionSource === 'EXTERNAL_SOURCE' && <span>🌐 {isRtl ? 'مصدر خارجي (External Source)' : 'External Source'}</span>}
+                                        </span>
+                                    </div>
+                                )}
  
                                 {!isReporter && ticket.severityLevel && (
                                     <div className="col-span-1 bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg">
@@ -1270,17 +1353,97 @@ const TicketDetail = () => {
 
                             {/* CONTROLLER: SUBMITTED (Initial Review) */}
 {isController && ticket.status === 'SUBMITTED' && (
-    <ControllerSubmittedPanel isController={isController} ticket={ticket} t={t} isRtl={isRtl} newType={newType} setNewType={setNewType} typeChangeReason={typeChangeReason} setTypeChangeReason={setTypeChangeReason} severityLevel={severityLevel} setSeverityLevel={setSeverityLevel} hazardCategory={hazardCategory} setHazardCategory={setHazardCategory} controllerNotes={controllerNotes} setControllerNotes={setControllerNotes} rcaCause={rcaCause} setRcaCause={setRcaCause} rcaWhy={rcaWhy} setRcaWhy={setRcaWhy} rcaRootCause={rcaRootCause} setRcaRootCause={setRcaRootCause} rcaCategory={rcaCategory} setRcaCategory={setRcaCategory} rcaPreventiveActions={rcaPreventiveActions} setRcaPreventiveActions={setRcaPreventiveActions} targetDepartmentId={targetDepartmentId} setTargetDepartmentId={setTargetDepartmentId} departments={departments} serviceProviders={serviceProviders} selectedServiceProviderId={selectedServiceProviderId} setSelectedServiceProviderId={setSelectedServiceProviderId} confirmThen={confirmThen} handleControllerAction={handleControllerAction} actionLoading={actionLoading} hasEmployeeInjury={hasEmployeeInjury} oc={oc} notifyHr={notifyHr} setNotifyHr={setNotifyHr} />
+    <ControllerSubmittedPanel 
+        isController={isController} 
+        ticket={ticket} 
+        t={t} 
+        isRtl={isRtl} 
+        newType={newType} 
+        setNewType={setNewType} 
+        typeChangeReason={typeChangeReason} 
+        setTypeChangeReason={setTypeChangeReason} 
+        severityLevel={severityLevel} 
+        setSeverityLevel={setSeverityLevel} 
+        hazardCategory={hazardCategory} 
+        setHazardCategory={setHazardCategory} 
+        classificationType={classificationType}
+        setClassificationType={setClassificationType}
+        delegateRcaToDept={delegateRcaToDept}
+        setDelegateRcaToDept={setDelegateRcaToDept}
+        controllerNotes={controllerNotes} 
+        setControllerNotes={setControllerNotes} 
+        rcaCause={rcaCause} 
+        setRcaCause={setRcaCause} 
+        rcaWhy={rcaWhy} 
+        setRcaWhy={setRcaWhy} 
+        rcaRootCause={rcaRootCause} 
+        setRcaRootCause={setRcaRootCause} 
+        rcaCategory={rcaCategory} 
+        setRcaCategory={setRcaCategory} 
+        rcaPreventiveActions={rcaPreventiveActions} 
+        setRcaPreventiveActions={setRcaPreventiveActions} 
+        targetDepartmentId={targetDepartmentId} 
+        setTargetDepartmentId={setTargetDepartmentId} 
+        departments={departments} 
+        serviceProviders={serviceProviders} 
+        selectedServiceProviderId={selectedServiceProviderId} 
+        setSelectedServiceProviderId={setSelectedServiceProviderId} 
+        confirmThen={confirmThen} 
+        handleControllerAction={handleControllerAction} 
+        actionLoading={actionLoading} 
+        hasEmployeeInjury={hasEmployeeInjury} 
+        oc={oc} 
+        notifyHr={notifyHr} 
+        setNotifyHr={setNotifyHr} 
+    />
 )}
 
                             {/* HR REP: GOSI form */}
 {isHrRep && ticket.hasInjury && (
-    <HrPanel isHrRep={isHrRep} ticket={ticket} t={t} isRtl={isRtl} hrNotes={hrNotes} setHrNotes={setHrNotes} handleHrAction={handleHrAction} actionLoading={actionLoading} />
+    <HrPanel
+        isHrRep={isHrRep}
+        ticket={ticket}
+        t={t}
+        isRtl={isRtl}
+        hrNotes={hrNotes}
+        setHrNotes={setHrNotes}
+        handleHrAction={handleHrAction}
+        actionLoading={actionLoading}
+        injuredPersonsGosi={injuredPersonsGosi}
+        setInjuredPersonsGosi={setInjuredPersonsGosi}
+        singleGosiSubmitted={singleGosiSubmitted}
+        setSingleGosiSubmitted={setSingleGosiSubmitted}
+        singleGosiEmployeeId={singleGosiEmployeeId}
+        setSingleGosiEmployeeId={setSingleGosiEmployeeId}
+        singleGosiReportDate={singleGosiReportDate}
+        setSingleGosiReportDate={setSingleGosiReportDate}
+        singleGosiReportNumber={singleGosiReportNumber}
+        setSingleGosiReportNumber={setSingleGosiReportNumber}
+        singleGosiNoReason={singleGosiNoReason}
+        setSingleGosiNoReason={setSingleGosiNoReason}
+    />
 )}
 
                             {/* DEPARTMENT REP ACTION */}
 {isDepRep && ['ASSIGNED', 'RETURNED_TO_DEPARTMENT'].includes(ticket.status) && (
-    <DepartmentPanel isDepRep={isDepRep} ticket={ticket} t={t} handleDepartmentAction={handleDepartmentAction} actionLoading={actionLoading} />
+    <DepartmentPanel 
+        isDepRep={isDepRep} 
+        ticket={ticket} 
+        t={t} 
+        isRtl={isRtl}
+        handleDepartmentAction={handleDepartmentAction} 
+        actionLoading={actionLoading} 
+        rcaCause={rcaCause}
+        setRcaCause={setRcaCause}
+        rcaWhy={rcaWhy}
+        setRcaWhy={setRcaWhy}
+        rcaRootCause={rcaRootCause}
+        setRcaRootCause={setRcaRootCause}
+        rcaCategory={rcaCategory}
+        setRcaCategory={setRcaCategory}
+        rcaPreventiveActions={rcaPreventiveActions}
+        setRcaPreventiveActions={setRcaPreventiveActions}
+    />
 )}
 
                             {/* CONTROLLER FINAL REVIEW */}

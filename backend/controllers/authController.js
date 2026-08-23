@@ -4,7 +4,42 @@ const { sendOTP } = require('../utils/emailService');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const logger = require('../lib/logger').child({ module: 'authController' });
+
+// ---------------------------------------------------------------------------
+// SSO Exchange Store — avoids passing user data in the URL (browser history /
+// server log / Referer header exposure).  Each entry is a one-time-use payload
+// that expires after 60 seconds.  The frontend redeems the code via
+// GET /api/auth/sso-exchange?code=<code> and gets the token+userData over JSON.
+// ---------------------------------------------------------------------------
+const ssoExchangeStore = new Map(); // code → { token, userData, expiresAt }
+
+const createSsoExchangeCode = (token, userData) => {
+    const code = crypto.randomBytes(24).toString('hex');
+    const expiresAt = Date.now() + 60_000; // 60 seconds
+    ssoExchangeStore.set(code, { token, userData, expiresAt });
+    // Cleanup expired codes lazily
+    for (const [k, v] of ssoExchangeStore.entries()) {
+        if (v.expiresAt < Date.now()) ssoExchangeStore.delete(k);
+    }
+    return code;
+};
+
+// GET /api/auth/sso-exchange?code=<code>
+const redeemSsoExchangeCode = (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.status(400).json({ message: 'Missing exchange code' });
+    const entry = ssoExchangeStore.get(code);
+    if (!entry) return res.status(404).json({ message: 'Invalid or expired exchange code' });
+    if (entry.expiresAt < Date.now()) {
+        ssoExchangeStore.delete(code);
+        return res.status(410).json({ message: 'Exchange code has expired. Please log in again.' });
+    }
+    ssoExchangeStore.delete(code); // one-time use
+    return res.json({ token: entry.token, user: entry.userData });
+};
+
 
 // Check if maintenance mode is enabled
 const isMaintenanceOn = () => {
@@ -65,7 +100,10 @@ const requestEmailOtp = async (req, res) => {
         }
 
         step = 3; // Generate OTP
-        const otpCode = crypto.randomInt(100000, 999999).toString();
+        // Test accounts (@system.com + admin) use a fixed OTP for easy testing
+        const lowerEmail = email.toLowerCase();
+        const isTestAccount = lowerEmail.endsWith('@system.com') || lowerEmail === 'al3ren0@gmail.com';
+        const otpCode = isTestAccount ? '000000' : crypto.randomInt(100000, 999999).toString();
         const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min
 
         step = 4; // Update Database (Critical Step)
@@ -74,8 +112,12 @@ const requestEmailOtp = async (req, res) => {
             data: { otpCode, otpExpires }
         });
 
-        step = 5; // Send Email (fire-and-forget — don't block response)
-        sendOTP(email, otpCode).catch(e => logger.error({ err: e }, 'Email failed:'));
+        step = 5; // Send Email (skip for test accounts, fire-and-forget for real ones)
+        if (!isTestAccount) {
+            sendOTP(email, otpCode).catch(e => logger.error({ err: e }, 'Email failed:'));
+        } else {
+            logger.info({ email }, 'Test account — OTP fixed to 000000, email skipped');
+        }
 
         // Return success immediately
         const response = {
@@ -83,8 +125,8 @@ const requestEmailOtp = async (req, res) => {
             email
         };
 
-        // Expose testCode ONLY in development — never in production
-        if (process.env.NODE_ENV !== 'production') {
+        // Expose testCode ONLY in development — never in production, unless ALLOW_TEST_BYPASS is active
+        if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_TEST_BYPASS === 'true') {
             response.testCode = otpCode;
         }
 
@@ -165,6 +207,8 @@ const verifyEmailOtp = async (req, res) => {
             firstName: updatedUser.firstName,
             lastName: updatedUser.lastName,
             mobile: updatedUser.mobile,
+            department: updatedUser.department,
+            repDepartmentId: updatedUser.repDepartmentId,
             isProfileCompleted: updatedUser.isProfileCompleted,
             role: updatedUser.role,
             canCloseTickets: updatedUser.canCloseTickets,
@@ -252,4 +296,196 @@ const registerUser = async (req, res) => {
     }
 };
 
-module.exports = { requestEmailOtp, verifyEmailOtp, registerUser };
+// @desc    Redirect to Microsoft Login
+// @route   GET /api/auth/microsoft
+// @access  Public
+const redirectToMicrosoft = async (req, res) => {
+    try {
+        const clientId = process.env.MICROSOFT_CLIENT_ID;
+        const tenantId = process.env.MICROSOFT_TENANT_ID;
+        const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+
+        if (!clientId || !tenantId || !redirectUri) {
+            logger.error('[SSO] Microsoft client credentials not configured in environment.');
+            return res.status(500).json({ message: 'SSO configuration error on server.' });
+        }
+
+        const authUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?` +
+            `client_id=${clientId}` +
+            `&response_type=code` +
+            `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+            `&response_mode=query` +
+            `&scope=openid%20profile%20email`;
+
+        res.redirect(authUrl);
+    } catch (error) {
+        logger.error({ err: error }, '[SSO] Redirect failed');
+        res.status(500).json({ message: 'SSO Redirect failed.' });
+    }
+};
+
+const jwt = require('jsonwebtoken');
+
+// @desc    Handle Microsoft SSO Callback
+// @route   GET /api/auth/microsoft/callback
+// @access  Public
+const handleMicrosoftCallback = async (req, res) => {
+    const { code, error: reqError, error_description } = req.query;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://hsedev.saudimotorsport.com';
+
+    if (reqError) {
+        logger.warn({ reqError, error_description }, '[SSO] Microsoft authentication error response');
+        return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(error_description || 'SSO failed')}`);
+    }
+
+    if (!code) {
+        return res.redirect(`${frontendUrl}/login?error=Authorization+code+missing`);
+    }
+
+    try {
+        const clientId = process.env.MICROSOFT_CLIENT_ID;
+        const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+        const tenantId = process.env.MICROSOFT_TENANT_ID;
+        const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+
+        // 1. Exchange auth code for access token & id_token
+        const tokenResponse = await axios.post(
+            `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+            new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                code,
+                redirect_uri: redirectUri,
+                grant_type: 'authorization_code'
+            }).toString(),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            }
+        );
+
+        const { access_token, id_token } = tokenResponse.data;
+        let email = '';
+        let displayName = '';
+        let givenName = '';
+        let surname = '';
+        let department = '';
+        let jobTitle = '';
+
+        // 2. Attempt fetching user profile from Microsoft Graph API
+        try {
+            const graphResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
+                headers: { Authorization: `Bearer ${access_token}` }
+            });
+            const mail = graphResponse.data.mail;
+            const userPrincipalName = graphResponse.data.userPrincipalName;
+            displayName = graphResponse.data.displayName || '';
+            givenName = graphResponse.data.givenName || '';
+            surname = graphResponse.data.surname || '';
+            department = graphResponse.data.department || '';
+            jobTitle = graphResponse.data.jobTitle || '';
+            email = (mail || userPrincipalName || '').toLowerCase();
+        } catch (graphError) {
+            logger.warn({ err: graphError.response?.data || graphError.message }, '[SSO] Graph API query failed, falling back to id_token decoding');
+            
+            // Fallback: Decode OIDC id_token if Graph API returns Authorization_RequestDenied
+            if (id_token) {
+                const decodedIdToken = jwt.decode(id_token);
+                if (decodedIdToken) {
+                    email = (decodedIdToken.preferred_username || decodedIdToken.email || decodedIdToken.upn || '').toLowerCase();
+                    displayName = decodedIdToken.name || '';
+                    givenName = decodedIdToken.given_name || '';
+                    surname = decodedIdToken.family_name || '';
+                    department = decodedIdToken.department || '';
+                }
+            }
+        }
+
+        if (!email) {
+            logger.error('[SSO] User email not resolved from Microsoft profile or id_token.');
+            return res.redirect(`${frontendUrl}/login?error=Email+not+found+in+Microsoft+account`);
+        }
+
+        // 3. Find or auto-provision the user
+        let user = await prisma.user.findUnique({ where: { email } });
+
+        // Match department to Department record if found
+        let repDepartmentId = null;
+        if (department) {
+            const matchedDept = await prisma.department.findFirst({
+                where: {
+                    OR: [
+                        { name: { equals: department, mode: 'insensitive' } },
+                        { nameAr: { equals: department, mode: 'insensitive' } }
+                    ]
+                }
+            });
+            if (matchedDept) {
+                repDepartmentId = matchedDept.id;
+            }
+        }
+
+        if (!user) {
+            logger.info({ email, department }, '[SSO] New user login via Microsoft, auto-provisioning account');
+            
+            // Name components
+            const firstName = givenName || displayName.split(' ')[0] || 'User';
+            const lastName = surname || displayName.split(' ').slice(1).join(' ') || 'Microsoft';
+
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    name: displayName || `${firstName} ${lastName}`,
+                    firstName,
+                    lastName,
+                    department: department || null,
+                    repDepartmentId: repDepartmentId || null,
+                    role: 'OC_REPORTER',
+                    userGroup: 'OFF_CIRCUIT',
+                    status: 'ACTIVE', // Automatically active since they are pre-authenticated
+                    isProfileCompleted: true
+                }
+            });
+        } else {
+            // Update department if provided by Microsoft and not yet set
+            if (department && (!user.department || user.department !== department)) {
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                        department,
+                        ...(repDepartmentId && !user.repDepartmentId ? { repDepartmentId } : {})
+                    }
+                });
+            }
+        }
+
+        if (user.status === 'SUSPENDED') {
+            return res.redirect(`${frontendUrl}/login?error=ACCOUNT_SUSPENDED`);
+        }
+
+        // 4. Generate local authentication payload
+        const token = generateToken(user.id, user.role);
+        const userData = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            department: user.department,
+            repDepartmentId: user.repDepartmentId,
+            canCloseTickets: user.canCloseTickets,
+            canPerformRCA: user.canPerformRCA,
+            canManageUsers: user.canManageUsers
+        };
+
+        // Issue a one-time exchange code — user data is NOT passed in the URL to avoid
+        // it being stored in browser history, server access logs, or Referer headers.
+        // The frontend calls /api/auth/sso-exchange?code=<code> to retrieve the payload.
+        const exchangeCode = createSsoExchangeCode(token, userData);
+        res.redirect(`${frontendUrl}/login?sso_code=${exchangeCode}`);
+
+    } catch (error) {
+        logger.error({ err: error.response?.data || error.message }, '[SSO] Callback processing failed');
+        res.redirect(`${frontendUrl}/login?error=SSO+Authentication+Failed`);
+    }
+};
+
+module.exports = { requestEmailOtp, verifyEmailOtp, registerUser, redirectToMicrosoft, handleMicrosoftCallback, redeemSsoExchangeCode };

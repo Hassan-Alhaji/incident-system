@@ -69,6 +69,10 @@ const TicketWizard = () => {
   const [showAttachmentConfirm, setShowAttachmentConfirm] = useState(false);
   const [attachmentConfirmed, setAttachmentConfirmed] = useState(false);
   const submittingRef = React.useRef(false);
+
+  // Stale draft detection: record when wizard was opened
+  const wizardOpenedAt = React.useRef<number>(Date.now());
+  const [dateReconfirmed, setDateReconfirmed] = useState(false);
   const TOTAL_STEPS = 3;
 
   // Step 1: Type
@@ -94,6 +98,7 @@ const TicketWizard = () => {
   const [injuredPersons, setInjuredPersons] = useState<InjuredPerson[]>([]);
   const [hasWitness, setHasWitness] = useState<boolean | null>(null);
   const [witnesses, setWitnesses] = useState<Witness[]>([]);
+  const [detectionSource, setDetectionSource] = useState('INTERNAL_OBSERVATION');
   const [serviceProviders, setServiceProviders] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedServiceProviderId, setSelectedServiceProviderId] = useState('');
@@ -111,12 +116,34 @@ const TicketWizard = () => {
     } catch { return false; }
   };
 
+  // Stale draft check: wizard has been open for 4+ hours AND a date is already entered
+  const isStaleDraft = () => {
+    if (!incidentDate) return false; // no data entered yet — not stale
+    const fourHours = 4 * 60 * 60 * 1000;
+    return (Date.now() - wizardOpenedAt.current) > fourHours && !dateReconfirmed;
+  };
+
   useEffect(() => {
     api.get('/service-providers').then(r => setServiceProviders(r.data)).catch(console.error);
-    api.get('/departments').then(r => setDepartments(r.data)).catch(console.error);
+    api.get('/departments').then(r => {
+      const depts = r.data || [];
+      setDepartments(depts);
+      if (!reporterDepartmentId) {
+        if (user?.repDepartmentId) {
+          setReporterDepartmentId(user.repDepartmentId);
+        } else if (user?.department) {
+          const matched = depts.find((d: any) =>
+            (d.id === user.department) ||
+            (d.name && d.name.toLowerCase() === user.department?.toLowerCase()) ||
+            (d.nameAr && d.nameAr.toLowerCase() === user.department?.toLowerCase())
+          );
+          if (matched) setReporterDepartmentId(matched.id);
+        }
+      }
+    }).catch(console.error);
     api.get('/zones').then(r => setZones(r.data)).catch(console.error);
     api.get('/events').then(r => setEvents(r.data)).catch(console.error);
-  }, []);
+  }, [user]);
 
 
 
@@ -161,6 +188,15 @@ const TicketWizard = () => {
 
   const canProceed = () => {
     if (step === 1) {
+      if (isStaleDraft()) {
+        showToast(
+          isRtl
+            ? 'لقد مضى وقت طويل منذ فتح هذا النموذج. يُرجى التحقق من تاريخ ووقت الحادث والضغط على "تأكيد التاريخ" قبل المتابعة.'
+            : 'This form has been open for a while. Please verify the incident date & time and click "Confirm Date" before continuing.',
+          'warning'
+        );
+        return false;
+      }
       if (!reporterDepartmentId) { showToast(isRtl ? 'الرجاء اختيار القسم' : 'Please select your department.', 'warning'); return false; }
       if (!incidentDate || !incidentTime) { showToast(t('oc.wizard.missingDate', 'Please provide incident date and time.'), 'warning'); return false; }
       const dt = new Date(`${incidentDate}T${incidentTime}`);
@@ -220,13 +256,36 @@ const TicketWizard = () => {
     submittingRef.current = true;
     setSubmitting(true); setError('');
     try {
-      const payload = { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons: hasInjury ? injuredPersons : [], witnesses: hasInjury ? witnesses : [], lateReportReason: isLateReport() ? lateReportReason : null, serviceProviderId: selectedServiceProviderId || null, zoneId: zoneId || null, eventId: eventId || null, reporterDepartmentId: reporterDepartmentId || null };
+      const payload = { 
+        incidentType, 
+        incidentDate, 
+        incidentTime, 
+        locationLat, 
+        locationLng, 
+        locationAddress, 
+        locationDescription, 
+        whatHappened, 
+        hasInjury, 
+        injuredPersons: hasInjury ? injuredPersons : [], 
+        witnesses: hasInjury ? witnesses : [], 
+        lateReportReason: isLateReport() ? lateReportReason : null, 
+        serviceProviderId: selectedServiceProviderId || null, 
+        zoneId: zoneId || null, 
+        eventId: eventId || null, 
+        reporterDepartmentId: reporterDepartmentId || null,
+        detectionSource
+      };
       const res = await api.post('/tickets', payload);
       const ticketId = res.data.id;
       if (files.length > 0) { const fd = new FormData(); files.forEach(f => fd.append('files', f)); await api.post(`/tickets/${ticketId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
       setSubmittedId(ticketId); setSubmitted(true);
       setTimeout(() => navigate(`/tickets/${ticketId}`), 5000);
-    } catch (err: any) { setError(err.response?.data?.message || t('errors.failedToSubmit')); submittingRef.current = false; } finally { setSubmitting(false); }
+    } catch (err: any) {
+      setError(err.response?.data?.message || t('errors.failedToSubmit'));
+      submittingRef.current = false; // ✅ Reset so user can retry after failure
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) return (
@@ -292,6 +351,40 @@ const TicketWizard = () => {
               {t('wizard.timeAlert', 'تنبيه: الرجاء إدخال تاريخ ووقت وقوع الحادث الفعلي بدقة (وليس الوقت الحالي).')}
             </p>
           </div>
+
+          {/* ── Stale Draft Warning ── */}
+          {isStaleDraft() && (
+            <div className="bg-orange-50 border-2 border-orange-400 rounded-xl p-4 shadow-md space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Clock size={20} className="text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-orange-800 font-black text-sm">
+                    {isRtl ? '⚠️ انتبه: تركت هذا النموذج مفتوحاً لفترة طويلة' : '⚠️ Warning: This form has been left open for a long time'}
+                  </p>
+                  <p className="text-orange-700 text-xs mt-1 leading-relaxed">
+                    {isRtl
+                      ? 'تأكد أن تاريخ ووقت الحادث المُدخَل صحيح وأنه يعكس وقت الحادث الفعلي (وليس الوقت الذي بدأت فيه تعبئة النموذج). إذا كان التاريخ غير صحيح، يرجى تحديثه ثم اضغط "تأكيد التاريخ".'
+                      : 'Please verify the incident date and time below are still correct. If they are outdated, update them to reflect the actual incident time, then click "Confirm Date & Continue".'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  // Clear the date/time fields so the user MUST re-enter them
+                  setIncidentDate('');
+                  setIncidentTime('');
+                  setDateReconfirmed(true);
+                  wizardOpenedAt.current = Date.now();
+                }}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <Check size={16} />
+                {isRtl ? 'مسح التاريخ وإعادة الإدخال (مطلوب)' : 'Clear & Re-enter the Date (Required)'}
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -499,6 +592,44 @@ const TicketWizard = () => {
               )}
             </div>
           )}
+
+          {/* Detection Source / طريقة اكتشاف الحادث */}
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-3">
+            <div>
+              <label className="block text-sm font-bold text-gray-800 flex items-center gap-2">
+                <span>🔍</span>
+                <span>{isRtl ? 'كيف تم اكتشاف هذه الحالة / الحادث؟' : 'How was this incident / observation discovered?'} *</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {isRtl ? 'حدد القناة أو الطريقة التي تم من خلالها رصد واكتشاف الحادث' : 'Select the method or channel through which this was discovered'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {[
+                { value: 'INSPECTION', icon: '🔍', labelAr: 'تفتيش ميداني', labelEn: 'Inspection' },
+                { value: 'AUDIT', icon: '📋', labelAr: 'تدقيق', labelEn: 'Audit' },
+                { value: 'INTERNAL_OBSERVATION', icon: '👁️', labelAr: 'ملاحظة داخلية', labelEn: 'Internal Observation' },
+                { value: 'EXTERNAL_SOURCE', icon: '🌐', labelAr: 'مصدر خارجي', labelEn: 'External Source' }
+              ].map(ds => {
+                const isSelected = detectionSource === ds.value;
+                return (
+                  <button
+                    key={ds.value}
+                    type="button"
+                    onClick={() => setDetectionSource(ds.value)}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all text-center
+                      ${isSelected
+                        ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-sm ring-2 ring-blue-500/20 scale-[1.02]'
+                        : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'}`}
+                  >
+                    <span className="text-2xl mb-1">{ds.icon}</span>
+                    <span className="text-xs font-bold leading-tight">{isRtl ? ds.labelAr : ds.labelEn}</span>
+                    <span className="text-[10px] text-gray-400 mt-0.5">{isRtl ? ds.labelEn : ds.labelAr}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${showErrors && !whatHappened.trim() ? 'text-red-500' : 'text-gray-700'}`}>{t('oc.wizard.whatHappened', 'What Happened?')} *</label>

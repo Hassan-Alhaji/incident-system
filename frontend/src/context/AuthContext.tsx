@@ -10,14 +10,13 @@ interface User {
  status?: string;
  isMedical?: boolean;
  mobile?: string;
+ department?: string;
+ repDepartmentId?: string;
  firstName?: string;
  lastName?: string;
  isProfileCompleted?: boolean;
  userGroup?: string;
- canViewMedical?: boolean;
- canViewSafety?: boolean;
- canViewSport?: boolean;
- canViewAll?: boolean;
+ // Analytics & permission flags (set by backend, scoped by role)
  canViewAnalytics?: boolean;
  canEscalate?: boolean;
  canManageUsers?: boolean;
@@ -43,14 +42,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
  const [isLoading, setIsLoading] = useState(true);
 
  useEffect(() => {
- if (token) {
- // In a real app, verify token with backend here
- const savedUser = localStorage.getItem('user');
- if (savedUser) {
- setUser(JSON.parse(savedUser));
- }
- }
- setIsLoading(false);
+  if (token) {
+    // Decode JWT payload to check expiry without a library dependency.
+    // JWT structure: header.payload.signature — all base64-url encoded.
+    try {
+      const payloadBase64 = token.split('.')[1];
+      if (payloadBase64) {
+        const decoded = JSON.parse(atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/')));
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (decoded.exp && decoded.exp < nowSec) {
+          // Token is expired — clear storage and treat as logged-out.
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setToken(null);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Malformed token — clear it.
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Token still valid — restore user from localStorage.
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem('user');
+      }
+    }
+  }
+  setIsLoading(false);
  }, [token]);
 
  const login = (newToken: string, userData: User) => {

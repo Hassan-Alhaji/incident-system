@@ -137,7 +137,7 @@ const createTicket = async (req, res) => {
         if (!ROLES.REPORTER.includes(userRole) && userRole !== 'ADMIN') {
             return res.status(403).json({ message: 'Only reporters can create tickets' });
         }
-        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId, departmentId, reporterDepartmentId } = req.body;
+        const { incidentType, incidentDate, incidentTime, locationLat, locationLng, locationAddress, locationDescription, whatHappened, hasInjury, injuredPersons, witnesses, lateReportReason, serviceProviderId, zoneId, eventId, departmentId, reporterDepartmentId, detectionSource } = req.body;
 
         if (!incidentType || !['OBSERVATION'].includes(incidentType)) {
             return res.status(400).json({ message: 'Valid incident type required (OBSERVATION)' });
@@ -255,6 +255,7 @@ const createTicket = async (req, res) => {
                                 lateReportReason: isLate ? lateReportReason : null,
                                 injuredPersons: injuredPersons ? JSON.stringify(injuredPersons) : null,
                                 witnesses: witnesses ? JSON.stringify(witnesses) : null,
+                                detectionSource: detectionSource || 'INTERNAL_OBSERVATION',
                                 reporterFilledBy: req.user.name,
                                 reporterFilledAt: new Date(),
                                 reporterDepartmentId: reporterDepartmentId || null
@@ -358,7 +359,7 @@ const getTickets = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const [tickets, groups] = await Promise.all([
+        const [tickets, total] = await Promise.all([
             prisma.ticket.findMany({
                 where,
                 include: {
@@ -372,17 +373,23 @@ const getTickets = async (req, res) => {
                 orderBy: { createdAt: 'desc' },
                 skip, take: limit
             }),
-            prisma.ticket.groupBy({
-                by: ['status', 'hasInjury'],
-                where,
-                _count: { id: true }
-            })
+            // Use count() against the same `where` filter so that `total` accurately
+            // reflects the user's scoped dataset — not a groupBy aggregate which can
+            // silently include rows outside the current user's permission scope.
+            prisma.ticket.count({ where })
         ]);
 
-        let total = 0, open = 0, closed = 0, escalated = 0, injuries = 0;
+        // Summary stats derived from a separate groupBy so the counts remain correct
+        // even when the ticket list is paginated.
+        const groups = await prisma.ticket.groupBy({
+            by: ['status', 'hasInjury'],
+            where,
+            _count: { id: true }
+        });
+
+        let open = 0, closed = 0, escalated = 0, injuries = 0;
         groups.forEach(g => {
             const count = g._count.id;
-            total += count;
             if (['SUBMITTED', 'ASSIGNED', 'UNDER_REVIEW'].includes(g.status)) open += count;
             if (g.status === 'CLOSED') closed += count;
             if (g.status === 'ESCALATED') escalated += count;
@@ -405,7 +412,7 @@ const getTickets = async (req, res) => {
             return t;
         });
 
-        res.json({ tickets: sanitizedTickets, total, page, limit, pages: Math.ceil(total/limit), stats });
+        res.json({ tickets: sanitizedTickets, total, page, limit, pages: Math.ceil(total / limit), stats });
     } catch (error) {
         logger.error({ err: error }, 'Get Tickets Error:');
         res.status(500).json({ message: 'Error fetching tickets' });
@@ -515,7 +522,8 @@ const getTicketById = async (req, res) => {
 
         res.json(ticket);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        logger.error({ err: error }, 'Get Ticket By ID Error:');
+        res.status(500).json({ message: safeError(error, 'Error fetching ticket') });
     }
 };
 

@@ -216,7 +216,8 @@
       "dashboard": "Dashboard",
       "newTicket": "New Report",
       "analytics": "Analytics",
-      "settings": "Settings"
+      "settings": "Settings",
+      "userGuide": "User Guide"
     },
     "login": {
       "title": "Incident Reporting Portal",
@@ -294,17 +295,19 @@
       "CLOSED": "Closed"
     },
     "incidentTypes": {
+      "UNSAFE_CONDITION": "Unsafe Condition",
+      "UNSAFE_ACT": "Unsafe Act",
+      "NEAR_MISS": "Near Miss",
+      "ACCIDENT": "Accident",
+      "PROPERTY_DAMAGE": "Property Danger",
+      "INJURY": "Injury",
       "VIOLATION": "Violation",
       "HEALTH": "Health",
-      "NEAR_MISS": "Near Miss",
-      "PROPERTY_DAMAGE": "Property Damage",
-      "INJURY": "Injury",
       "FIRE": "Fire",
       "SECURITY_BREACH": "Security Breach",
       "OTHER": "Other",
-      "ACCIDENT": "Accident / Injury (Legacy)",
       "SAFETY": "Safety",
-      "OBSERVATION": "Incident",
+      "OBSERVATION": "Observation / Report",
       "OBSERVATION_desc": "Safety: Unsafe condition, act, near miss, accident, or observation\nSecurity: Breaches, violations, or observations",
       "ACCIDENT_desc": "Damage to persons or property",
       "SECURITY": "Security",
@@ -574,6 +577,20 @@
     "total": "Total",
     "withInjuries": "With Injuries",
     "exportExcel": "Export Excel",
+    "detectionSources": {
+      "title": "Detection Sources",
+      "subtitle": "How incidents & observations were discovered",
+      "INSPECTION": "Inspection",
+      "AUDIT": "Audit",
+      "INTERNAL_OBSERVATION": "Internal Observation",
+      "EXTERNAL_SOURCE": "External Source"
+    },
+    "yearFilter": {
+      "currentYear": "Current Year (Annual Reset)",
+      "allTime": "All Time",
+      "custom": "Custom Range",
+      "yearLabel": "Year"
+    },
     "errors": {
       "loadFailed": "Failed to load analytics",
       "exportFailed": "Export failed. Please try again."

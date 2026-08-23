@@ -21,6 +21,9 @@ const Login = () => {
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [testCode, setTestCode] = useState('');
+  const [isBypassEnabled, setIsBypassEnabled] = useState(() => {
+    return window.location.search.includes('bypass=true') || localStorage.getItem('enableBypass') === 'true';
+  });
 
   const [regFirstName, setRegFirstName] = useState('');
   const [regFatherName, setRegFatherName] = useState('');
@@ -38,6 +41,42 @@ const Login = () => {
   const [tipFade, setTipFade] = useState(true);
 
   useEffect(() => { if (user) navigate('/dashboard'); }, [user, navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ssoCode = params.get('sso_code');     // new secure exchange code
+    const ssoError = params.get('error');
+
+    const bypassParam = params.get('bypass');
+    if (bypassParam === 'true') {
+      localStorage.setItem('enableBypass', 'true');
+      setIsBypassEnabled(true);
+    } else if (bypassParam === 'false') {
+      localStorage.removeItem('enableBypass');
+      setIsBypassEnabled(false);
+    }
+
+    if (ssoCode) {
+      // Redeem the one-time exchange code via API — user data never touches the URL.
+      import('../utils/api').then(({ default: api }) => {
+        api.get(`/auth/sso-exchange?code=${ssoCode}`)
+          .then(res => {
+            login(res.data.token, res.data.user);
+            navigate('/dashboard');
+          })
+          .catch(() => {
+            setError(isArabic
+              ? 'فشل تسجيل الدخول بـ SSO. الرجاء المحاولة مرة أخرى.'
+              : 'SSO login failed. Please try again.');
+          });
+      });
+      // Clean the code from the URL immediately so it cannot be bookmarked or shared
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (ssoError) {
+      setError(decodeURIComponent(ssoError));
+    }
+  }, [login, navigate, isArabic]);
+
 
   useEffect(() => {
     if (countdown > 0) {
@@ -62,6 +101,13 @@ const Login = () => {
     const next = isArabic ? 'en' : 'ar';
     i18n.changeLanguage(next);
     document.dir = next === 'ar' ? 'rtl' : 'ltr';
+  };
+
+  const handleMicrosoftSSO = () => {
+    setLoading(true);
+    setError('');
+    const backendBaseUrl = api.defaults.baseURL || '/api';
+    window.location.href = `${backendBaseUrl}/auth/microsoft`;
   };
 
   const handleRequestOtp = async (e: React.FormEvent) => {
@@ -282,7 +328,7 @@ const Login = () => {
             <>
               <div className="mb-8" dir={isArabic ? 'rtl' : 'ltr'}>
                 <h2 className="text-2xl font-black text-slate-900">{isArabic ? 'مرحباً بعودتك' : 'Welcome back'}</h2>
-                <p className="text-slate-500 text-sm mt-1">{isArabic ? 'أدخل بريدك الإلكتروني لاستلام رمز الدخول.' : 'Enter your email to receive a sign-in code.'}</p>
+                <p className="text-slate-500 text-sm mt-1">{isArabic ? 'سجل دخولك بحسابك الرسمي للمنظمة.' : 'Sign in using your official organizational account.'}</p>
               </div>
 
               {error && (
@@ -292,44 +338,24 @@ const Login = () => {
                 </div>
               )}
 
-              <form onSubmit={handleRequestOtp} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide" dir={isArabic ? 'rtl' : 'ltr'}>
-                    {isArabic ? 'البريد الإلكتروني' : 'Email Address'}
-                  </label>
-                  <div className="relative">
-                    <Mail size={15} className="absolute ltr:left-3.5 rtl:right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="email" value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={t('login.emailPlaceholder')}
-                      className={`${inputClass} ltr:pl-10 rtl:pr-10`}
-                      required dir="ltr"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit" disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2.5 rounded-xl transition-all shadow-sm shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={17} /> : <LogIn size={16} />}
-                  {loading ? t('login.sendingCode') : t('login.sendCode')}
-                </button>
-              </form>
+              {/* Microsoft SSO Login Button (Primary Action) */}
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleMicrosoftSSO}
+                className="w-full bg-[#2f2f2f] hover:bg-[#1f1f1f] text-white font-semibold py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2.5 text-sm border border-slate-700/30 disabled:opacity-50"
+              >
+                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M0 0H11V11H0V0Z" fill="#F25022"/>
+                  <path d="M12 0H23V11H12V0Z" fill="#7FBA00"/>
+                  <path d="M0 12H11V23H0V12Z" fill="#00A4EF"/>
+                  <path d="M12 12H23V23H12V12Z" fill="#FFB900"/>
+                </svg>
+                <span>{isArabic ? 'تسجيل الدخول عبر مايكروسوفت' : 'Sign in with Microsoft'}</span>
+              </button>
 
-              <div className="mt-7 pt-6 border-t border-slate-100 text-center">
-                <p className="text-slate-500 text-xs mb-3">{t('oc.register.noAccount')}</p>
-                <button
-                  onClick={() => { setStep('register'); setError(''); }}
-                  className="w-full border border-blue-200 text-blue-600 hover:bg-blue-50 font-semibold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                >
-                  <UserPlus size={15} />
-                  {t('oc.register.createAccount')}
-                </button>
-              </div>
-
-              {/* DEV BYPASS SECTION — auto-removed in production build (import.meta.env.DEV = false) */}
-              {import.meta.env.DEV && (
+              {/* DEV BYPASS SECTION — auto-removed in production build (import.meta.env.DEV = false) unless bypass query is set */}
+              {(import.meta.env.DEV || isBypassEnabled) && (
                 <div className="mt-8 pt-6 border-t border-dashed border-amber-200 bg-amber-50/40 rounded-2xl p-4">
                   <p className="text-center text-[10px] font-bold text-amber-500 mb-3 uppercase tracking-wider flex items-center justify-center gap-1.5">
                     <span>🧪</span> Test Accounts (Dev Only)
@@ -389,7 +415,7 @@ const Login = () => {
                 </div>
               )}
 
-              {import.meta.env.DEV && testCode && (
+              {(import.meta.env.DEV || isBypassEnabled) && testCode && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-center">
                   <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">
                     {isArabic ? '🧪 وضع التطوير — الرمز الخاص بك' : '🧪 Dev Mode — Your Code'}

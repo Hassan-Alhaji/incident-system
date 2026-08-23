@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
   LogOut, LayoutDashboard, PlusCircle, Globe,
-  AlertTriangle, Settings, BarChart3, ShieldCheck,
+  AlertTriangle, Settings, BarChart3, ShieldCheck, BookOpen,
 } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -85,7 +85,7 @@ const Layout = () => {
     ['OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN'].includes(user.role);
   const canSeeAnalytics =
     user.canViewAnalytics ||
-    ['OC_HSE_MANAGER', 'HSE_CONTROLLER', 'ADMIN', 'SAFETY_MANAGER'].includes(user.role);
+    ['ADMIN', 'HSE_CONTROLLER', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'].includes(user.role);
 
   const navItems = [
     {
@@ -111,6 +111,12 @@ const Layout = () => {
       icon: <Settings size={17} />,
       label: t('oc.nav.settings'),
       show: canManageSettings,
+    },
+    {
+      path: '/user-guide',
+      icon: <BookOpen size={17} />,
+      label: t('oc.nav.userGuide'),
+      show: true,
     },
   ].filter(item => item.show);
 
@@ -218,6 +224,15 @@ const Layout = () => {
           {/* Right actions */}
           <div className="flex items-center gap-1.5">
             <button
+              onClick={() => navigate('/user-guide')}
+              title={t('oc.nav.userGuide')}
+              className="h-8 px-2.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-xs font-bold flex items-center gap-1.5"
+            >
+              <BookOpen size={14} />
+              <span className="hidden sm:inline">{t('oc.nav.userGuide')}</span>
+            </button>
+
+            <button
               onClick={toggleLang}
               className="h-8 px-2.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-xs font-bold flex items-center gap-1.5"
             >
@@ -246,7 +261,7 @@ const Layout = () => {
 
         {/* ────── Bottom nav (mobile only) ────── */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 z-50 safe-area-bottom">
-          <div className="flex px-1">
+          <div className="flex overflow-x-auto scrollbar-none px-1 min-w-0">
             {navItems.map(item => {
               const active = isActive(item.path);
               return (
@@ -254,14 +269,14 @@ const Layout = () => {
                   key={item.path}
                   onClick={() => navigate(item.path)}
                   aria-label={item.label}
-                  className={`flex-1 flex flex-col items-center gap-1.5 py-3 min-h-[56px] transition-all relative
+                  className={`flex-shrink-0 flex flex-col items-center gap-1.5 py-3 px-3 min-h-[56px] min-w-[60px] transition-all relative
                     ${active ? 'text-blue-600' : 'text-slate-500'}`}
                 >
                   {active && (
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-0.5 bg-blue-600 rounded-b-full" />
                   )}
                   {item.icon}
-                  <span className="text-[11px] font-semibold leading-none">{item.label}</span>
+                  <span className="text-[11px] font-semibold leading-none whitespace-nowrap">{item.label}</span>
                 </button>
               );
             })}

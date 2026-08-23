@@ -223,7 +223,8 @@
       "dashboard": "لوحة القيادة",
       "newTicket": "بلاغ جديد",
       "analytics": "الإحصائيات",
-      "settings": "الإعدادات"
+      "settings": "الإعدادات",
+      "userGuide": "دليل المستخدم"
     },
     "login": {
       "title": "بوابة تبليغ الحوادث",
@@ -301,17 +302,19 @@
       "CLOSED": "مغلقة"
     },
     "incidentTypes": {
+      "UNSAFE_CONDITION": "حالة غير آمنة",
+      "UNSAFE_ACT": "تصرف غير آمن",
+      "NEAR_MISS": "حادث وشيك",
+      "ACCIDENT": "حادث",
+      "PROPERTY_DAMAGE": "خطر على الممتلكات",
+      "INJURY": "إصابة",
       "VIOLATION": "مخالفة",
       "HEALTH": "صحة",
-      "NEAR_MISS": "حادثة وشيكة",
-      "PROPERTY_DAMAGE": "أضرار ممتلكات",
-      "INJURY": "إصابة",
       "FIRE": "حريق",
       "SECURITY_BREACH": "اختراق أمني",
       "OTHER": "أخرى",
-      "ACCIDENT": "حادث / إصابة (إصدار قديم)",
       "SAFETY": "سلامة",
-      "OBSERVATION": "حادثة",
+      "OBSERVATION": "ملاحظة / بلاغ",
       "OBSERVATION_desc": "سلامة: حالة غير آمنة أو تصرف غير آمن أو حادثة وشيكة أو حادث أو ملاحظة\nأمن: اختراقات، مخالفات، أو ملاحظات أمنية",
       "ACCIDENT_desc": "تضرر أفراد أو ممتلكات",
       "SECURITY": "أمني",
@@ -580,6 +583,20 @@
     "total": "الإجمالي",
     "withInjuries": "مع إصابات",
     "exportExcel": "تصدير Excel",
+    "detectionSources": {
+      "title": "مصادر اكتشاف الحوادث",
+      "subtitle": "كيف تم رصد وتوثيق الحوادث والملاحظات",
+      "INSPECTION": "تفتيش ميداني",
+      "AUDIT": "تدقيق",
+      "INTERNAL_OBSERVATION": "ملاحظة داخلية",
+      "EXTERNAL_SOURCE": "مصدر خارجي"
+    },
+    "yearFilter": {
+      "currentYear": "السنة الحالية (تصفير سنوي)",
+      "allTime": "جميع الفترات",
+      "custom": "نطاق مخصص",
+      "yearLabel": "سنة"
+    },
     "errors": {
       "loadFailed": "فشل تحميل الإحصائيات",
       "exportFailed": "فشل التصدير. يرجى المحاولة مرة أخرى."

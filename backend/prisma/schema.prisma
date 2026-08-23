@@ -186,6 +186,7 @@ model OffCircuitReport {
   locationDescription     String?    // Free text description of location
   whatHappened             String?
   hasInjury               Boolean    @default(false)
+  detectionSource         String?    // INSPECTION, AUDIT, INTERNAL_OBSERVATION, EXTERNAL_SOURCE
 
   // Late Reporting (>24h rule)
   isLateReport            Boolean    @default(false)
@@ -246,6 +247,8 @@ model OffCircuitReport {
   // === RCA Section (Required for all types EXCEPT Observation) ===
   rcaRequired             Boolean    @default(false)
   rcaCompleted            Boolean    @default(false)
+  rcaDelegatedToDept      Boolean?   @default(false) // Whether RCA was delegated to department rep
+  classificationType      String?    // SAFETY or SECURITY
   rcaCause                String?    // Q1: Immediate Causes / الأسباب المباشرة
   rcaWhy                  String?    // Q2: Underlying Causes / الأسباب الغير مباشرة
   rcaRootCause            String?    // Q3: Root Causes / الأسباب الجذرية
@@ -408,6 +411,8 @@ enum Role {
 
 enum TicketType {
   OBSERVATION
+  UNSAFE_CONDITION
+  UNSAFE_ACT
   ACCIDENT
   SECURITY
   VIOLATION

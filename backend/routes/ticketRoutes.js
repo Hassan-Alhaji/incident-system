@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/dbUploadMiddleware');
+// Disk-based multer only for the Excel import endpoint (temporary file, cleaned up after use).
+// All other uploads (ticket attachments, action plan files) use dbUploadMiddleware (stores in DB).
 const multer = require('multer');
-const fileUpload = multer({ dest: 'uploads/' });
+const diskUpload = multer({ dest: 'uploads/' });
 
 // Import controllers
 const { createTicket, getTickets, getTicketById, reporterReply, uploadAttachments } = require('../controllers/ticketCrud');
@@ -71,7 +73,8 @@ router.route('/users')
     .post(protect, createUser);
 
 router.get('/users/template', protect, downloadUserTemplate);
-router.post('/users/import', protect, fileUpload.single('file'), importUsers);
+// diskUpload: temporary disk file for Excel parsing, cleaned up in importUsers controller
+router.post('/users/import', protect, diskUpload.single('file'), importUsers);
 
 router.route('/users/:id')
     .put(protect, updateUser)
