@@ -717,32 +717,66 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* CARD 2 (Yellow): اكتشاف الملاحظة (Detection Source) */}
+        {/* CARD 2 (Yellow): كيف تم اكتشاف الملاحظة / الحادث؟ */}
         <div className="bg-white border-2 border-amber-400/50 rounded-3xl p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h3 className="text-xs font-black text-amber-950 flex items-center gap-1.5">
-              <Search size={14} className="text-amber-600" />
-              <span>{isRtl ? 'اكتشاف الملاحظة' : 'Detection Source'}</span>
-            </h3>
+            <div>
+              <h3 className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                <Search size={14} className="text-amber-600" />
+                <span>{isRtl ? 'مصدر اكتشاف الحادث' : 'How Was It Detected?'}</span>
+              </h3>
+              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                {isRtl ? 'الجهة أو الطريقة التي أدت إلى اكتشاف الحادث أو الملاحظة' : 'The channel that led to discovering the incident'}
+              </p>
+            </div>
+            <span className="text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+              {(data.detectionSourceStats || []).reduce((s: number, x: any) => s + x.count, 0)} {isRtl ? 'إجمالي' : 'total'}
+            </span>
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {(data.detectionSourceStats || []).map((ds: any) => {
               const max = Math.max(...(data.detectionSourceStats || []).map((x: any) => x.count), 1);
+              const pct = max > 0 ? Math.round((ds.count / max) * 100) : 0;
+              // Background colors per category
+              const bgMap: Record<string, string> = {
+                INSPECTION:           'bg-blue-50   border-blue-200',
+                AUDIT:                'bg-violet-50 border-violet-200',
+                INTERNAL_OBSERVATION: 'bg-emerald-50 border-emerald-200',
+                EXTERNAL_SOURCE:      'bg-amber-50  border-amber-200',
+              };
+              const badgeBg: Record<string, string> = {
+                INSPECTION:           'bg-blue-100 text-blue-800',
+                AUDIT:                'bg-violet-100 text-violet-800',
+                INTERNAL_OBSERVATION: 'bg-emerald-100 text-emerald-800',
+                EXTERNAL_SOURCE:      'bg-amber-100 text-amber-800',
+              };
               return (
-                <div key={ds.key} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="flex items-center gap-1.5 text-slate-700">
-                      <span>{ds.icon}</span>
+                <div key={ds.key} className={`rounded-2xl border p-2.5 ${bgMap[ds.key] || 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <span className="text-sm">{ds.icon}</span>
                       <span>{isRtl ? ds.labelAr : ds.labelEn}</span>
                     </span>
-                    <span className="font-mono text-slate-900">{ds.count}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${badgeBg[ds.key] || 'bg-slate-100 text-slate-700'}`}>
+                        {ds.count}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">{ds.percentage}%</span>
+                    </div>
                   </div>
-                  <ProgressBar value={(ds.count / max) * 100} color={ds.color} height={6} />
+                  {/* Progress bar */}
+                  <div className="w-full bg-white/60 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, backgroundColor: ds.color }}
+                    />
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
+
 
         {/* CARD 3 (Cyan): تصنيف الملاحظات (Severity Levels) */}
         <div className="bg-white border-2 border-cyan-400/50 rounded-3xl p-4 shadow-sm space-y-3">

@@ -856,10 +856,10 @@ const getAnalytics = async (req, res) => {
                 return {
                     detectionSources: { ...srcMap },
                     detectionSourceStats: [
-                        { key: 'INSPECTION',          labelEn: 'Inspection',          labelAr: 'تفتيش ميداني',  icon: '🔍', count: srcMap.INSPECTION,          percentage: totalTickets > 0 ? Math.round((srcMap.INSPECTION          / totalTickets) * 100) : 0, color: '#3b82f6' },
-                        { key: 'AUDIT',               labelEn: 'Audit',               labelAr: 'تدقيق',         icon: '📋', count: srcMap.AUDIT,               percentage: totalTickets > 0 ? Math.round((srcMap.AUDIT               / totalTickets) * 100) : 0, color: '#8b5cf6' },
-                        { key: 'INTERNAL_OBSERVATION',labelEn: 'Internal Observation',labelAr: 'ملاحظة داخلية',icon: '👁️', count: srcMap.INTERNAL_OBSERVATION, percentage: totalTickets > 0 ? Math.round((srcMap.INTERNAL_OBSERVATION / totalTickets) * 100) : 0, color: '#10b981' },
-                        { key: 'EXTERNAL_SOURCE',     labelEn: 'External Source',     labelAr: 'مصدر خارجي',   icon: '🌐', count: srcMap.EXTERNAL_SOURCE,     percentage: totalTickets > 0 ? Math.round((srcMap.EXTERNAL_SOURCE     / totalTickets) * 100) : 0, color: '#f59e0b' },
+                        { key: 'INSPECTION',          labelEn: 'Inspection',            labelAr: 'تفتيش ميداني',   icon: '🔍', count: srcMap.INSPECTION,          percentage: totalTickets > 0 ? Math.round((srcMap.INSPECTION          / totalTickets) * 100) : 0, color: '#3b82f6' },
+                        { key: 'AUDIT',               labelEn: 'Audit',                 labelAr: 'تدقيق',          icon: '📋', count: srcMap.AUDIT,               percentage: totalTickets > 0 ? Math.round((srcMap.AUDIT               / totalTickets) * 100) : 0, color: '#8b5cf6' },
+                        { key: 'INTERNAL_OBSERVATION',labelEn: 'Internal Observation',  labelAr: 'ملاحظة داخلية', icon: '👁️', count: srcMap.INTERNAL_OBSERVATION, percentage: totalTickets > 0 ? Math.round((srcMap.INTERNAL_OBSERVATION / totalTickets) * 100) : 0, color: '#10b981' },
+                        { key: 'EXTERNAL_SOURCE',     labelEn: 'External Observation',  labelAr: 'ملاحظة خارجية', icon: '🌐', count: srcMap.EXTERNAL_SOURCE,     percentage: totalTickets > 0 ? Math.round((srcMap.EXTERNAL_SOURCE     / totalTickets) * 100) : 0, color: '#f59e0b' },
                     ],
                 };
             })(),
