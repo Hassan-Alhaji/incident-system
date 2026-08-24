@@ -974,11 +974,13 @@ const TicketDetail = () => {
             {/* Tab Content */}
             {activeTab === 'details' && (
                 <div className="flex flex-col gap-4">
-                    {/* Reporter Info — visible to controllers / HSE managers only */}
-                    {isController && ticket.createdBy && (
+                    {/* Reporter Info */}
+                    {ticket.createdBy && (isController || isTicketOwner) && (
                         <div className="bg-gradient-to-br from-indigo-50 to-blue-50/40 border border-indigo-200 shadow-sm rounded-xl p-4">
                             <h3 className="font-bold text-indigo-800 text-sm flex items-center gap-2 mb-3 pb-2 border-b border-indigo-100">
-                                👤 {isRtl ? 'بيانات المُبلّغ' : 'Reporter Information'}
+                                👤 {isRtl
+                                    ? (isController ? 'بيانات المُبلّغ' : 'بياناتي')
+                                    : (isController ? 'Reporter Information' : 'My Report')}
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                                 <div>
@@ -987,25 +989,31 @@ const TicketDetail = () => {
                                     </span>
                                     <span className="font-bold text-slate-800">{ticket.createdBy.name || '—'}</span>
                                 </div>
-                                <div>
-                                    <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
-                                        {isRtl ? 'البريد الإلكتروني' : 'Email'}
-                                    </span>
-                                    {ticket.createdBy.email
-                                        ? <a href={`mailto:${ticket.createdBy.email}`} className="font-semibold text-blue-600 hover:underline break-all" dir="ltr">{ticket.createdBy.email}</a>
-                                        : <span className="text-slate-400">—</span>}
-                                </div>
-                                <div>
-                                    <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
-                                        {isRtl ? 'رقم الجوال' : 'Mobile'}
-                                    </span>
-                                    {ticket.createdBy.mobile
-                                        ? <a href={`tel:${ticket.createdBy.mobile}`} className="font-semibold text-blue-600 hover:underline" dir="ltr">{ticket.createdBy.mobile}</a>
-                                        : <span className="text-slate-400">—</span>}
-                                </div>
+                                {/* Email and Mobile only visible to controllers — not shown to the reporter themselves */}
+                                {isController && (
+                                    <>
+                                        <div>
+                                            <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
+                                                {isRtl ? 'البريد الإلكتروني' : 'Email'}
+                                            </span>
+                                            {ticket.createdBy.email
+                                                ? <a href={`mailto:${ticket.createdBy.email}`} className="font-semibold text-blue-600 hover:underline break-all" dir="ltr">{ticket.createdBy.email}</a>
+                                                : <span className="text-slate-400">—</span>}
+                                        </div>
+                                        <div>
+                                            <span className="text-indigo-500 block text-[11px] font-bold uppercase tracking-wide mb-0.5">
+                                                {isRtl ? 'رقم الجوال' : 'Mobile'}
+                                            </span>
+                                            {ticket.createdBy.mobile
+                                                ? <a href={`tel:${ticket.createdBy.mobile}`} className="font-semibold text-blue-600 hover:underline" dir="ltr">{ticket.createdBy.mobile}</a>
+                                                : <span className="text-slate-400">—</span>}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
+
 
                     {/* Top Section: Details */}
                     <div className="space-y-4">
