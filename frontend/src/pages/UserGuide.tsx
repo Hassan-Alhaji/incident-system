@@ -203,7 +203,8 @@ const UserGuide = () => {
           { q: 'هل يمكنني الإبلاغ عن حادث أثناء انقطاع الإنترنت؟', a: 'نعم، المنصة تدعم وضع عدم الاتصال (Offline Mode) حيث يتم حفظ التذكرة محلياً في جهازك ومزامنتها تلقائياً بمجرد عودة الاتصال.' },
           { q: 'من يملك صلاحية إغلاق التذاكر؟', a: 'التذاكر البسيطة يمكن إغلاقها من مراقب السلامة (HSE Controller)، بينما الحوادث المتوسطة والحرجة تتطلب موافقة مدير السلامة (Safety Manager) أو مسؤول النظام (Admin).' },
           { q: 'كيف أتابع التذاكر الخاصة بقسمي فقط؟', a: 'ممثلو الأقسام تظهر لهم التذاكر المحالة لقسمهم تلقائياً في لوحة القيادة مع إشعارات فورية عند تعيين أي تذكرة جديدة.' },
-          { q: 'كيف أقوم بطباعة تقرير الحادث الرسمي كـ PDF؟', a: 'من خلال فتح أي تذكرة، اضغط على زر (طباعة التقرير / Export PDF) بالأعلى ليتم توليد تقرير رسمي جاهز يحتوي على كافة التفاصيل والأدلة والخريطة.' }
+          { q: 'كيف أقوم بطباعة تقرير الحادث الرسمي كـ PDF؟', a: 'من خلال فتح أي تذكرة، اضغط على زر (طباعة التقرير / Export PDF) بالأعلى ليتم توليد تقرير رسمي جاهز يحتوي على كافة التفاصيل والأدلة والخريطة.' },
+          { q: 'ما هو معنى حقول بيانات المورد / المقاول في التذكرة؟', a: 'عند وقوع حادث يتعلق بموظف مقاول (Contractor)، يحتاج النظام لتوثيق بيانات الشركة المقاولة، وتتضمن ثلاثة جوانب: (1) ممثل المورد الرئيسي (Primary Representative): الشخص المسؤول من جهة الشركة المقاولة للتواصل (الاسم + الإيميل + الجوال)). (2) قسم الكفيل (Responsible Sponsoring Department): القسم الداخلي في المنظمة المسؤول عن هذا المورد. (3) ممثلو الشركة (Company Representatives): قائمة بممثلين إضافيين من نفس الشركة لتسهيل التواصل عند الحاجة.' }
         ]
       }
     },
@@ -382,7 +383,8 @@ const UserGuide = () => {
           { q: 'Can I submit reports without an internet connection?', a: 'Yes! The platform features Offline Mode. Reports created offline are stored safely on your device and automatically synced once connection is restored.' },
           { q: 'Who has authority to close tickets?', a: 'Minor tickets can be resolved by the HSE Controller. Moderate and Critical incidents require sign-off by the Safety Manager or System Administrator.' },
           { q: 'How do department representatives view their assigned tasks?', a: 'Department reps see their assigned tickets directly in their dashboard with instant badge indicators and email alerts.' },
-          { q: 'How do I generate an official PDF Incident Report?', a: 'Open any incident ticket and click "Export PDF / Print Report" at the top to download a standardized, executive-ready report with full metadata and photos.' }
+          { q: 'How do I generate an official PDF Incident Report?', a: 'Open any incident ticket and click "Export PDF / Print Report" at the top to download a standardized, executive-ready report with full metadata and photos.' },
+          { q: 'What do the Service Provider / Contractor fields mean on a ticket?', a: 'When an incident involves a contractor employee, the system captures three key data points: (1) Primary Representative — the main contact person from the contractor company (name, email, mobile). (2) Responsible Sponsoring Department — the internal SMC department that is responsible for / sponsors this contractor. (3) Company Representatives — a list of additional contacts from the same company for follow-up communications.' }
         ]
       }
     }

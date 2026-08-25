@@ -70,6 +70,8 @@ const Settings = () => {
  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
  const [departmentFormData, setDepartmentFormData] = useState({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] });
  const [departmentError, setDepartmentError] = useState('');
+ const [syncingAzure, setSyncingAzure] = useState(false);
+
 
  // Confirmation modal state
  const [confirmModal, setConfirmModal] = useState<{title: string, message: string, onConfirm: () => void} | null>(null);
@@ -145,6 +147,28 @@ const Settings = () => {
    }
    setShowDepartmentModal(false); setEditingDepartmentId(null); fetchDepartments();
  } catch (err: any) { setDepartmentError(err.response?.data?.message || t('errors.failedCreateDept')); }
+
+ const syncDepartmentsFromAzure = async () => {
+   if (syncingAzure) return;
+   setSyncingAzure(true);
+   try {
+     const res = await api.post('/departments/sync-azure');
+     const { added, skipped, failed, total } = res.data;
+     showToast(
+       isRtl
+         ? `تمت المزامنة من Azure — مضاف: ${added}، موجود: ${skipped}، إجمالي: ${total}`
+         : `Azure sync done — Added: ${added}, Existed: ${skipped}, Total: ${total}`,
+       failed > 0 ? 'warning' : 'success'
+     );
+     fetchDepartments();
+   } catch (err: any) {
+     const msg = err.response?.data?.message || 'Azure sync failed';
+     showToast(msg, 'error');
+   } finally {
+     setSyncingAzure(false);
+   }
+ };
+
  };
  const openEditDepartment = (d: any) => {
    setEditingDepartmentId(d.id);
@@ -374,7 +398,7 @@ const Settings = () => {
  <button onClick={() => setActiveTab('departments')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'departments' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Building size={13} /> Departments
  </button>
- {(user?.role === 'ADMIN' || user?.canManageServiceProviders) && (
+ {user?.role === 'ADMIN' && (
  <button onClick={() => setActiveTab('providers')} className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === 'providers' ? 'bg-blue-600/15 text-blue-500 border border-blue-600/30' : 'text-gray-600 hover:bg-gray-100'}`}>
  <Briefcase size={13} /> Providers
  </button>
@@ -613,13 +637,6 @@ const Settings = () => {
  </div>
  <span className="text-base font-medium text-emerald-800 select-none">Can Add / Manage Events (إدارة الفعاليات)</span>
  </div>
- <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
- onClick={() => setForm({ ...form, canManageServiceProviders: !form.canManageServiceProviders })}>
- <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canManageServiceProviders ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-300'}`}>
- {form.canManageServiceProviders && <CheckCircle size={14} />}
- </div>
- <span className="text-base font-medium text-orange-800 select-none">Can Add / Manage Service Providers (إدارة الموردين)</span>
- </div>
  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
  onClick={() => setForm({ ...form, canViewAnalytics: !form.canViewAnalytics })}>
  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${form.canViewAnalytics ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300'}`}>
@@ -685,6 +702,17 @@ const Settings = () => {
  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
  <div className="flex items-center gap-3"><Building className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Departments Management</h3><p className="text-xs text-gray-500">View and configure departments.</p></div></div>
  <button onClick={() => { setEditingDepartmentId(null); setDepartmentError(''); setDepartmentFormData({ nameEn: '', nameAr: '', manager: {name:'', email:'', mobile:''}, representatives: [{name:'', email:'', mobile:''}] }); setShowDepartmentModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Department</button>
+ <button
+   onClick={syncDepartmentsFromAzure}
+   disabled={syncingAzure}
+   className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-600 border border-indigo-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center disabled:opacity-50"
+   title="Sync departments from Microsoft Azure AD"
+ >
+   {syncingAzure
+     ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> {isRtl ? 'جارٍ المزامنة...' : 'Syncing...'}</>
+     : <>🔄 {isRtl ? 'مزامنة من Azure' : 'Sync from Azure'}</>
+   }
+ </button>
  </div>
  <div className="space-y-2 md:hidden">
  {departments.map(d => (

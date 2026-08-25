@@ -589,7 +589,7 @@
       "INSPECTION": "تفتيش ميداني",
       "AUDIT": "تدقيق",
       "INTERNAL_OBSERVATION": "ملاحظة داخلية",
-      "EXTERNAL_SOURCE": "مصدر خارجي"
+      "EXTERNAL_SOURCE": "ملاحظة خارجية"
     },
     "yearFilter": {
       "currentYear": "السنة الحالية (تصفير سنوي)",

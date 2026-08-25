@@ -38,10 +38,10 @@ async function provisionUser(data, role) {
     return user;
 }
 
-// Permission gate
+// Permission gate — ADMIN only
 const canManageSPs = (req, res, next) => {
-    if (req.user?.role === 'ADMIN' || req.user?.canManageServiceProviders) return next();
-    return res.status(403).json({ message: 'Not authorized to manage service providers' });
+    if (req.user?.role === 'ADMIN') return next();
+    return res.status(403).json({ message: 'Not authorized. Only Admins can manage service providers.' });
 };
 
 // Get all service providers

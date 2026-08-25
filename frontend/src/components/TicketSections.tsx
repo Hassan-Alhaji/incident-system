@@ -308,15 +308,21 @@ export const ActionPlanSection = ({ ticket, onRefresh }: { ticket: any; onRefres
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 mt-4">
-                      <label className="text-sm font-bold text-gray-700 whitespace-nowrap">{isRtl ? 'التاريخ المستهدف' : 'Target Date'} {(pd.required || form.desc.trim()) ? <span className="text-red-500">*</span> : ''}:</label>
+                    {/* ── Target Date — highlighted for visibility ── */}
+                    <div className="mt-4 bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
+                      <span className="text-amber-500 text-xl flex-shrink-0">📅</span>
+                      <label className="text-sm font-extrabold text-amber-800 whitespace-nowrap">
+                        {isRtl ? 'التاريخ المستهدف' : 'Target Date'}
+                        {(pd.required || form.desc.trim()) ? <span className="text-red-500 ms-0.5">*</span> : <span className="text-amber-500 font-normal ms-1">{isRtl ? '(مطلوب)' : '(Required)'}</span>}
+                        {' '}:
+                      </label>
                       <input
                         id={`action-plan-date-${pd.type}`} name={`action-plan-date-${pd.type}`}
                         type="date"
                         min={new Date().toISOString().split('T')[0]}
                         value={form.date}
                         onChange={e => setForms(f => ({ ...f, [pd.type]: { ...f[pd.type], date: e.target.value } }))}
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="flex-1 text-sm font-semibold border-2 border-amber-300 bg-white rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-500 text-amber-900"
                       />
                     </div>
 

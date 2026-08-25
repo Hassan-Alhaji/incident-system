@@ -593,43 +593,8 @@ const TicketWizard = () => {
             </div>
           )}
 
-          {/* Detection Source / طريقة اكتشاف الحادث */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 space-y-3">
-            <div>
-              <label className="block text-sm font-bold text-gray-800 flex items-center gap-2">
-                <span>🔍</span>
-                <span>{isRtl ? 'كيف تم اكتشاف هذه الحالة / الحادث؟' : 'How was this incident / observation discovered?'} *</span>
-              </label>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {isRtl ? 'حدد القناة أو الطريقة التي تم من خلالها رصد واكتشاف الحادث' : 'Select the method or channel through which this was discovered'}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { value: 'INSPECTION', icon: '🔍', labelAr: 'تفتيش ميداني', labelEn: 'Inspection' },
-                { value: 'AUDIT', icon: '📋', labelAr: 'تدقيق', labelEn: 'Audit' },
-                { value: 'INTERNAL_OBSERVATION', icon: '👁️', labelAr: 'ملاحظة داخلية', labelEn: 'Internal Observation' },
-                { value: 'EXTERNAL_SOURCE', icon: '🌐', labelAr: 'مصدر خارجي', labelEn: 'External Source' }
-              ].map(ds => {
-                const isSelected = detectionSource === ds.value;
-                return (
-                  <button
-                    key={ds.value}
-                    type="button"
-                    onClick={() => setDetectionSource(ds.value)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all text-center
-                      ${isSelected
-                        ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-sm ring-2 ring-blue-500/20 scale-[1.02]'
-                        : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'}`}
-                  >
-                    <span className="text-2xl mb-1">{ds.icon}</span>
-                    <span className="text-xs font-bold leading-tight">{isRtl ? ds.labelAr : ds.labelEn}</span>
-                    <span className="text-[10px] text-gray-400 mt-0.5">{isRtl ? ds.labelEn : ds.labelAr}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {/* Detection Source is automatically set to INTERNAL_OBSERVATION for reporters.
+              Controllers can change it later from the ticket detail page if needed. */}
 
           <div>
             <label className={`block text-sm font-medium mb-1.5 ${showErrors && !whatHappened.trim() ? 'text-red-500' : 'text-gray-700'}`}>{t('oc.wizard.whatHappened', 'What Happened?')} *</label>

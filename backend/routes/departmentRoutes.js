@@ -214,4 +214,94 @@ router.delete('/:id', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANA
     }
 });
 
+// ── Sync Departments from Azure AD ──────────────────────────────────────────
+// Uses Client Credentials flow (app-to-app) to read all users' department field
+// Requires: User.Read.All or Directory.Read.All application permission in Azure
+router.post('/sync-azure', protect, authorize('ADMIN', 'OC_HSE_MANAGER'), async (req, res) => {
+    const axios = require('axios');
+    const { MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET } = process.env;
+
+    if (!MICROSOFT_TENANT_ID || !MICROSOFT_CLIENT_ID || !MICROSOFT_CLIENT_SECRET) {
+        return res.status(500).json({ message: 'Microsoft SSO credentials not configured in .env' });
+    }
+
+    try {
+        // Step 1: Get an app-level access token (Client Credentials flow)
+        const tokenRes = await axios.post(
+            `https://login.microsoftonline.com/${MICROSOFT_TENANT_ID}/oauth2/v2.0/token`,
+            new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: MICROSOFT_CLIENT_ID,
+                client_secret: MICROSOFT_CLIENT_SECRET,
+                scope: 'https://graph.microsoft.com/.default'
+            }),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        const accessToken = tokenRes.data.access_token;
+
+        // Step 2: Fetch all users with their department field (paginate if needed)
+        let url = 'https://graph.microsoft.com/v1.0/users?$select=department&$top=999';
+        const departments = new Set();
+
+        while (url) {
+            const graphRes = await axios.get(url, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            for (const user of graphRes.data.value || []) {
+                if (user.department && user.department.trim()) {
+                    departments.add(user.department.trim());
+                }
+            }
+            url = graphRes.data['@odata.nextLink'] || null; // handle pagination
+        }
+
+        if (departments.size === 0) {
+            return res.json({ message: 'No departments found in Azure AD', added: 0, skipped: 0 });
+        }
+
+        // Step 3: Upsert each unique department into the local DB
+        let added = 0, skipped = 0, failed = 0;
+        const results = [];
+
+        for (const deptName of departments) {
+            try {
+                const existing = await prisma.department.findFirst({
+                    where: { name: { equals: deptName, mode: 'insensitive' } }
+                });
+                if (existing) {
+                    skipped++;
+                    results.push({ name: deptName, status: 'skipped' });
+                } else {
+                    await prisma.department.create({ data: { name: deptName } });
+                    added++;
+                    results.push({ name: deptName, status: 'added' });
+                }
+            } catch (err) {
+                failed++;
+                results.push({ name: deptName, status: 'failed', error: err.message });
+            }
+        }
+
+        res.json({
+            message: `Azure sync complete. Added: ${added}, Already existed: ${skipped}, Failed: ${failed}`,
+            added,
+            skipped,
+            failed,
+            total: departments.size,
+            results
+        });
+
+    } catch (err) {
+        console.error('[Azure Sync] Error:', err.response?.data || err.message);
+        const azureMsg = err.response?.data?.error_description || err.response?.data?.error || err.message;
+        if (azureMsg?.includes('Authorization_RequestDenied') || azureMsg?.includes('Insufficient privileges')) {
+            return res.status(403).json({ 
+                message: 'Azure AD permission denied. Please grant User.Read.All or Directory.Read.All application permission in Azure Portal and provide admin consent.',
+                detail: azureMsg
+            });
+        }
+        res.status(500).json({ message: 'Azure sync failed', detail: azureMsg });
+    }
+});
+
 module.exports = router;

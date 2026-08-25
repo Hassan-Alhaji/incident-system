@@ -583,7 +583,7 @@
       "INSPECTION": "Inspection",
       "AUDIT": "Audit",
       "INTERNAL_OBSERVATION": "Internal Observation",
-      "EXTERNAL_SOURCE": "External Source"
+      "EXTERNAL_SOURCE": "External Observation"
     },
     "yearFilter": {
       "currentYear": "Current Year (Annual Reset)",

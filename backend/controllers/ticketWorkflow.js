@@ -838,4 +838,49 @@ const updateControllerNotes = async (req, res) => {
     }
 };
 
-module.exports = { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction, updateControllerNotes };
+// ── Update Detection Source (Controller Only) ────────────────────────────────
+const VALID_DETECTION_SOURCES = ['INSPECTION', 'AUDIT', 'INTERNAL_OBSERVATION', 'EXTERNAL_SOURCE'];
+
+const updateDetectionSource = async (req, res) => {
+    const allowedRoles = ['HSE_CONTROLLER', 'ADMIN', 'SAFETY_MANAGER', 'OC_HSE_MANAGER'];
+    if (!allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({ message: 'Not authorized to update detection source' });
+    }
+
+    const { detectionSource } = req.body;
+    if (!detectionSource || !VALID_DETECTION_SOURCES.includes(detectionSource)) {
+        return res.status(400).json({ message: `Invalid detection source. Must be one of: ${VALID_DETECTION_SOURCES.join(', ')}` });
+    }
+
+    try {
+        const ticket = await prisma.ticket.findUnique({
+            where: { id: req.params.id },
+            include: { offCircuitReport: true }
+        });
+        if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+        if (!ticket.offCircuitReport) return res.status(400).json({ message: 'This ticket has no off-circuit report' });
+
+        const previous = ticket.offCircuitReport.detectionSource || 'INTERNAL_OBSERVATION';
+
+        await prisma.offCircuitReport.update({
+            where: { ticketId: ticket.id },
+            data: { detectionSource }
+        });
+
+        await prisma.activityLog.create({
+            data: {
+                ticketId: ticket.id,
+                actorId: req.user.id,
+                action: 'DETECTION_SOURCE_UPDATED',
+                details: `Detection source changed from ${previous} to ${detectionSource}`
+            }
+        });
+
+        res.json({ message: 'Detection source updated', detectionSource });
+    } catch (error) {
+        logger.error({ err: error }, 'Update Detection Source Error:');
+        res.status(500).json({ message: safeError(error, 'Failed to update detection source') });
+    }
+};
+
+module.exports = { controllerAction, hrAction, departmentAction, controllerFinalReview, safetyManagerAction, updateControllerNotes, updateDetectionSource };

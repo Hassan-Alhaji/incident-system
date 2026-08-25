@@ -253,7 +253,7 @@ const Layout = () => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 px-4 py-5 lg:px-7 lg:py-6 pb-24 lg:pb-8 max-w-6xl w-full mx-auto">
+        <main className={`flex-1 px-4 py-5 lg:px-7 lg:py-6 pb-24 lg:pb-8 w-full ${location.pathname.includes('/analytics') ? '' : 'max-w-6xl mx-auto'}`}>
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>

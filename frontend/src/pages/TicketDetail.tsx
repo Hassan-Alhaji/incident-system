@@ -96,6 +96,27 @@ const TicketDetail = () => {
     // Reporter Reply
     const [replyText, setReplyText] = useState('');
 
+    // Detection Source (editable by Controller)
+    const [editingDetectionSource, setEditingDetectionSource] = useState(false);
+    const [detectionSourceValue, setDetectionSourceValue] = useState('');
+    const [savingDetectionSource, setSavingDetectionSource] = useState(false);
+
+    const saveDetectionSource = async (newVal: string) => {
+        setSavingDetectionSource(true);
+        try {
+            await api.put(`/tickets/${id}/detection-source`, { detectionSource: newVal });
+            setDetectionSourceValue(newVal);
+            setEditingDetectionSource(false);
+            showToast(isRtl ? 'تم تحديث مصدر الاكتشاف' : 'Detection source updated', 'success');
+            fetchTicket();
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to update', 'error');
+        } finally {
+            setSavingDetectionSource(false);
+        }
+    };
+
+
     // Escalation
     const [departments, setDepartments] = useState<any[]>([]);
     const [serviceProviders, setServiceProviders] = useState<any[]>([]);
@@ -1045,18 +1066,76 @@ const TicketDetail = () => {
                                     </div>
                                 )}
 
-                                {oc.detectionSource && (
-                                    <div>
-                                        <span className="text-gray-500 block text-xs">{isRtl ? 'طريقة / مصدر الاكتشاف' : 'Detection Source'}</span>
+                                {/* Detection Source — static for all, editable for Controller */}
+                                <div>
+                                    <span className="text-gray-500 block text-xs">{isRtl ? 'طريقة / مصدر الاكتشاف' : 'Detection Source'}</span>
+
+                                    {isController ? (
+                                        /* Controller: editable selector */
+                                        <div className="mt-1">
+                                            {editingDetectionSource ? (
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    {[
+                                                        { value: 'INSPECTION',           icon: '🔍', labelAr: 'تفتيش ميداني',   labelEn: 'Inspection' },
+                                                        { value: 'AUDIT',                icon: '📋', labelAr: 'تدقيق',          labelEn: 'Audit' },
+                                                        { value: 'INTERNAL_OBSERVATION', icon: '👁️', labelAr: 'ملاحظة داخلية', labelEn: 'Internal Observation' },
+                                                        { value: 'EXTERNAL_SOURCE',      icon: '🌐', labelAr: 'ملاحظة خارجية', labelEn: 'External Observation' },
+                                                    ].map(ds => (
+                                                        <button
+                                                            key={ds.value}
+                                                            type="button"
+                                                            disabled={savingDetectionSource}
+                                                            onClick={() => saveDetectionSource(ds.value)}
+                                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all
+                                                                ${ (detectionSourceValue || oc.detectionSource) === ds.value
+                                                                    ? 'border-blue-600 bg-blue-50 text-blue-800 ring-1 ring-blue-400'
+                                                                    : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300' }`}
+                                                        >
+                                                            <span>{ds.icon}</span>
+                                                            <span>{isRtl ? ds.labelAr : ds.labelEn}</span>
+                                                        </button>
+                                                    ))}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingDetectionSource(false)}
+                                                        className="col-span-2 text-xs text-gray-400 hover:text-gray-600 mt-0.5"
+                                                    >
+                                                        {isRtl ? 'إلغاء' : 'Cancel'}
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                                                        {(detectionSourceValue || oc.detectionSource) === 'INSPECTION'           && <span>🔍 {isRtl ? 'تفتيش ميداني' : 'Inspection'}</span>}
+                                                        {(detectionSourceValue || oc.detectionSource) === 'AUDIT'                && <span>📋 {isRtl ? 'تدقيق' : 'Audit'}</span>}
+                                                        {(detectionSourceValue || oc.detectionSource) === 'INTERNAL_OBSERVATION' && <span>👁️ {isRtl ? 'ملاحظة داخلية' : 'Internal Observation'}</span>}
+                                                        {(detectionSourceValue || oc.detectionSource) === 'EXTERNAL_SOURCE'      && <span>🌐 {isRtl ? 'ملاحظة خارجية' : 'External Observation'}</span>}
+                                                        {!(detectionSourceValue || oc.detectionSource)                          && <span className="text-gray-400">—</span>}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setDetectionSourceValue(oc.detectionSource || 'INTERNAL_OBSERVATION');
+                                                            setEditingDetectionSource(true);
+                                                        }}
+                                                        className="text-[10px] text-blue-500 hover:text-blue-700 font-bold border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50 transition"
+                                                    >
+                                                        ✏️ {isRtl ? 'تعديل' : 'Edit'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Others: read-only display */
                                         <span className="font-semibold text-slate-800 inline-flex items-center gap-1.5 mt-0.5">
-                                            {oc.detectionSource === 'INSPECTION' && <span>🔍 {isRtl ? 'تفتيش ميداني (Inspection)' : 'Inspection'}</span>}
-                                            {oc.detectionSource === 'AUDIT' && <span>📋 {isRtl ? 'تدقيق (Audit)' : 'Audit'}</span>}
+                                            {oc.detectionSource === 'INSPECTION'           && <span>🔍 {isRtl ? 'تفتيش ميداني (Inspection)' : 'Inspection'}</span>}
+                                            {oc.detectionSource === 'AUDIT'                && <span>📋 {isRtl ? 'تدقيق (Audit)' : 'Audit'}</span>}
                                             {oc.detectionSource === 'INTERNAL_OBSERVATION' && <span>👁️ {isRtl ? 'ملاحظة داخلية (Internal Observation)' : 'Internal Observation'}</span>}
-                                            {oc.detectionSource === 'EXTERNAL_SOURCE' && <span>🌐 {isRtl ? 'مصدر خارجي (External Source)' : 'External Source'}</span>}
+                                            {oc.detectionSource === 'EXTERNAL_SOURCE'      && <span>🌐 {isRtl ? 'ملاحظة خارجية (External Observation)' : 'External Observation'}</span>}
                                         </span>
-                                    </div>
-                                )}
- 
+                                    )}
+                                </div>
+
                                 {!isReporter && ticket.severityLevel && (
                                     <div className="col-span-1 bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-lg">
                                         <strong className="block text-xs">{t('ticketActions.classification', 'Classification')}:</strong>
