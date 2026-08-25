@@ -14,6 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
+// Trust the first proxy (Nginx) so express-rate-limit can correctly
+// identify clients via X-Forwarded-For without throwing validation errors.
+app.set('trust proxy', 1);
+
 // Debug logging (dev only) — Point #13
 if (!isProd) {
     app.use((req, res, next) => {

@@ -146,7 +146,14 @@ const Analytics = () => {
         setSelectedDepartment(res.data.userDepartment.id);
       }
     } catch (err: any) {
-      if (!isSilent) setError(err.response?.data?.message || t('analytics.errors.loadFailed', 'Failed to load analytics'));
+      const status = err.response?.status;
+      const serverMsg = err.response?.data?.message;
+      let friendlyMsg = serverMsg || t('analytics.errors.loadFailed', 'Failed to load analytics');
+      if (status === 401) friendlyMsg = isRtl ? 'انتهت جلستك. يرجى تسجيل الدخول مجدداً.' : 'Session expired. Please log in again.';
+      else if (status === 403) friendlyMsg = isRtl ? 'ليس لديك صلاحية لعرض الإحصائيات.' : 'You do not have permission to view analytics.';
+      else if (status === 500) friendlyMsg = isRtl ? 'خطأ في الخادم (500). يرجى التواصل مع الدعم التقني إذا استمرت المشكلة.' : 'Server error (500). Contact support if this persists.';
+      if (!isSilent) setError(friendlyMsg);
+      // Silent refresh failures: keep showing old data, just stop the spinner
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -185,12 +192,45 @@ const Analytics = () => {
   if (loading && !data) return <SkeletonAnalytics />;
 
   if (error) return (
-    <div className="text-center py-20">
-      <AlertTriangle className="mx-auto text-red-500 mb-3" size={40} />
-      <p className="text-red-600 text-sm font-semibold">{error}</p>
-      <button onClick={() => fetchData()} className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">
-        {isRtl ? 'إعادة المحاولة' : 'Retry'}
-      </button>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+      {/* Error card */}
+      <div className="bg-white border border-red-200 rounded-2xl shadow-lg p-8 max-w-md w-full">
+        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="text-red-500" size={32} strokeWidth={1.5} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-2">
+          {isRtl ? 'تعذّر تحميل الإحصائيات' : 'Analytics Failed to Load'}
+        </h2>
+        <p className="text-slate-500 text-sm mb-4 leading-relaxed">{error}</p>
+
+        {/* Helpful tips */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-start mb-5">
+          <p className="text-xs font-bold text-slate-600 mb-1">
+            {isRtl ? 'ماذا تفعل؟' : 'What to do?'}
+          </p>
+          <ul className="text-xs text-slate-500 space-y-1 list-disc list-inside">
+            <li>{isRtl ? 'تحقق من اتصالك بالإنترنت' : 'Check your internet connection'}</li>
+            <li>{isRtl ? 'حاول إعادة تحميل الصفحة' : 'Try refreshing the page'}</li>
+            <li>{isRtl ? 'إذا استمرت المشكلة، تواصل مع الدعم التقني' : 'If the issue persists, contact your system admin'}</li>
+          </ul>
+        </div>
+
+        <div className="flex gap-3 justify-center">
+          <button
+            onClick={() => fetchData()}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-600/30"
+          >
+            <RefreshCw size={15} />
+            {isRtl ? 'إعادة المحاولة' : 'Retry'}
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-slate-200"
+          >
+            {isRtl ? 'تحديث الصفحة' : 'Reload Page'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 
