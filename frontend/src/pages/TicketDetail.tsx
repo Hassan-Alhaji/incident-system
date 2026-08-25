@@ -66,10 +66,13 @@ const TicketDetail = () => {
     const [singleGosiReportDate, setSingleGosiReportDate] = useState('');
     const [singleGosiReportNumber, setSingleGosiReportNumber] = useState('');
     const [singleGosiNoReason, setSingleGosiNoReason] = useState('');
-    const [notifyHr, setNotifyHr] = useState<boolean | null>(null);  // Controller decision on whether HR / GOSI is required
+    const [notifyHr, setNotifyHr] = useState<boolean | null>(null);
     const [contractorNotified, setContractorNotified] = useState<boolean | undefined>(undefined);
     const [contractorNotifyDate, setContractorNotifyDate] = useState('');
     const [contractorNoReason, setContractorNoReason] = useState('');
+
+    // Access denied state — shown when backend returns 403/404
+    const [accessError, setAccessError] = useState<{ status: number; message: string } | null>(null);
 
     // Controller Inline Notes Editing
     const [isEditingControllerNotes, setIsEditingControllerNotes] = useState(false);
@@ -182,9 +185,60 @@ const TicketDetail = () => {
                     }
                 }
             }
-        } catch (error) { console.error('Error fetching ticket', error); navigate('/dashboard'); }
+        } catch (error: any) {
+            const status = error?.response?.status;
+            const msg = error?.response?.data?.message;
+            if (status === 403) {
+                setAccessError({ status: 403, message: msg || 'Not authorized to view this ticket' });
+            } else if (status === 404) {
+                setAccessError({ status: 404, message: msg || 'Ticket not found' });
+            } else {
+                console.error('Error fetching ticket', error);
+                navigate('/dashboard');
+            }
+        }
         finally { if (!isBackground) setLoading(false); }
     };
+
+    // ── Access Denied Screen ──────────────────────────────────────────────────
+    if (accessError) {
+        const is403 = accessError.status === 403;
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-lg p-8 max-w-sm w-full">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+                        is403 ? 'bg-amber-50' : 'bg-red-50'
+                    }`}>
+                        {is403
+                            ? <span style={{ fontSize: 32 }}>🔒</span>
+                            : <span style={{ fontSize: 32 }}>🔍</span>
+                        }
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-900 mb-2">
+                        {is403
+                            ? (isRtl ? 'غير مصرح لك بالاطلاع على هذه التذكرة' : 'Access Denied')
+                            : (isRtl ? 'التذكرة غير موجودة' : 'Ticket Not Found')
+                        }
+                    </h2>
+                    <p className="text-slate-500 text-sm mb-5 leading-relaxed">
+                        {is403
+                            ? (isRtl
+                                ? 'صلاحيتك تتيح لك مشاهدة الإحصائيات العامة فقط. للاطلاع على تفاصيل هذه التذكرة تحتاج صلاحيات إضافية.'
+                                : 'Your access allows viewing analytics only. Additional permissions are required to view this ticket\u2019s details.')
+                            : (isRtl ? 'لم يتم العثور على التذكرة المطلوبة.' : 'The requested ticket could not be found.')
+                        }
+                    </p>
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all"
+                    >
+                        {isRtl ? '← رجوع' : '← Go Back'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
 
     useEffect(() => {
         if (ticket?.hasInjury && ticket.type !== 'INJURY' && newType !== 'INJURY') {
