@@ -97,9 +97,9 @@ async function testHealth() {
   else fail('Frontend served', `status ${f.status}`, true);
 
   // Nginx proxy intact
-  if (f.headers['server']?.toLowerCase().includes('nginx'))
+  if (f.headers && f.headers['server']?.toLowerCase().includes('nginx'))
     pass('Nginx proxy active');
-  else
+  else if (f.headers)
     warn('Nginx header', 'Server header not found (might be fine)');
 }
 
@@ -287,14 +287,14 @@ async function testSecurityHeaders() {
   const corsCheck = await request(`${BASE_URL}/api/health`, {
     headers: { Origin: 'https://evil.example.com' }
   });
-  const corsHeader = corsCheck.headers['access-control-allow-origin'];
+  const corsHeader = corsCheck.headers ? corsCheck.headers['access-control-allow-origin'] : null;
   if (!corsHeader || corsHeader === '*')
     warn('CORS', `Allow-Origin is "${corsHeader || 'not set'}" — verify CORS policy`);
   else
     pass('CORS restricted', `Allow-Origin: ${corsHeader}`);
 
   // Rate limit headers present
-  const rl = corsCheck.headers['x-ratelimit-limit'] || corsCheck.headers['ratelimit-limit'];
+  const rl = corsCheck.headers ? (corsCheck.headers['x-ratelimit-limit'] || corsCheck.headers['ratelimit-limit']) : null;
   if (rl) pass('Rate limit headers present');
   else warn('Rate limiting', 'No rate-limit headers detected — verify express-rate-limit is active');
 }
