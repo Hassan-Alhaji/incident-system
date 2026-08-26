@@ -145,7 +145,7 @@ const UserGuide = () => {
           {
             step: '1',
             title: 'نوع البلاغ والمعلومات الأساسية',
-            desc: 'اختر نوع البلاغ (حادث Incident، حادث كاد أن يقع Near Miss، ملاحظة سلامة Observation، إصابة Injury). حدد التاريخ والوقت بدقة.',
+            desc: 'اختر نوع البلاغ (حادث Incident، حادث كاد أن يقع Near Miss، ملاحظة سلامة Observation، إصابة Injury). حدد التاريخ والوقت بدقة. قسم المُبلِّغ يُملأ تلقائياً من بيانات Azure AD ولا يحتاج اختياراً يدوياً.',
             icon: ClipboardList
           },
           {
@@ -199,11 +199,15 @@ const UserGuide = () => {
         heading: 'الأسئلة الأكثر شيوعاً (FAQ)',
         desc: 'إجابات على أهم الاستفسارات التقنية والتشغيلية في المنصة:',
         items: [
-          { q: 'كيف أسجل الدخول إذا كنت موظفاً في الشركة؟', a: 'يتم تسجيل الدخول المباشر بنقرة واحدة عبر حساب مايكروسوفت الرسمي (Sign in with Microsoft) بدون الحاجة لكلمة مرور منفصلة.' },
+          { q: 'كيف أسجل الدخول إذا كنت موظفاً في الشركة؟', a: 'يتم تسجيل الدخول المباشر بنقرة واحدة عبر حساب مايكروسوفت الرسمي (Sign in with Microsoft) بدون الحاجة لكلمة مرور منفصلة. عند أول دخول يُسحب اسمك وقسمك تلقائياً من Azure Active Directory.' },
+          { q: 'هل أحتاج لاختيار قسمي عند رفع بلاغ؟', a: 'لا. إذا كان حسابك مرتبطاً بـ Azure AD وقسمك مُحدَّد فيه، سيظهر قسمك تلقائياً بدون أي اختيار يدوي. وفي حال انتقلت لقسم آخر في الشركة، يُحدَّث قسمك تلقائياً في المنصة عند تسجيل الدخول التالي.' },
+          { q: 'ماذا يحدث إذا أُضيف قسم جديد في الشركة؟', a: 'عند أول تسجيل دخول لأي موظف من القسم الجديد عبر SSO، يُنشأ القسم تلقائياً في المنصة دون الحاجة لتدخل الأدمن. الأقسام تتزامن تلقائياً مع Azure AD.' },
           { q: 'هل يمكنني الإبلاغ عن حادث أثناء انقطاع الإنترنت؟', a: 'نعم، المنصة تدعم وضع عدم الاتصال (Offline Mode) حيث يتم حفظ التذكرة محلياً في جهازك ومزامنتها تلقائياً بمجرد عودة الاتصال.' },
           { q: 'من يملك صلاحية إغلاق التذاكر؟', a: 'التذاكر البسيطة يمكن إغلاقها من مراقب السلامة (HSE Controller)، بينما الحوادث المتوسطة والحرجة تتطلب موافقة مدير السلامة (Safety Manager) أو مسؤول النظام (Admin).' },
+          { q: 'ماذا يحدث إذا حاولت الوصول لتذكرة لا تملك صلاحية عليها؟', a: 'تظهر شاشة واضحة (Access Denied - غير مصرح) مع رسالة توضيحية. لا تُعرض أي بيانات للمستخدم غير المخوّل. الصلاحيات مبنية على الدور والقسم.' },
           { q: 'كيف أتابع التذاكر الخاصة بقسمي فقط؟', a: 'ممثلو الأقسام تظهر لهم التذاكر المحالة لقسمهم تلقائياً في لوحة القيادة مع إشعارات فورية عند تعيين أي تذكرة جديدة.' },
           { q: 'كيف أقوم بطباعة تقرير الحادث الرسمي كـ PDF؟', a: 'من خلال فتح أي تذكرة، اضغط على زر (طباعة التقرير / Export PDF) بالأعلى ليتم توليد تقرير رسمي جاهز يحتوي على كافة التفاصيل والأدلة والخريطة.' },
+          { q: 'كيف يمكن تعديل حدود المنطقة الجغرافية (Zone)؟', a: 'من صفحة الإعدادات (Settings → Zones)، عند تمرير الماوس على أي منطقة تظهر أيقونة تعديل (✏️) وأيقونة حذف (🗑️). اضغط التعديل لفتح نافذة خريطة تفاعلية لإعادة رسم حدود المنطقة وحفظ التغييرات.' },
           { q: 'ما هو معنى حقول بيانات المورد / المقاول في التذكرة؟', a: 'عند وقوع حادث يتعلق بموظف مقاول (Contractor)، يحتاج النظام لتوثيق بيانات الشركة المقاولة، وتتضمن ثلاثة جوانب: (1) ممثل المورد الرئيسي (Primary Representative): الشخص المسؤول من جهة الشركة المقاولة للتواصل (الاسم + الإيميل + الجوال)). (2) قسم الكفيل (Responsible Sponsoring Department): القسم الداخلي في المنظمة المسؤول عن هذا المورد. (3) ممثلو الشركة (Company Representatives): قائمة بممثلين إضافيين من نفس الشركة لتسهيل التواصل عند الحاجة.' }
         ]
       }
@@ -325,7 +329,7 @@ const UserGuide = () => {
           {
             step: '1',
             title: 'Incident Type & Time',
-            desc: 'Select the classification (Incident, Near Miss, Safety Observation, Injury). Specify the exact date and occurrence time.',
+            desc: 'Select the classification (Incident, Near Miss, Safety Observation, Injury). Specify the exact date and occurrence time. Your department is auto-filled from Azure AD — no manual selection required.',
             icon: ClipboardList
           },
           {
@@ -379,11 +383,15 @@ const UserGuide = () => {
         heading: 'Frequently Asked Questions (FAQ)',
         desc: 'Quick answers to common operational and technical questions:',
         items: [
-          { q: 'How do SMC employees log into the platform?', a: 'Employees log in with one click via Microsoft Single Sign-On (Sign in with Microsoft) using their official corporate credentials.' },
+          { q: 'How do SMC employees log into the platform?', a: 'Employees log in with one click via Microsoft Single Sign-On (Sign in with Microsoft). On first login, their name and department are automatically pulled from Azure Active Directory — no setup needed.' },
+          { q: 'Do I need to select my department when submitting a report?', a: 'No. If your Azure AD profile has a department assigned, it will be automatically detected and pre-filled. If you change departments in the company, the platform updates automatically on your next SSO login.' },
+          { q: 'What happens when a new department is added to the company?', a: 'The first time an employee from a new department logs in via Microsoft SSO, the department is automatically created in the platform. No admin action is required — departments self-sync from Azure AD.' },
           { q: 'Can I submit reports without an internet connection?', a: 'Yes! The platform features Offline Mode. Reports created offline are stored safely on your device and automatically synced once connection is restored.' },
           { q: 'Who has authority to close tickets?', a: 'Minor tickets can be resolved by the HSE Controller. Moderate and Critical incidents require sign-off by the Safety Manager or System Administrator.' },
+          { q: 'What happens if I try to access a ticket I am not authorized to view?', a: 'The platform shows a clear "Access Denied" screen with an explanatory message. No ticket data is exposed to unauthorized users. Access is enforced by both role and department membership.' },
           { q: 'How do department representatives view their assigned tasks?', a: 'Department reps see their assigned tickets directly in their dashboard with instant badge indicators and email alerts.' },
           { q: 'How do I generate an official PDF Incident Report?', a: 'Open any incident ticket and click "Export PDF / Print Report" at the top to download a standardized, executive-ready report with full metadata and photos.' },
+          { q: 'How do I edit an existing zone boundary?', a: 'Go to Settings → Zones. Hover over any zone card to reveal the Edit (✏️) and Delete (🗑️) buttons. Click Edit to open an interactive map modal where you can redraw the zone polygon and save changes.' },
           { q: 'What do the Service Provider / Contractor fields mean on a ticket?', a: 'When an incident involves a contractor employee, the system captures three key data points: (1) Primary Representative — the main contact person from the contractor company (name, email, mobile). (2) Responsible Sponsoring Department — the internal SMC department that is responsible for / sponsors this contractor. (3) Company Representatives — a list of additional contacts from the same company for follow-up communications.' }
         ]
       }
