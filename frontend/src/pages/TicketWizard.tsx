@@ -197,7 +197,8 @@ const TicketWizard = () => {
         );
         return false;
       }
-      if (!reporterDepartmentId) { showToast(isRtl ? 'الرجاء اختيار القسم' : 'Please select your department.', 'warning'); return false; }
+      const adminRoles = ['ADMIN', 'OC_HSE_MANAGER', 'OC_CONTROLLER'];
+      if (!reporterDepartmentId && !adminRoles.includes(user?.role || '')) { showToast(isRtl ? 'الرجاء اختيار القسم' : 'Please select your department.', 'warning'); return false; }
       if (!incidentDate || !incidentTime) { showToast(t('oc.wizard.missingDate', 'Please provide incident date and time.'), 'warning'); return false; }
       const dt = new Date(`${incidentDate}T${incidentTime}`);
       if (dt.getTime() > Date.now()) { showToast(t('oc.wizard.futureDate', 'Future dates are not allowed. Please enter a valid past time.'), 'warning'); return false; }
@@ -328,41 +329,73 @@ const TicketWizard = () => {
       {/* STEP 1: Date/Location/Description */}
       {step === 1 && (
         <div className="space-y-4">
-          {/* Reporter Department — auto from AD if known, else manual select */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-            <label className={`block text-sm font-bold mb-2 ${showErrors && !reporterDepartmentId ? 'text-red-500' : 'text-gray-700'}`}>
-              {isRtl ? 'قسم المُبلِّغ' : 'Reporter Department'} *
-            </label>
-            {user?.repDepartmentId ? (
-              // Department is known from Azure AD — show as locked read-only
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
-                <span className="text-blue-500" title="Auto-filled from your Azure AD profile">🏢</span>
-                <span className="text-sm font-semibold text-blue-800">
-                  {(() => {
-                    const d = departments.find((d: any) => d.id === reporterDepartmentId);
-                    return d ? (isRtl ? (d.nameAr || d.name) : d.name) : (user.department || reporterDepartmentId);
-                  })()}
-                </span>
-                <span className="ml-auto text-[10px] text-blue-400 font-medium">
-                  {isRtl ? '(محدد تلقائياً من AD)' : '(Auto from AD)'}
-                </span>
+          {/* Reporter Department — hidden for admin, auto for SSO, manual for unknown */}
+          {(() => {
+            // Admins and HSE managers: no department selection needed
+            const adminRoles = ['ADMIN', 'OC_HSE_MANAGER', 'OC_CONTROLLER'];
+            if (adminRoles.includes(user?.role || '')) return null;
+
+            // Department already known (from SSO / repDepartmentId)
+            if (user?.repDepartmentId && reporterDepartmentId) {
+              const d = departments.find((d: any) => d.id === reporterDepartmentId);
+              const deptName = d ? (isRtl ? (d.nameAr || d.name) : d.name) : (user?.department || reporterDepartmentId);
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                  <label className="block text-sm font-bold mb-2 text-gray-700">
+                    {isRtl ? 'قسم المُبلِّغ' : 'Reporter Department'}
+                  </label>
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                    <span className="text-blue-500">🏢</span>
+                    <span className="text-sm font-semibold text-blue-800">{deptName}</span>
+                    <span className="ml-auto text-[10px] text-blue-400 font-medium">
+                      {isRtl ? '(محدد تلقائياً من AD)' : '(Auto from AD)'}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            // Department string known from AD but no DB match — still lock it
+            if (user?.department && reporterDepartmentId) {
+              const d = departments.find((d: any) => d.id === reporterDepartmentId);
+              const deptName = d ? (isRtl ? (d.nameAr || d.name) : d.name) : user.department;
+              return (
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                  <label className="block text-sm font-bold mb-2 text-gray-700">
+                    {isRtl ? 'قسم المُبلِّغ' : 'Reporter Department'}
+                  </label>
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
+                    <span className="text-blue-500">🏢</span>
+                    <span className="text-sm font-semibold text-blue-800">{deptName}</span>
+                    <span className="ml-auto text-[10px] text-blue-400 font-medium">
+                      {isRtl ? '(محدد تلقائياً)' : '(Auto-detected)'}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            // Department fully unknown — let reporter select manually
+            return (
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                <label className={`block text-sm font-bold mb-2 ${showErrors && !reporterDepartmentId ? 'text-red-500' : 'text-gray-700'}`}>
+                  {isRtl ? 'قسم المُبلِّغ' : 'Reporter Department'} *
+                </label>
+                <select
+                  value={reporterDepartmentId}
+                  onChange={e => setReporterDepartmentId(e.target.value)}
+                  className={`w-full bg-white border ${
+                    showErrors && !reporterDepartmentId ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'
+                  } rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all`}
+                >
+                  <option value="">{isRtl ? '— اختر القسم —' : '— Select Department —'}</option>
+                  {departments.map((d: any) => (
+                    <option key={d.id} value={d.id}>{isRtl ? (d.nameAr || d.name) : d.name}</option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              // Department unknown — let reporter select manually
-              <select
-                value={reporterDepartmentId}
-                onChange={e => setReporterDepartmentId(e.target.value)}
-                className={`w-full bg-white border ${
-                  showErrors && !reporterDepartmentId ? 'border-red-400 ring-4 ring-red-500/10' : 'border-gray-200'
-                } rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all`}
-              >
-                <option value="">{isRtl ? '— اختر القسم —' : '— Select Department —'}</option>
-                {departments.map((d: any) => (
-                  <option key={d.id} value={d.id}>{isRtl ? (d.nameAr || d.name) : d.name}</option>
-                ))}
-              </select>
-            )}
-          </div>
+            );
+          })()}
 
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 shadow-sm">
             <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
