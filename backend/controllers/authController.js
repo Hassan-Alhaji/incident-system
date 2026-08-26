@@ -408,10 +408,11 @@ const handleMicrosoftCallback = async (req, res) => {
         // 3. Find or auto-provision the user
         let user = await prisma.user.findUnique({ where: { email } });
 
-        // Match department to Department record if found
+        // Match or AUTO-CREATE department from Azure AD data
         let repDepartmentId = null;
         if (department) {
-            const matchedDept = await prisma.department.findFirst({
+            // Try to find existing department (case-insensitive)
+            let matchedDept = await prisma.department.findFirst({
                 where: {
                     OR: [
                         { name: { equals: department, mode: 'insensitive' } },
@@ -419,9 +420,16 @@ const handleMicrosoftCallback = async (req, res) => {
                     ]
                 }
             });
-            if (matchedDept) {
-                repDepartmentId = matchedDept.id;
+
+            // Auto-create if not found — departments sync from Azure AD automatically
+            if (!matchedDept) {
+                matchedDept = await prisma.department.create({
+                    data: { name: department }
+                });
+                logger.info({ department }, '[SSO] Auto-created new department from Azure AD');
             }
+
+            repDepartmentId = matchedDept.id;
         }
 
         if (!user) {
@@ -447,7 +455,7 @@ const handleMicrosoftCallback = async (req, res) => {
             });
         } else {
             // Sync name + department from Azure AD on every login
-            const updateData: any = {};
+            const updateData = {};
             if (displayName && user.name !== displayName) updateData.name = displayName;
             if (givenName && user.firstName !== givenName) updateData.firstName = givenName;
             if (surname && user.lastName !== surname) updateData.lastName = surname;
