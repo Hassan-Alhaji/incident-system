@@ -146,12 +146,15 @@ const createTicket = async (req, res) => {
         if (!whatHappened) return res.status(400).json({ message: 'Description required' });
 
         // H4: Late report check
-        const reportDateTime = new Date(`${incidentDate}T${incidentTime}`);
+        // Append Saudi Arabia timezone offset (+03:00) so the server correctly
+        // interprets local time sent by the browser without a timezone suffix.
+        const timeStr = incidentTime.length === 5 ? `${incidentTime}:00` : incidentTime; // ensure HH:MM:SS
+        const reportDateTime = new Date(`${incidentDate}T${timeStr}+03:00`);
         if (isNaN(reportDateTime.getTime())) {
             return res.status(400).json({ message: 'Invalid incident date or time' });
         }
-        // C1: Reject future-dated incidents from the server side
-        if (reportDateTime.getTime() > Date.now() + 5 * 60 * 1000) { // 5 min tolerance for clock skew
+        // C1: Reject future-dated incidents from the server side (5 min tolerance for clock skew)
+        if (reportDateTime.getTime() > Date.now() + 5 * 60 * 1000) {
             return res.status(400).json({ message: 'Incident date cannot be in the future.' });
         }
         const hoursDiff = (Date.now() - reportDateTime.getTime()) / (1000*60*60);
