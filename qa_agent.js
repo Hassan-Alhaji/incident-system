@@ -90,11 +90,21 @@ async function testHealth() {
   if ([200, 304].includes(m.status)) pass('Maintenance endpoint');
   else warn('Maintenance endpoint', `Unexpected status ${m.status}`);
 
-  // Frontend HTML served
-  const f = await request(`${FRONTEND_URL}/`);
-  if (f.body.includes('<html') || f.body.includes('<!DOCTYPE')) pass('Frontend HTML served');
-  else if (f.status === 200) warn('Frontend HTML', 'Response 200 but missing <html> tag');
-  else fail('Frontend served', `status ${f.status}`, true);
+  // Frontend HTML served — test via nginx localhost (avoids self-referencing HTTPS from inside server)
+  const frontendTestUrl = FRONTEND_URL.startsWith('http://localhost') ? `${FRONTEND_URL}/` : 'http://localhost:80/';
+  const f = await request(frontendTestUrl);
+  if (f.status === 200 && (f.body.includes('<html') || f.body.includes('<!DOCTYPE')))
+    pass('Frontend HTML served (nginx)');
+  else if (f.status === 200)
+    warn('Frontend HTML', 'Response 200 but missing <html> tag');
+  else {
+    // Fallback: try the public URL
+    const f2 = await request(`${FRONTEND_URL}/`);
+    if (f2.status === 200 && (f2.body.includes('<html') || f2.body.includes('<!DOCTYPE')))
+      pass('Frontend HTML served (public URL)');
+    else
+      fail('Frontend served', `nginx: ${f.status || f.error}, public: ${f2.status || f2.error}`, true);
+  }
 
   // Nginx proxy intact
   if (f.headers && f.headers['server']?.toLowerCase().includes('nginx'))
