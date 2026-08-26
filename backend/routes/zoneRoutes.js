@@ -46,4 +46,24 @@ router.delete('/:id', protect, async (req, res) => {
     }
 });
 
+// Admin: Update Zone
+router.put('/:id', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Not authorized' });
+        const { name, description, coordinates } = req.body;
+        if (!name?.trim()) return res.status(400).json({ message: 'Zone name is required' });
+        const zone = await prisma.zone.update({
+            where: { id: req.params.id },
+            data: {
+                name: name.trim(),
+                description: description?.trim() || null,
+                coordinates: coordinates ? JSON.stringify(coordinates) : null,
+            }
+        });
+        res.json(zone);
+    } catch (e) {
+        res.status(500).json({ message: 'Error updating zone' });
+    }
+});
+
 module.exports = router;

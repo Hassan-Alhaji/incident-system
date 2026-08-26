@@ -62,6 +62,7 @@ const Settings = () => {
  // Global Entities State
  const [zones, setZones] = useState<any[]>([]);
  const [showZoneModal, setShowZoneModal] = useState(false);
+ const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
  const [zoneFormData, setZoneFormData] = useState({ name: '', description: '', coordinates: [] as {lat: number, lng: number}[] });
  const [zoneError, setZoneError] = useState('');
 
@@ -129,9 +130,25 @@ const Settings = () => {
  };
 
  const handleZoneSubmit = async () => {
- setZoneError('');
- try { await api.post('/zones', zoneFormData); setShowZoneModal(false); fetchZones(); } 
- catch (err: any) { setZoneError(err.response?.data?.error || t('errors.failedCreateZone')); }
+  setZoneError('');
+  try {
+    if (editingZoneId) {
+      await api.put(`/zones/${editingZoneId}`, zoneFormData);
+    } else {
+      await api.post('/zones', zoneFormData);
+    }
+    setShowZoneModal(false);
+    setEditingZoneId(null);
+    fetchZones();
+  } catch (err: any) { setZoneError(err.response?.data?.message || err.response?.data?.error || t('errors.failedCreateZone')); }
+ };
+ const openEditZone = (z: any) => {
+   setEditingZoneId(z.id);
+   let coords: {lat: number, lng: number}[] = [];
+   try { coords = Array.isArray(z.coordinates) ? z.coordinates : JSON.parse(z.coordinates || '[]'); } catch {}
+   setZoneFormData({ name: z.name || '', description: z.description || '', coordinates: coords });
+   setZoneError('');
+   setShowZoneModal(true);
  };
  const deleteZone = async (id: string) => {
  setConfirmModal({ title: t('confirm.deleteZone'), message: t('confirm.deleteZoneMsg'), onConfirm: async () => { try { await api.delete(`/zones/${id}`); fetchZones(); } catch (err: any) { showToast(err.response?.data?.message || t('errors.deleteFailed'), 'error'); } setConfirmModal(null); } });
@@ -676,19 +693,28 @@ const Settings = () => {
  <div className="space-y-4 animate-in fade-in">
  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200">
  <div className="flex items-center gap-3"><Map className="text-blue-500 flex-shrink-0" /><div><h3 className="font-bold text-gray-600 text-sm">Zone Boundaries</h3><p className="text-xs text-gray-500">Map incidents to zones</p></div></div>
- <button onClick={() => { setZoneError(''); setZoneFormData({ name: '', description: '', coordinates: [] }); setShowZoneModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Zone</button>
+ <button onClick={() => { setZoneError(''); setEditingZoneId(null); setZoneFormData({ name: '', description: '', coordinates: [] }); setShowZoneModal(true); }} className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-500 border border-blue-600/50 px-3 py-1.5 flex items-center gap-2 rounded-lg text-sm font-bold w-full sm:w-auto justify-center"><Plus size={16}/> Add Zone</button>
  </div>
  {zones.length > 0 ? (
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
  {zones.map(z => (
  <div key={z.id} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 relative group">
- <h4 className="font-bold text-gray-600">{z.name}</h4>
+ <h4 className="font-bold text-gray-600 pr-16">{z.name}</h4>
  <p className="text-base text-gray-800 mb-2">{z.description || 'No description'}</p>
  <p className="text-[10px] text-gray-800">Polygon: {(() => {
    try { return Array.isArray(z.coordinates) ? z.coordinates.length : JSON.parse(z.coordinates || '[]').length; }
    catch { return 0; }
  })()} points</p>
- <button onClick={() => deleteZone(z.id)} className="absolute top-2 right-2 p-1.5 text-gray-800 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all bg-white rounded"><Trash2 size={14}/></button>
+ <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+   <button onClick={() => openEditZone(z)} title="Edit zone"
+     className="p-1.5 text-gray-500 hover:text-blue-500 bg-white border border-gray-200 hover:border-blue-400 rounded transition-all">
+     <Edit2 size={13}/>
+   </button>
+   <button onClick={() => deleteZone(z.id)} title="Delete zone"
+     className="p-1.5 text-gray-500 hover:text-red-400 bg-white border border-gray-200 hover:border-red-300 rounded transition-all">
+     <Trash2 size={14}/>
+   </button>
+ </div>
  </div>
  ))}
  </div>
@@ -868,7 +894,10 @@ const Settings = () => {
  {showZoneModal && (
  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
  <div className="bg-white border border-gray-200 rounded-2xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
- <div className="flex justify-between items-center mb-5"><h3 className="text-lg font-bold text-gray-800">Add New Zone</h3><button onClick={() => setShowZoneModal(false)} className="text-gray-800 hover:text-gray-800"><X size={20}/></button></div>
+ <div className="flex justify-between items-center mb-5">
+   <h3 className="text-lg font-bold text-gray-800">{editingZoneId ? 'Edit Zone' : 'Add New Zone'}</h3>
+   <button onClick={() => { setShowZoneModal(false); setEditingZoneId(null); }} className="text-gray-800 hover:text-gray-800"><X size={20}/></button>
+ </div>
  <div className="grid md:grid-cols-2 gap-6">
  <div className="space-y-4">
  {zoneError && <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-base">{zoneError}</div>}
@@ -882,7 +911,7 @@ const Settings = () => {
  </div>
  </div>
  <div className="flex gap-2 pt-4 justify-end">
- <button onClick={handleZoneSubmit} disabled={zoneFormData.coordinates.length < 3 || !zoneFormData.name} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white text-base disabled:opacity-50">Create Zone</button>
+ <button onClick={handleZoneSubmit} disabled={zoneFormData.coordinates.length < 3 || !zoneFormData.name} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-800 font-bold rounded-xl shadow-sm text-white text-base disabled:opacity-50">{editingZoneId ? 'Save Changes' : 'Create Zone'}</button>
  </div>
  </div>
  </div>
