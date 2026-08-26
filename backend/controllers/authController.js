@@ -446,15 +446,16 @@ const handleMicrosoftCallback = async (req, res) => {
                 }
             });
         } else {
-            // Update department if provided by Microsoft and not yet set
-            if (department && (!user.department || user.department !== department)) {
-                user = await prisma.user.update({
-                    where: { id: user.id },
-                    data: {
-                        department,
-                        ...(repDepartmentId && !user.repDepartmentId ? { repDepartmentId } : {})
-                    }
-                });
+            // Sync name + department from Azure AD on every login
+            const updateData: any = {};
+            if (displayName && user.name !== displayName) updateData.name = displayName;
+            if (givenName && user.firstName !== givenName) updateData.firstName = givenName;
+            if (surname && user.lastName !== surname) updateData.lastName = surname;
+            if (department && user.department !== department) updateData.department = department;
+            if (repDepartmentId && user.repDepartmentId !== repDepartmentId) updateData.repDepartmentId = repDepartmentId;
+            if (Object.keys(updateData).length > 0) {
+                user = await prisma.user.update({ where: { id: user.id }, data: updateData });
+                logger.info({ email, updateData }, '[SSO] Synced user profile from Azure AD');
             }
         }
 
