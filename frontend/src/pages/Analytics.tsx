@@ -279,17 +279,17 @@ const Analytics = () => {
       {/* ── TOP HEADER ROW: TRAINING | BRANDING | DRILLDOWN DETAILS TABLE ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
         
-        {/* 1. TRAINING BOX (Top Left - Purple outlined) */}
+        {/* 1. FIELD ENGAGEMENT & AWARENESS BOX (Top Left - Purple outlined) */}
         <div className="lg:col-span-3 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 border-2 border-indigo-500/40 rounded-3xl p-4 text-white shadow-lg flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
           
           <div className="flex items-center justify-between border-b border-indigo-400/20 pb-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-indigo-500/30 rounded-lg text-indigo-300">
-                <GraduationCap size={18} />
+                <Users size={18} />
               </span>
               <h3 className="text-sm font-black tracking-wide text-indigo-100">
-                {isRtl ? 'التدريب والتأهيل' : 'Training & Drills'}
+                {isRtl ? 'المشاركة والتوعية الميدانية' : 'Field Engagement & Awareness'}
               </h3>
             </div>
             <span className="text-[10px] bg-indigo-500/30 text-indigo-200 font-bold px-2 py-0.5 rounded-full">
@@ -299,23 +299,23 @@ const Analytics = () => {
 
           <div className="grid grid-cols-2 gap-2 text-center my-1">
             <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-2">
-              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'تدريب السلامة' : 'Safety'}</p>
-              <p className="text-lg font-black text-emerald-400 font-mono">{training.safetyHours}<span className="text-xs font-normal text-slate-300">/hr</span></p>
+              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد السلامة' : 'Safety Reports'}</p>
+              <p className="text-lg font-black text-emerald-400 font-mono">{training.safetyHours || training.safetyIncidents || 0}</p>
             </div>
             <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-2">
-              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'تدريب الأمن' : 'Security'}</p>
-              <p className="text-lg font-black text-blue-400 font-mono">{training.securityHours}<span className="text-xs font-normal text-slate-300">/hr</span></p>
+              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد الأمن' : 'Security Reports'}</p>
+              <p className="text-lg font-black text-blue-400 font-mono">{training.securityHours || training.securityIncidents || 0}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-indigo-400/20 mt-1 text-xs">
             <div className="flex items-center gap-1.5 text-indigo-200 font-bold">
-              <span>👥 {training.traineesCount}</span>
-              <span className="text-[10px] opacity-80">{isRtl ? 'مستفيد/مُبلّغ' : 'Trainees'}</span>
+              <span>👥 {training.traineesCount || training.uniqueReporters || 0}</span>
+              <span className="text-[10px] opacity-80">{isRtl ? 'المشاركون في الرصد' : 'Active Reporters'}</span>
             </div>
             <div className="text-end">
-              <span className="text-[10px] text-indigo-300 block">{isRtl ? 'إجمالي الساعات' : 'Total Hours'}</span>
-              <span className="text-sm font-black text-amber-300 font-mono">{training.totalHours} hr</span>
+              <span className="text-[10px] text-indigo-300 block">{isRtl ? 'إجمالي الرصد' : 'Total Observations'}</span>
+              <span className="text-sm font-black text-amber-300 font-mono">{training.totalHours || training.totalIncidents || 0}</span>
             </div>
           </div>
         </div>
