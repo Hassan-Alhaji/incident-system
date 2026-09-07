@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "HSE Incident Reporter",
+    "slug": "hse-incident-reporter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "hsemobile",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.saudimotorsport.hse.reporter",
+      "infoPlist": {
+        "NSCameraUsageDescription": "يتطلب التطبيق الوصول إلى الكاميرا لالتقاط صور لموقع الحادث والملاحظات الميدانية.",
+        "NSPhotoLibraryUsageDescription": "يتطلب التطبيق الوصول إلى ألبوم الصور لاختيار صور الملاحظات والحوادث.",
+        "NSLocationWhenInUseUsageDescription": "يتطلب التطبيق الوصول إلى موقعك الجغرافي لتحديد موقع الحادث بدقة على الخريطة."
+      }
+    },
+    "android": {
+      "package": "com.saudimotorsport.hse.reporter",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "يتطلب التطبيق الوصول إلى موقعك لتحديد موقع الحادث تلقائياً."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يتطلب التطبيق إذن الوصول للصور لرفع مرفقات الحادث.",
+          "cameraPermission": "يتطلب التطبيق إذن الوصول للكاميرا لالتقاط صور الحادث."
+        }
+      ]
+    ]
+  }
+}
