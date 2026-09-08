@@ -309,6 +309,34 @@ const Analytics = () => {
     }
   };
 
+  // ── In-Memory Interactive Filtered Tickets (Zero Lag) ─────────────────────
+  const detailsList = data?.detailsList || [];
+  const filteredDetailsList = React.useMemo(() => {
+    if (!activeFilter || activeFilter.type === 'NONE') return detailsList;
+    return detailsList.filter((item: any) => {
+      if (activeFilter.type === 'VIAL') {
+        if (activeFilter.key === 'TOTAL') return true;
+        if (activeFilter.key === 'RESOLVED') return item.status === 'CLOSED';
+        if (activeFilter.key === 'IN_PROGRESS') return item.status === 'IN_PROGRESS' || item.status === 'ASSIGNED' || item.status === 'SUBMITTED';
+        if (activeFilter.key === 'ON_TRACK') return item.status !== 'CLOSED' && (!item.isOverdue && !item.overdue);
+        if (activeFilter.key === 'OVERDUE') return item.isOverdue || item.overdue;
+        if (activeFilter.key === 'CRITICAL') return item.severityLevel === 'MAJOR' || item.severity === 'MAJOR' || item.severityLevel === 'CRITICAL';
+      }
+      if (activeFilter.type === 'SEVERITY') {
+        const sev = item.severityLevel || item.severity;
+        if (activeFilter.key === 'MAJOR') return sev === 'MAJOR';
+        if (activeFilter.key === 'SIGNIFICANT' || activeFilter.key === 'MODERATE') return sev === 'SIGNIFICANT' || sev === 'MODERATE';
+        if (activeFilter.key === 'MINOR') return !sev || sev === 'MINOR';
+      }
+      if (activeFilter.type === 'DEPARTMENT') {
+        return item.departmentId === activeFilter.key || 
+               item.departmentName === activeFilter.key || 
+               item.departmentNameAr === activeFilter.key;
+      }
+      return true;
+    });
+  }, [detailsList, activeFilter]);
+
   if (loading && !data) return <SkeletonAnalytics />;
 
   if (error) return (
@@ -373,7 +401,6 @@ const Analytics = () => {
   };
 
   const units = data.unitsBreakdown || [];
-  const detailsList = data.detailsList || [];
   const deptList = data.departmentsList || [];
   // Only display years that actually have tickets
   const availableYears: number[] = data.availableYears || [currentYear];
@@ -392,33 +419,6 @@ const Analytics = () => {
     { num: 11, ar: 'نوفمبر', en: 'November' },
     { num: 12, ar: 'ديسمبر', en: 'December' },
   ];
-
-  // ── In-Memory Interactive Filtered Tickets (Zero Lag) ─────────────────────
-  const filteredDetailsList = React.useMemo(() => {
-    if (!activeFilter || activeFilter.type === 'NONE') return detailsList;
-    return detailsList.filter((item: any) => {
-      if (activeFilter.type === 'VIAL') {
-        if (activeFilter.key === 'TOTAL') return true;
-        if (activeFilter.key === 'RESOLVED') return item.status === 'CLOSED';
-        if (activeFilter.key === 'IN_PROGRESS') return item.status === 'IN_PROGRESS' || item.status === 'ASSIGNED' || item.status === 'SUBMITTED';
-        if (activeFilter.key === 'ON_TRACK') return item.status !== 'CLOSED' && (!item.isOverdue && !item.overdue);
-        if (activeFilter.key === 'OVERDUE') return item.isOverdue || item.overdue;
-        if (activeFilter.key === 'CRITICAL') return item.severityLevel === 'MAJOR' || item.severity === 'MAJOR' || item.severityLevel === 'CRITICAL';
-      }
-      if (activeFilter.type === 'SEVERITY') {
-        const sev = item.severityLevel || item.severity;
-        if (activeFilter.key === 'MAJOR') return sev === 'MAJOR';
-        if (activeFilter.key === 'SIGNIFICANT' || activeFilter.key === 'MODERATE') return sev === 'SIGNIFICANT' || sev === 'MODERATE';
-        if (activeFilter.key === 'MINOR') return !sev || sev === 'MINOR';
-      }
-      if (activeFilter.type === 'DEPARTMENT') {
-        return item.departmentId === activeFilter.key || 
-               item.departmentName === activeFilter.key || 
-               item.departmentNameAr === activeFilter.key;
-      }
-      return true;
-    });
-  }, [detailsList, activeFilter]);
 
   const timeStr = currentTime.toLocaleTimeString(isRtl ? 'ar-SA' : 'en-US', {
     hour: '2-digit',
