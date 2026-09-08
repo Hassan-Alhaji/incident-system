@@ -41,6 +41,7 @@ interface VialCardProps {
   isActive?: boolean;
   onClick?: () => void;
   isDark?: boolean;
+  isFlashing?: boolean;
 }
 
 const VialCard: React.FC<VialCardProps> = ({
@@ -54,6 +55,7 @@ const VialCard: React.FC<VialCardProps> = ({
   isActive = false,
   onClick,
   isDark = false,
+  isFlashing = false,
 }) => {
   const pct = total > 0 ? Math.min(100, Math.max(12, Math.round((count / total) * 100))) : 15;
 
@@ -62,10 +64,12 @@ const VialCard: React.FC<VialCardProps> = ({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`flex flex-col items-center justify-between p-2 sm:p-2.5 rounded-2xl transition-all select-none ${
+      className={`flex flex-col items-center justify-between p-2 sm:p-2.5 rounded-2xl transition-all select-none relative ${
         onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-[0.98]' : ''
       } ${
-        isActive
+        isFlashing
+          ? 'ring-4 ring-emerald-400 dark:ring-emerald-300 animate-pulse shadow-2xl shadow-emerald-500/80 scale-[1.05]'
+          : isActive
           ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/30'
           : ''
       } ${
@@ -74,16 +78,23 @@ const VialCard: React.FC<VialCardProps> = ({
           : 'bg-white border border-slate-200/90 text-slate-800 shadow-sm hover:shadow-md'
       }`}
     >
-      <span className={`text-[11px] font-bold text-center mb-1.5 h-6 flex items-center justify-center leading-tight ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+      {isFlashing && (
+        <span className="absolute -top-1 -right-1 flex h-3 w-3 z-20">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+        </span>
+      )}
+
+      <span className={`text-xs sm:text-[13px] font-black text-center mb-1.5 h-6 flex items-center justify-center leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
         {label}
       </span>
       
       {/* 3D Glass Cylinder */}
-      <div className={`relative w-11 h-20 sm:w-13 sm:h-24 rounded-2xl border-2 ${borderColor} ${isDark ? 'bg-slate-950/80' : 'bg-slate-50/80'} overflow-hidden flex flex-col justify-end p-1 shadow-inner`}>
+      <div className={`relative w-12 h-20 sm:w-14 sm:h-24 rounded-2xl border-2 ${borderColor} ${isDark ? 'bg-slate-950/80' : 'bg-slate-50/80'} overflow-hidden flex flex-col justify-end p-1 shadow-inner`}>
         {/* Liquid level */}
         <div 
           className={`w-full rounded-xl transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
-          style={{ height: `${pct}%`, minHeight: '22px' }}
+          style={{ height: `${pct}%`, minHeight: '24px' }}
         >
           {/* Subtle liquid shimmer */}
           <div className="absolute inset-0 bg-white/20 opacity-40 animate-pulse" />
@@ -94,7 +105,7 @@ const VialCard: React.FC<VialCardProps> = ({
       </div>
 
       <div className="mt-1.5 text-center">
-        <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${fillColor} ${textColor} font-mono`}>
+        <span className={`text-xs sm:text-sm font-black px-2.5 py-0.5 rounded-full ${fillColor} ${textColor} font-mono shadow-sm`}>
           {count}
         </span>
       </div>
@@ -168,6 +179,41 @@ const Analytics = () => {
     } else {
       setActiveFilter({ type, key, label });
     }
+  };
+
+  // ── Indicator Pulse Animation on Live Update (5 Seconds) ─────────────────
+  const [flashingKpis, setFlashingKpis] = useState<Record<string, boolean>>({});
+  const prevKpisRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!data?.executiveKpis) return;
+    const current = data.executiveKpis;
+    if (prevKpisRef.current) {
+      const prev = prevKpisRef.current;
+      const changed: Record<string, boolean> = {};
+      let hasChange = false;
+      ['total', 'resolved', 'inProgress', 'onTrack', 'overdue', 'critical'].forEach(key => {
+        if (current[key] !== prev[key]) {
+          changed[key] = true;
+          hasChange = true;
+        }
+      });
+      if (hasChange) {
+        setFlashingKpis(changed);
+        const timer = setTimeout(() => {
+          setFlashingKpis({});
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevKpisRef.current = current;
+  }, [data]);
+
+  const triggerManualPulse = () => {
+    setFlashingKpis({ total: true, resolved: true, inProgress: true, onTrack: true, overdue: true, critical: true });
+    setTimeout(() => {
+      setFlashingKpis({});
+    }, 5000);
   };
 
   useEffect(() => {
@@ -480,43 +526,60 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* 2. CENTER BRANDING & TITLE & THEME CONTROLS */}
+        {/* 2. CENTER BRANDING & TITLE & ENLARGED LIVE CLOCK & CONTROLS */}
         <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-3xl p-4 text-white shadow-lg flex flex-col items-center justify-center text-center relative overflow-hidden">
-          <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center ring-2 ring-white/20 mb-2 shadow-inner">
-            <ShieldCheck size={26} className="text-blue-400" />
+          <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center ring-2 ring-white/20 mb-1.5 shadow-inner">
+            <ShieldCheck size={28} className="text-blue-400" />
           </div>
-          <h1 className="text-base sm:text-lg font-black tracking-tight text-white leading-tight">
+          <h1 className="text-base sm:text-xl font-black tracking-tight text-white leading-tight mb-1">
             {isRtl ? 'لوحة مؤشرات وبلاغات الأمن والسلامة التنفيذية' : 'Executive HSE Incidents & Safety Dashboard'}
           </h1>
           
           {data.isDepRestricted && data.userDepartment ? (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-xs font-bold shadow-sm">
-              <Lock size={12} />
+            <div className="my-1 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-xs font-bold shadow-sm">
+              <Lock size={13} />
               <span>{isRtl ? `لوحة مخصصة لإدارة: ${data.userDepartment.nameAr || data.userDepartment.name}` : `Scoped for Department: ${data.userDepartment.name}`}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-blue-200/80 text-xs font-medium">
-                {isRtl ? 'الإدارة العامة للسلامة والأمن والمخاطر' : 'General Directorate of Safety & Security'}
-              </p>
-              <div className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span>{isRtl ? 'مباشر' : 'Live'}</span>
-              </div>
-            </div>
+            <p className="text-blue-200/80 text-xs font-medium mb-1">
+              {isRtl ? 'الإدارة العامة للسلامة والأمن والمخاطر' : 'General Directorate of Safety & Security'}
+            </p>
           )}
 
+          {/* ── Prominent Large Live Digital Clock ── */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 my-2 bg-slate-950/90 border border-slate-700/80 rounded-2xl px-4 py-2 shadow-inner w-full max-w-sm">
+            <div className="flex items-center gap-2">
+              <Clock size={22} className="text-emerald-400 animate-pulse" />
+              <span className="font-mono text-xl sm:text-2xl font-black text-white tracking-widest drop-shadow-md">
+                {timeStr}
+              </span>
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-slate-700" />
+            <span className="text-xs font-bold text-slate-300">
+              {dateStr}
+            </span>
+          </div>
+
+          {/* ── Prominent Large LIVE Indicator Badge ── */}
+          <div className="inline-flex items-center gap-2 text-xs font-black text-emerald-300 bg-emerald-950/90 px-3.5 py-1.5 rounded-full border-2 border-emerald-500/60 shadow-lg shadow-emerald-500/25 mb-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <span className="tracking-wider">{isRtl ? 'بث مباشر لحظي' : 'LIVE MONITORING'}</span>
+          </div>
+
           {/* Controls: Mode Switcher + Theme Switcher + Fullscreen */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700">
             <button
               onClick={() => setDashboardMode('EXECUTIVE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '📊 اللوحة التنفيذية' : 'Executive View'}
             </button>
             <button
               onClick={() => setDashboardMode('CULTURE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '🎯 ثقافة السلامة' : 'Safety Culture'}
             </button>
@@ -528,7 +591,7 @@ const Analytics = () => {
                 setWallboardTheme(next);
                 localStorage.setItem('hse_analytics_theme', next);
               }}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border flex items-center gap-1 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${
                 isDark
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                   : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
@@ -545,90 +608,95 @@ const Analytics = () => {
                 setIsExecutiveMode(true);
                 toggleFullscreen();
               }}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5"
               title={isRtl ? 'عرض شاشة المتابعة التنفيذية على كامل الشاشة بدون إخفاء أي بيانات' : 'Full Wallboard Mode'}
             >
-              <Tv size={13} />
+              <Tv size={14} />
               <span>{isRtl ? '🖥️ تكبير الشاشة' : 'Wallboard'}</span>
             </button>
           </div>
         </div>
 
-        {/* 3. DRILLDOWN DETAILS TABLE (Top Right - Red outlined) */}
-        <div className={`lg:col-span-5 rounded-3xl p-3.5 shadow-sm flex flex-col justify-between transition-all ${
+        {/* 3. UNITS STATUS & HIGH SEVERITY FOCUS (Top Right - Col-Span-5 - Moved here!) */}
+        <div className={`lg:col-span-5 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-3 transition-all ${
           isDark
-            ? 'bg-slate-900/90 border-2 border-red-500/40 text-slate-100'
-            : 'bg-white border-2 border-red-400/60 text-slate-900'
+            ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
+            : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2 mb-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="p-1 bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 rounded-md">
-                <ListFilter size={14} />
-              </span>
-              <h3 className="text-xs font-bold uppercase tracking-wide">
-                {isRtl ? 'التفاصيل والمعاينة السريعة للبلاغات' : 'Incident Details & Drilldown'}
+          <div>
+            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2 mb-2.5">
+              <h3 className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <span>📊</span>
+                <span>{isRtl ? 'حالة الملاحظات حسب الوحدة' : 'Status by Unit'}</span>
               </h3>
-              {activeFilter && (
-                <span className="inline-flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-700 font-bold">
-                  <span>{isRtl ? `تصفية: ${activeFilter.label}` : `Filter: ${activeFilter.label}`}</span>
-                  <button onClick={() => setActiveFilter(null)} className="hover:text-red-500 ml-0.5">
-                    <X size={10} />
-                  </button>
-                </span>
-              )}
+              <div className="flex items-center gap-2 text-xs font-black">
+                <span className="text-blue-600 dark:text-blue-400">{isRtl ? 'مفتوحة' : 'Open'}</span>
+                <span className="text-amber-600 dark:text-amber-400">{isRtl ? 'جاري' : 'In Prog'}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">{isRtl ? 'مغلقة' : 'Closed'}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => fetchData(true)}
-                title={isRtl ? 'تحديث لحظي' : 'Live Refresh'}
-                className="p-1 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-              >
-                <RefreshCw size={13} className={refreshing ? 'animate-spin text-blue-600' : ''} />
-              </button>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold">
-                {filteredDetailsList.length} {activeFilter ? `/ ${detailsList.length}` : ''} {isRtl ? 'تذكرة' : 'tickets'}
-              </span>
+
+            <div className="space-y-2.5">
+              {units.map((u: any) => (
+                <div key={u.key} className={`rounded-2xl p-2.5 transition-all ${
+                  isDark ? 'bg-slate-950/70 border border-slate-800/80' : 'bg-slate-50 border border-slate-100'
+                }`}>
+                  <div className="flex items-center justify-between mb-1.5 text-xs sm:text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{u.icon}</span>
+                      <span className={`font-black text-xs sm:text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-black font-mono">
+                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
+                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
+                      <span className="text-slate-500 font-bold ml-0.5">({u.total})</span>
+                    </div>
+                  </div>
+                  {/* Modern Pill Stacked Progress Bar with smooth gradients */}
+                  <div className={`w-full rounded-full h-3.5 flex overflow-hidden p-0.5 shadow-inner ${
+                    isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-200/90 border border-slate-300/60'
+                  }`}>
+                    <div
+                      style={{ width: `${u.total > 0 ? (u.open / u.total) * 100 : 0}%` }}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-s-full transition-all duration-500"
+                      title={`${isRtl ? 'مفتوحة' : 'Open'}: ${u.open}`}
+                    />
+                    <div
+                      style={{ width: `${u.total > 0 ? (u.inProgress / u.total) * 100 : 0}%` }}
+                      className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-500"
+                      title={`${isRtl ? 'جاري المعالجة' : 'In Progress'}: ${u.inProgress}`}
+                    />
+                    <div
+                      style={{ width: `${u.total > 0 ? (u.closed / u.total) * 100 : 0}%` }}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-e-full transition-all duration-500"
+                      title={`${isRtl ? 'مغلقة' : 'Closed'}: ${u.closed}`}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="overflow-y-auto max-h-[130px] space-y-1.5 pr-1 text-xs">
-            {filteredDetailsList.length > 0 ? (
-              filteredDetailsList.slice(0, 10).map((item: any) => (
-                <div 
-                  key={item.id} 
-                  onClick={() => navigate(`/tickets/${item.id}`)}
-                  className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group ${
-                    isDark
-                      ? 'bg-slate-950/60 hover:bg-blue-950/60 border border-slate-800'
-                      : 'bg-slate-50 hover:bg-blue-50 border border-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`font-mono text-[10px] font-black px-1.5 py-0.5 rounded border ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-blue-400' : 'bg-white border-slate-200 text-blue-700'
-                    }`}>
-                      {item.ticketNo}
-                    </span>
-                    <span className={`font-bold text-xs truncate max-w-[180px] sm:max-w-[240px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
-                      {item.title}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      item.status === 'CLOSED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300' :
-                      (item.status === 'SUBMITTED' || item.status === 'OPEN') ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300'
-                    }`}>
-                      {isRtl 
-                        ? (item.status === 'CLOSED' ? 'مغلقة' : (item.status === 'SUBMITTED' || item.status === 'OPEN') ? 'جديدة (مفتوحة)' : 'جاري المعالجة') 
-                        : (item.status === 'CLOSED' ? 'Closed' : (item.status === 'SUBMITTED' || item.status === 'OPEN') ? 'Open' : 'In Progress')}
-                    </span>
-                    <ExternalLink size={12} className="text-slate-400 group-hover:text-blue-600" />
-                  </div>
+          {/* Bottom: Focus on High / Major Severity (عالية التصنيف) */}
+          <div className="pt-2 border-t border-amber-200/60 dark:border-slate-800">
+            <h4 className="text-xs font-black text-rose-600 dark:text-rose-400 mb-1.5 flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span>{isRtl ? 'عالية التصنيف (Major Severity)' : 'Major Severity Focus'}</span>
+            </h4>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {units.map((u: any) => (
+                <div key={u.key} className={`rounded-2xl p-2 transition-all ${
+                  isDark
+                    ? 'bg-rose-950/40 border border-rose-800/50 text-rose-200'
+                    : 'bg-red-50/80 border border-red-200 text-red-900 shadow-sm'
+                }`}>
+                  <span className="text-sm">{u.icon}</span>
+                  <p className="text-[11px] font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
+                  <p className="text-lg font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
                 </div>
-              ))
-            ) : (
-              <p className="text-center text-slate-400 py-6 text-xs">{isRtl ? 'لا توجد بلاغات مسجلة وفق الفلتر المحدد' : 'No records found'}</p>
-            )}
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -833,6 +901,7 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'TOTAL'}
               onClick={() => handleToggleFilter('VIAL', 'TOTAL', isRtl ? 'المجموع' : 'Total')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['total']}
             />
             {/* 2. Resolved */}
             <VialCard
@@ -846,6 +915,7 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'RESOLVED'}
               onClick={() => handleToggleFilter('VIAL', 'RESOLVED', isRtl ? 'تمت معالجتها' : 'Resolved')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['resolved']}
             />
             {/* 3. In Progress */}
             <VialCard
@@ -859,6 +929,7 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'IN_PROGRESS'}
               onClick={() => handleToggleFilter('VIAL', 'IN_PROGRESS', isRtl ? 'جاري المعالجة' : 'In Progress')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['inProgress']}
             />
             {/* 4. On Track */}
             <VialCard
@@ -872,6 +943,7 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'ON_TRACK'}
               onClick={() => handleToggleFilter('VIAL', 'ON_TRACK', isRtl ? 'وفق الخطة' : 'On Track')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['onTrack']}
             />
             {/* 5. Overdue */}
             <VialCard
@@ -885,6 +957,7 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'OVERDUE'}
               onClick={() => handleToggleFilter('VIAL', 'OVERDUE', isRtl ? 'متأخرة' : 'Overdue')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['overdue']}
             />
             {/* 6. Critical / Major */}
             <VialCard
@@ -898,95 +971,153 @@ const Analytics = () => {
               isActive={activeFilter?.type === 'VIAL' && activeFilter?.key === 'CRITICAL'}
               onClick={() => handleToggleFilter('VIAL', 'CRITICAL', isRtl ? 'عالية الخطورة' : 'Critical')}
               isDark={isDark}
+              isFlashing={!!flashingKpis['critical']}
             />
           </div>
         </div>
 
-        {/* ── 2. COLUMN CENTER (5 cols): UNITS STATUS & HIGH SEVERITY FOCUS (Amber/Yellow outlined) ── */}
-        <div className={`lg:col-span-5 rounded-3xl p-3.5 shadow-sm flex flex-col justify-between space-y-3 transition-all ${
+        {/* ── 2. COLUMN CENTER (5 cols): INCIDENT DETAILS & DRILLDOWN (Moved to center!) ── */}
+        <div className={`lg:col-span-5 rounded-3xl p-3.5 shadow-sm flex flex-col justify-between space-y-2.5 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
-          {/* Top: Status per Unit (Safety, Security, Health) */}
-          <div>
-            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2 mb-2.5">
-              <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                <span>📊</span>
-                <span>{isRtl ? 'حالة الملاحظات حسب الوحدة' : 'Status by Unit'}</span>
-              </h3>
-              <div className="flex items-center gap-1.5 text-[9px] font-black">
-                <span className="text-blue-600 dark:text-blue-400">{isRtl ? 'مفتوحة' : 'Open'}</span>
-                <span className="text-amber-600 dark:text-amber-400">{isRtl ? 'جاري' : 'In Prog'}</span>
-                <span className="text-emerald-600 dark:text-emerald-400">{isRtl ? 'مغلقة' : 'Closed'}</span>
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-xl">
+                <ListFilter size={18} />
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-amber-700 dark:text-amber-300">
+                  {isRtl ? 'تفاصيل ومعاينة البلاغات' : 'Incident Details & Drilldown'}
+                </h3>
+                <p className="text-[10px] text-slate-400 font-semibold">
+                  {activeFilter
+                    ? (isRtl ? `تصفية نشطة: ${activeFilter.label}` : `Active filter: ${activeFilter.label}`)
+                    : (isRtl ? 'قائمة تفاعلية بالبلاغات حسب التصفية' : 'Live filtered incident stream')}
+                </p>
               </div>
             </div>
 
-            <div className="space-y-2.5">
-              {units.map((u: any) => (
-                <div key={u.key} className={`rounded-2xl p-2.5 transition-all ${
-                  isDark ? 'bg-slate-950/70 border border-slate-800/80' : 'bg-slate-50 border border-slate-100'
-                }`}>
-                  <div className="flex items-center justify-between mb-1.5 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{u.icon}</span>
-                      <span className={`font-bold text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[10px] font-black font-mono">
-                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
-                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
-                      <span className="text-slate-500 font-bold ml-0.5">({u.total})</span>
-                    </div>
-                  </div>
-                  {/* Modern Pill Stacked Progress Bar with smooth gradients */}
-                  <div className={`w-full rounded-full h-3 flex overflow-hidden p-0.5 shadow-inner ${
-                    isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-200/90 border border-slate-300/60'
-                  }`}>
-                    <div
-                      style={{ width: `${u.total > 0 ? (u.open / u.total) * 100 : 0}%` }}
-                      className="bg-gradient-to-r from-blue-600 to-indigo-500 h-full rounded-s-full transition-all duration-500"
-                      title={`${isRtl ? 'مفتوحة' : 'Open'}: ${u.open}`}
-                    />
-                    <div
-                      style={{ width: `${u.total > 0 ? (u.inProgress / u.total) * 100 : 0}%` }}
-                      className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-500"
-                      title={`${isRtl ? 'جاري المعالجة' : 'In Progress'}: ${u.inProgress}`}
-                    />
-                    <div
-                      style={{ width: `${u.total > 0 ? (u.closed / u.total) * 100 : 0}%` }}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-e-full transition-all duration-500"
-                      title={`${isRtl ? 'مغلقة' : 'Closed'}: ${u.closed}`}
-                    />
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center gap-1.5">
+              {activeFilter && (
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter(null)}
+                  className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 hover:bg-rose-200 flex items-center gap-1 border border-rose-200 dark:border-rose-900"
+                  title={isRtl ? 'إلغاء التصفية' : 'Clear filter'}
+                >
+                  <X size={10} />
+                  <span>{isRtl ? 'إلغاء' : 'Clear'}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={triggerManualPulse}
+                title={isRtl ? 'اختبار وميض التحديث اللحظي' : 'Test pulse animation'}
+                className="p-1 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-all"
+              >
+                <Sparkles size={14} />
+              </button>
+              <span className="text-xs bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono font-black px-2.5 py-0.5 rounded-full">
+                {filteredDetailsList.length}
+              </span>
             </div>
           </div>
 
-          {/* Bottom: Focus on High / Major Severity (عالية التصنيف) */}
-          <div className="pt-2 border-t border-amber-200/60 dark:border-slate-800">
-            <h4 className="text-[11px] font-black text-rose-600 dark:text-rose-400 mb-1.5 flex items-center gap-1">
-              <span>⚠️</span>
-              <span>{isRtl ? 'عالية التصنيف (Major Severity)' : 'Major Severity Focus'}</span>
-            </h4>
-            <div className="grid grid-cols-3 gap-1.5 text-center">
-              {units.map((u: any) => (
-                <div key={u.key} className={`rounded-2xl p-2 transition-all ${
-                  isDark
-                    ? 'bg-rose-950/40 border border-rose-800/50 text-rose-200'
-                    : 'bg-red-50/80 border border-red-200 text-red-900 shadow-sm'
-                }`}>
-                  <span className="text-xs">{u.icon}</span>
-                  <p className="text-[10px] font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
-                  <p className="text-base font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
-                </div>
-              ))}
-            </div>
+          {/* Scrollable Incidents List */}
+          <div className="space-y-2 max-h-[440px] sm:max-h-[460px] overflow-y-auto pr-1">
+            {filteredDetailsList.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                <FileWarning size={28} className="mx-auto mb-2 opacity-50 text-amber-500" />
+                <p className="font-bold">{isRtl ? 'لا توجد بلاغات تطابق التصفية الحالية' : 'No incidents match current filter'}</p>
+                {activeFilter && (
+                  <button
+                    onClick={() => setActiveFilter(null)}
+                    className="mt-2 text-blue-500 hover:underline text-[11px] font-bold"
+                  >
+                    {isRtl ? 'إعادة ضبط التصفية' : 'Reset filter'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredDetailsList.map((item: any) => {
+                const isSec = item.unitEn === 'Security' || item.unitAr === 'الأمن';
+                const isHealth = item.unitEn === 'Health & Env' || item.unitAr === 'الصحة والبيئة';
+                const unitBadge = isSec
+                  ? { bg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200', label: isRtl ? 'الأمن' : 'Security' }
+                  : isHealth
+                  ? { bg: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border-teal-200', label: isRtl ? 'الصحة' : 'Health' }
+                  : { bg: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200', label: isRtl ? 'السلامة' : 'Safety' };
+
+                const isClosed = item.status === 'CLOSED';
+                const isProg = item.status === 'IN_PROGRESS' || item.status === 'ASSIGNED';
+                const statusBadge = isClosed
+                  ? { bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300', text: isRtl ? 'مغلق' : 'Closed' }
+                  : isProg
+                  ? { bg: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300', text: isRtl ? 'جاري' : 'In Progress' }
+                  : { bg: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300', text: isRtl ? 'مفتوح' : 'Open' };
+
+                const isMajor = item.severityLevel === 'MAJOR' || item.severity === 'MAJOR';
+                const isMod = item.severityLevel === 'SIGNIFICANT' || item.severityLevel === 'MODERATE' || item.severity === 'MODERATE';
+                const sevBadge = isMajor
+                  ? { bg: 'bg-red-500 text-white', text: isRtl ? 'عالية' : 'Major' }
+                  : isMod
+                  ? { bg: 'bg-amber-500 text-white', text: isRtl ? 'متوسطة' : 'Mod' }
+                  : { bg: 'bg-emerald-500 text-white', text: isRtl ? 'منخفضة' : 'Minor' };
+
+                return (
+                  <div
+                    key={item.id || item.ticketNo}
+                    onClick={() => item.id && navigate(`/incidents/${item.id}`)}
+                    className={`p-2.5 rounded-2xl border transition-all cursor-pointer ${
+                      isDark
+                        ? 'bg-slate-950/70 border-slate-800 hover:border-amber-500/60 hover:bg-slate-900'
+                        : 'bg-slate-50 border-slate-200/90 hover:border-amber-400 hover:bg-white hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
+                          {item.ticketNo || `#${item.id?.substring(0, 6)}`}
+                        </span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${unitBadge.bg}`}>
+                          {unitBadge.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${sevBadge.bg}`}>
+                          {sevBadge.text}
+                        </span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusBadge.bg}`}>
+                          {statusBadge.text}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className={`text-xs font-bold line-clamp-1 mb-1 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      {item.title}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                      <span className="truncate max-w-[170px]">
+                        🏢 {isRtl ? (item.departmentNameAr || item.departmentName) : item.departmentName}
+                      </span>
+                      {item.createdAt && (
+                        <span className="font-mono">
+                          {new Date(item.createdAt).toLocaleDateString(isRtl ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* ── 3. COLUMN RIGHT (4 cols): LIVE INTERACTIVE INCIDENT MAP (Green outlined - Strictly on Right!) ── */}
+        {/* ── 3. COLUMN RIGHT (4 cols): LIVE INTERACTIVE INCIDENT MAP (Green outlined - Enlarged!) ── */}
         <div className={`lg:col-span-4 rounded-3xl p-3.5 shadow-md flex flex-col justify-between space-y-2 transition-all overflow-hidden ${
           isDark
             ? 'bg-slate-900/90 border-2 border-emerald-500/40 text-slate-100 shadow-lg'
@@ -995,33 +1126,33 @@ const Analytics = () => {
           <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-2 px-1">
             <div className="flex items-center gap-2">
               <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-xl">
-                <MapPin size={18} />
+                <MapPin size={20} />
               </span>
               <div>
-                <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                <h3 className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300">
                   {isRtl ? 'الخريطة التفاعلية المباشرة' : 'Live Incident Map'}
                 </h3>
-                <p className="text-[10px] text-slate-400 font-semibold">
+                <p className="text-[11px] text-slate-400 font-semibold">
                   {isRtl ? 'انقر على أي نقطة لعرض التفاصيل' : 'Click any marker to inspect details'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>{data.mapCases?.length || 0} {isRtl ? 'موقع نشط' : 'Pins'}</span>
               </span>
             </div>
           </div>
 
-          {/* Expanded High-Resolution Map Container */}
-          <div className={`rounded-2xl overflow-hidden border ${isDark ? 'border-slate-800' : 'border-slate-200/90'} h-[360px] sm:h-[400px] shadow-inner relative`}>
+          {/* Expanded High-Resolution Map Container (Enlarged to 480-520px) */}
+          <div className={`rounded-2xl overflow-hidden border ${isDark ? 'border-slate-800' : 'border-slate-200/90'} h-[460px] sm:h-[500px] shadow-inner relative`}>
             <AnalyticsMap cases={data.mapCases || []} isRtl={isRtl} />
           </div>
 
           {/* Quick Location Landmarks Footer */}
-          <div className={`flex flex-wrap items-center justify-between text-[11px] px-2 pt-1 font-bold rounded-xl border ${
+          <div className={`flex flex-wrap items-center justify-between text-xs px-2.5 py-1.5 font-black rounded-xl border ${
             isDark ? 'bg-slate-950/60 border-slate-800 text-slate-400' : 'bg-slate-50/80 border-slate-100 text-slate-600'
           }`}>
             <span className="flex items-center gap-1">🏁 {isRtl ? 'حلبة جدة' : 'Jeddah'}</span>

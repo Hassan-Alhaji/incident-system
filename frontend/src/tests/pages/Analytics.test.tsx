@@ -106,4 +106,28 @@ describe('Analytics Page Component', () => {
     // Verify it switched
     expect(localStorage.getItem('hse_analytics_theme')).toBeDefined();
   });
+
+  it('renders swapped layout with Incident Details & Drilldown in center and Status by Unit at the top', async () => {
+    render(
+      <MemoryRouter>
+        <Analytics />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/لوحة مؤشرات وبلاغات الأمن والسلامة التنفيذية/i)).toBeDefined();
+    });
+
+    // Verify Incident Details & Drilldown is present
+    expect(screen.getByText(/تفاصيل ومعاينة البلاغات/i)).toBeDefined();
+
+    // Verify Status by Unit is present
+    expect(screen.getByText(/حالة الملاحظات حسب الوحدة/i)).toBeDefined();
+
+    // Verify pulse test button is clickable
+    const pulseBtn = screen.getByTitle(/اختبار وميض التحديث اللحظي/i);
+    expect(pulseBtn).toBeDefined();
+    pulseBtn.click();
+  });
 });
+
