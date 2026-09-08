@@ -8,7 +8,7 @@ import {
   CheckCircle, XCircle, Eye, AlertOctagon, Calendar, Trophy, Flame,
   Download, Filter, X, ChevronRight, ChevronLeft, Briefcase, ChevronDown, Search,
   GraduationCap, ListFilter, Lock, ExternalLink, Shield, HardHat, HeartPulse,
-  RefreshCw, Radio, Layers, Maximize2, Minimize2, Tv, Monitor
+  RefreshCw, Radio, Layers, Maximize2, Minimize2, Tv, Monitor, Building2
 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import AnalyticsMap from '../components/AnalyticsMap';
@@ -29,7 +29,7 @@ const getRciStyle = (level: string, t: any) => {
   return styles[level] || styles.POOR;
 };
 
-// ── Visual Vial / Cylinder Metric Card (Matching Image Left Red Box) ─────────
+// ── Visual Vertical Vial / Cylinder Metric Card (Matching Image Left Red Box) ─────────
 interface VialCardProps {
   label: string;
   count: number;
@@ -66,11 +66,11 @@ const VialCard: React.FC<VialCardProps> = ({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`flex flex-col justify-between p-2 sm:p-2.5 rounded-2xl transition-all select-none relative w-full ${
-        onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
+      className={`flex flex-col items-center justify-between p-1.5 sm:p-2 rounded-2xl transition-all select-none relative ${
+        onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-[0.98]' : ''
       } ${
         isFlashing
-          ? 'ring-4 ring-emerald-400 dark:ring-emerald-300 animate-pulse shadow-2xl shadow-emerald-500/80 scale-[1.03]'
+          ? 'ring-4 ring-emerald-400 dark:ring-emerald-300 animate-pulse shadow-2xl shadow-emerald-500/80 scale-[1.04]'
           : isActive
           ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/30'
           : ''
@@ -87,66 +87,119 @@ const VialCard: React.FC<VialCardProps> = ({
         </span>
       )}
 
-      {/* Top Header: Label & Big Prominent Number */}
-      <div className="flex items-center justify-between gap-1 mb-1">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {icon && <span className="text-xs">{icon}</span>}
-          <span className={`text-xs sm:text-[13px] font-black truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-            {label}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0 font-mono">
-          <span className={`text-xl sm:text-2xl font-black ${textColor}`}>
+      {/* Header: Icon + Label */}
+      <div className="flex items-center gap-1.5 mb-1.5 text-center min-h-[24px] px-0.5 justify-center">
+        {icon && <span className="text-sm">{icon}</span>}
+        <span className={`text-xs sm:text-sm font-black leading-tight truncate max-w-[85px] sm:max-w-[100px] ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+          {label}
+        </span>
+      </div>
+
+      {/* Vertical 3D Glass Cylinder Tube */}
+      <div className={`relative w-11 h-16 sm:w-13 sm:h-20 rounded-2xl border-2 ${borderColor} ${isDark ? 'bg-slate-950' : 'bg-slate-100'} overflow-hidden flex flex-col justify-end p-0.5 shadow-inner`}>
+        {/* Liquid level */}
+        <div 
+          className={`w-full rounded-xl transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
+          style={{ height: `${Math.max(12, pct)}%` }}
+        >
+          {/* Subtle liquid shimmer */}
+          <div className="absolute inset-0 bg-white/20 opacity-40 animate-pulse" />
+          <span className="font-black text-xs sm:text-sm text-white drop-shadow z-10 font-mono">
             {count}
           </span>
-          <span className="text-[10px] text-slate-400 font-bold">({pct}%)</span>
         </div>
       </div>
 
-      {/* Horizontal 3D Glass Cylinder (Wide & Clear) */}
-      <div className={`relative w-full h-3.5 sm:h-4 rounded-full border-2 ${borderColor} ${isDark ? 'bg-slate-950' : 'bg-slate-100'} overflow-hidden p-0.5 shadow-inner`}>
-        {/* Horizontal Liquid Level */}
-        <div
-          className={`h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden ${gradient}`}
-          style={{ width: `${Math.max(6, pct)}%` }}
-        >
-          {/* Subtle liquid shimmer */}
-          <div className="absolute inset-0 bg-white/25 opacity-50 animate-pulse" />
-        </div>
+      {/* Footer: Count & Pct Badge */}
+      <div className="mt-1.5 flex items-center gap-1 font-mono">
+        <span className={`text-xs sm:text-sm font-black px-2 py-0.5 rounded-full ${fillColor} ${textColor} shadow-sm`}>
+          {count}
+        </span>
+        <span className="text-xs text-slate-400 font-bold">({pct}%)</span>
       </div>
     </div>
   );
 };
 
-// ── Dark Wallboard Executive Vial Metric Card (Compact for 100vh TV/Wallboard) ─
-const ExecutiveVialCard: React.FC<VialCardProps> = ({ label, count, total, gradient, textColor, borderColor, fillColor }) => {
-  const pct = total > 0 ? Math.min(100, Math.max(12, Math.round((count / total) * 100))) : 15;
+// ── Horizontal 3D Liquid Capsule (Applied to Bottom 4 Analytics Boxes) ─────────
+interface HorizontalCapsuleProps {
+  label: string;
+  icon?: React.ReactNode | string;
+  count: number | string;
+  percentage?: number;
+  gradient?: string;
+  badgeBg?: string;
+  badgeText?: string;
+  subText?: string;
+  onClick?: () => void;
+  isActive?: boolean;
+  isDark?: boolean;
+  subBar?: React.ReactNode;
+}
 
+const HorizontalCapsule: React.FC<HorizontalCapsuleProps> = ({
+  label,
+  icon,
+  count,
+  percentage,
+  gradient = 'bg-gradient-to-r from-blue-600 to-cyan-500',
+  badgeBg,
+  badgeText,
+  subText,
+  onClick,
+  isActive = false,
+  isDark = false,
+  subBar,
+}) => {
   return (
-    <div className="flex flex-col items-center justify-between p-1 rounded-xl bg-slate-950/70 border border-slate-800 shadow-inner">
-      <span className="text-[10px] font-bold text-slate-300 text-center mb-1 h-5 flex items-center justify-center leading-tight">
-        {label}
-      </span>
-      
-      {/* 3D Glass Cylinder */}
-      <div className={`relative w-9 h-14 sm:w-11 sm:h-16 rounded-xl border-2 ${borderColor} bg-slate-900/90 overflow-hidden flex flex-col justify-end p-0.5 shadow-inner`}>
-        {/* Liquid level */}
-        <div 
-          className={`w-full rounded-lg transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
-          style={{ height: `${pct}%`, minHeight: '18px' }}
-        >
-          <div className="absolute inset-0 bg-white/20 opacity-40 animate-pulse" />
-          <span className="font-black text-[10px] sm:text-xs text-white drop-shadow-sm z-10 font-mono">
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={`p-2 sm:p-2.5 rounded-xl transition-all select-none border w-full ${
+        onClick ? 'cursor-pointer hover:scale-[1.01] active:scale-[0.99]' : ''
+      } ${
+        isActive
+          ? 'ring-2 ring-blue-500 shadow-md shadow-blue-500/25 bg-blue-50/50 dark:bg-blue-950/50 border-blue-400'
+          : isDark
+          ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900/80'
+          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/90 shadow-sm'
+      }`}
+    >
+      {/* Top Header: Icon + Label & Big Prominent Number / Badge */}
+      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {icon && <span className="text-sm flex-shrink-0">{icon}</span>}
+          <span className={`text-xs sm:text-sm font-black truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+            {label}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0 font-mono">
+          {subText && <span className="text-xs text-slate-400 font-bold">{subText}</span>}
+          <span className={`text-xs sm:text-sm font-black px-2.5 py-0.5 rounded-md shadow-sm ${badgeBg || (isDark ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-800')} ${badgeText || ''}`}>
             {count}
           </span>
+          {percentage !== undefined && (
+            <span className="text-xs text-slate-400 font-bold">({percentage}%)</span>
+          )}
         </div>
       </div>
 
-      <div className="mt-1 text-center">
-        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${fillColor} ${textColor} font-mono`}>
-          {count}
-        </span>
-      </div>
+      {/* Horizontal 3D Glass Cylinder / Liquid Tube */}
+      {subBar ? (
+        subBar
+      ) : (
+        <div className={`relative w-full h-3 sm:h-3.5 rounded-full overflow-hidden p-0.5 shadow-inner border ${
+          isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+        }`}>
+          <div
+            className={`h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden ${gradient}`}
+            style={{ width: `${Math.max(4, percentage ?? 0)}%` }}
+          >
+            <div className="absolute inset-0 bg-white/25 opacity-50 animate-pulse" />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -494,93 +547,93 @@ const Analytics = () => {
         <div className="lg:col-span-3 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 border-2 border-indigo-500/40 rounded-2xl p-2.5 sm:p-3 text-white shadow-md flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="flex items-center justify-between border-b border-indigo-400/20 pb-1.5 mb-1">
+          <div className="flex items-center justify-between border-b border-indigo-400/20 pb-1.5 mb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="p-1 bg-indigo-500/30 rounded-lg text-indigo-300">
-                <Users size={15} />
+                <Users size={16} />
               </span>
-              <h3 className="text-xs sm:text-sm font-black tracking-wide text-indigo-100">
+              <h3 className="text-sm sm:text-base font-black tracking-wide text-indigo-100">
                 {isRtl ? 'المشاركة والتوعية الميدانية' : 'Field Engagement & Awareness'}
               </h3>
             </div>
-            <span className="text-[9px] bg-indigo-500/30 text-indigo-200 font-bold px-1.5 py-0.5 rounded-full">
+            <span className="text-xs bg-indigo-500/30 text-indigo-200 font-bold px-2 py-0.5 rounded-full">
               {isRtl ? 'ربط لحظي' : 'Live'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-1.5 text-center my-0.5">
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-1.5">
-              <p className="text-[10px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد السلامة' : 'Safety Reports'}</p>
-              <p className="text-base font-black text-emerald-400 font-mono">{training.safetyHours || training.safetyIncidents || 0}</p>
+          <div className="grid grid-cols-2 gap-2 text-center my-1">
+            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-2">
+              <p className="text-xs font-bold text-indigo-200 mb-0.5">{isRtl ? 'رصد السلامة' : 'Safety Reports'}</p>
+              <p className="text-lg sm:text-xl font-black text-emerald-400 font-mono">{training.safetyHours || training.safetyIncidents || 0}</p>
             </div>
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-1.5">
-              <p className="text-[10px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد الأمن' : 'Security Reports'}</p>
-              <p className="text-base font-black text-blue-400 font-mono">{training.securityHours || training.securityIncidents || 0}</p>
+            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-2">
+              <p className="text-xs font-bold text-indigo-200 mb-0.5">{isRtl ? 'رصد الأمن' : 'Security Reports'}</p>
+              <p className="text-lg sm:text-xl font-black text-blue-400 font-mono">{training.securityHours || training.securityIncidents || 0}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-1.5 border-t border-indigo-400/20 mt-0.5 text-xs">
-            <div className="flex items-center gap-1 text-indigo-200 font-bold">
-              <span className="text-[11px]">👥 {training.traineesCount || training.uniqueReporters || 0}</span>
-              <span className="text-[9px] opacity-80">{isRtl ? 'المشاركون' : 'Reporters'}</span>
+          <div className="flex items-center justify-between pt-1.5 border-t border-indigo-400/20 mt-1 text-xs">
+            <div className="flex items-center gap-1.5 text-indigo-200 font-bold">
+              <span className="text-xs sm:text-sm">👥 {training.traineesCount || training.uniqueReporters || 0}</span>
+              <span className="text-xs opacity-90">{isRtl ? 'المشاركون' : 'Reporters'}</span>
             </div>
             <div className="text-end">
-              <span className="text-[9px] text-indigo-300 block leading-none">{isRtl ? 'إجمالي الرصد' : 'Total'}</span>
-              <span className="text-xs font-black text-amber-300 font-mono">{training.totalHours || training.totalIncidents || 0}</span>
+              <span className="text-xs text-indigo-300 block leading-none">{isRtl ? 'إجمالي الرصد' : 'Total'}</span>
+              <span className="text-sm sm:text-base font-black text-amber-300 font-mono">{training.totalHours || training.totalIncidents || 0}</span>
             </div>
           </div>
         </div>
 
         {/* 2. CENTER BRANDING & TITLE & COMPACT LIVE CLOCK & CONTROLS */}
         <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-2xl p-2.5 sm:p-3 text-white shadow-md flex flex-col items-center justify-center text-center relative overflow-hidden">
-          <div className="w-8 h-8 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center ring-1 ring-white/20 mb-1 shadow-inner">
-            <ShieldCheck size={20} className="text-blue-400" />
+          <div className="w-9 h-9 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center ring-1 ring-white/20 mb-1 shadow-inner">
+            <ShieldCheck size={22} className="text-blue-400" />
           </div>
-          <h1 className="text-xs sm:text-sm font-black tracking-tight text-white leading-tight mb-0.5">
+          <h1 className="text-sm sm:text-base font-black tracking-tight text-white leading-tight mb-0.5">
             {isRtl ? 'لوحة مؤشرات وبلاغات الأمن والسلامة التنفيذية' : 'Executive HSE Incidents & Safety Dashboard'}
           </h1>
           
           {data.isDepRestricted && data.userDepartment ? (
-            <div className="my-0.5 inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-[10px] font-bold shadow-sm">
-              <Lock size={11} />
+            <div className="my-0.5 inline-flex items-center gap-1 px-3 py-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-xs font-bold shadow-sm">
+              <Lock size={12} />
               <span>{isRtl ? `إدارة: ${data.userDepartment.nameAr || data.userDepartment.name}` : `Dept: ${data.userDepartment.name}`}</span>
             </div>
           ) : (
-            <p className="text-blue-200/80 text-[10px] font-medium mb-0.5">
+            <p className="text-blue-200/90 text-xs font-semibold mb-0.5">
               {isRtl ? 'الإدارة العامة للسلامة والأمن والمخاطر' : 'General Directorate of Safety & Security'}
             </p>
           )}
 
-          {/* ── Compact Unified Live Clock & Live Monitoring Badge ── */}
-          <div className="flex items-center justify-center gap-2 my-1 bg-slate-950/90 border border-slate-700/80 rounded-xl px-2.5 py-1 shadow-inner w-full max-w-sm">
-            <div className="flex items-center gap-1">
-              <Clock size={15} className="text-emerald-400 animate-pulse" />
-              <span className="font-mono text-sm sm:text-base font-black text-white tracking-wider">
+          {/* ── Prominent Unified Live Clock & Live Monitoring Badge ── */}
+          <div className="flex items-center justify-center gap-2.5 my-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-inner w-full max-w-sm">
+            <div className="flex items-center gap-1.5">
+              <Clock size={17} className="text-emerald-400 animate-pulse" />
+              <span className="font-mono text-base sm:text-lg font-black text-white tracking-wider">
                 {timeStr}
               </span>
             </div>
-            <div className="h-3.5 w-px bg-slate-700" />
-            <span className="text-[10px] font-bold text-slate-300">
+            <div className="h-4 w-px bg-slate-700" />
+            <span className="text-xs font-bold text-slate-300">
               {dateStr}
             </span>
-            <div className="h-3.5 w-px bg-slate-700" />
-            <div className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-950/90 px-2 py-0.5 rounded-full border border-emerald-500/60 shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <div className="h-4 w-px bg-slate-700" />
+            <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-full border border-emerald-500/60 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>{isRtl ? 'مباشر' : 'LIVE'}</span>
             </div>
           </div>
 
           {/* Controls: Mode Switcher + Theme Switcher + Fullscreen */}
-          <div className="flex flex-wrap items-center justify-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
             <button
               onClick={() => setDashboardMode('EXECUTIVE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '📊 اللوحة التنفيذية' : 'Executive View'}
             </button>
             <button
               onClick={() => setDashboardMode('CULTURE')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '🎯 ثقافة السلامة' : 'Safety Culture'}
             </button>
@@ -592,7 +645,7 @@ const Analytics = () => {
                 setWallboardTheme(next);
                 localStorage.setItem('hse_analytics_theme', next);
               }}
-              className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all border flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1 ${
                 isDark
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                   : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
@@ -609,10 +662,10 @@ const Analytics = () => {
                 setIsExecutiveMode(true);
                 toggleFullscreen();
               }}
-              className="px-2 py-1 rounded-lg text-[11px] font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1"
               title={isRtl ? 'عرض شاشة المتابعة التنفيذية على كامل الشاشة بدون إخفاء أي بيانات' : 'Full Wallboard Mode'}
             >
-              <Tv size={12} />
+              <Tv size={13} />
               <span>{isRtl ? '🖥️ تكبير' : 'Wallboard'}</span>
             </button>
           </div>
@@ -626,11 +679,11 @@ const Analytics = () => {
         }`}>
           <div>
             <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5 mb-1.5">
-              <h3 className="text-xs sm:text-sm font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <h3 className="text-sm sm:text-base font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <span>📊</span>
                 <span>{isRtl ? 'حالة الملاحظات حسب الوحدة' : 'Status by Unit'}</span>
               </h3>
-              <div className="flex items-center gap-1.5 text-[10px] font-black">
+              <div className="flex items-center gap-2 text-xs font-black">
                 <span className="text-blue-600 dark:text-blue-400">{isRtl ? 'مفتوحة' : 'Open'}</span>
                 <span className="text-amber-600 dark:text-amber-400">{isRtl ? 'جاري' : 'In Prog'}</span>
                 <span className="text-emerald-600 dark:text-emerald-400">{isRtl ? 'مغلقة' : 'Closed'}</span>
@@ -639,23 +692,23 @@ const Analytics = () => {
 
             <div className="space-y-1.5">
               {units.map((u: any) => (
-                <div key={u.key} className={`rounded-xl p-1.5 sm:p-2 transition-all ${
+                <div key={u.key} className={`rounded-xl p-2 transition-all ${
                   isDark ? 'bg-slate-950/70 border border-slate-800/80' : 'bg-slate-50 border border-slate-100'
                 }`}>
-                  <div className="flex items-center justify-between mb-1 text-xs">
+                  <div className="flex items-center justify-between mb-1 text-xs sm:text-sm">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm">{u.icon}</span>
-                      <span className={`font-black text-[11px] sm:text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
+                      <span className="text-base">{u.icon}</span>
+                      <span className={`font-black text-xs sm:text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-[10px] font-black font-mono">
-                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
-                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
+                    <div className="flex items-center gap-1.5 text-xs font-black font-mono">
+                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
+                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
                       <span className="text-slate-500 font-bold ml-0.5">({u.total})</span>
                     </div>
                   </div>
-                  {/* Modern Pill Stacked Progress Bar with smooth gradients (Compact h-2.5) */}
-                  <div className={`w-full rounded-full h-2.5 flex overflow-hidden p-0.5 shadow-inner ${
+                  {/* Modern Pill Stacked Progress Bar with smooth gradients */}
+                  <div className={`w-full rounded-full h-3 flex overflow-hidden p-0.5 shadow-inner ${
                     isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-200/90 border border-slate-300/60'
                   }`}>
                     <div
@@ -679,22 +732,22 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* Bottom: Focus on High / Major Severity (عالية التصنيف - Compact) */}
+          {/* Bottom: Focus on High / Major Severity (عالية التصنيف) */}
           <div className="pt-1.5 border-t border-amber-200/60 dark:border-slate-800">
-            <h4 className="text-[11px] font-black text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
+            <h4 className="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
               <span>⚠️</span>
               <span>{isRtl ? 'عالية التصنيف (Major Severity)' : 'Major Severity Focus'}</span>
             </h4>
-            <div className="grid grid-cols-3 gap-1.5 text-center">
+            <div className="grid grid-cols-3 gap-2 text-center">
               {units.map((u: any) => (
-                <div key={u.key} className={`rounded-xl p-1.5 transition-all ${
+                <div key={u.key} className={`rounded-xl p-2 transition-all ${
                   isDark
                     ? 'bg-rose-950/40 border border-rose-800/50 text-rose-200'
                     : 'bg-red-50/80 border border-red-200 text-red-900 shadow-sm'
                 }`}>
-                  <span className="text-xs">{u.icon}</span>
-                  <p className="text-[10px] font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
-                  <p className="text-base font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
+                  <span className="text-sm">{u.icon}</span>
+                  <p className="text-xs font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
+                  <p className="text-lg sm:text-xl font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
                 </div>
               ))}
             </div>
@@ -702,20 +755,20 @@ const Analytics = () => {
         </div>
       </div>
 
-      {/* ── FILTER RIBBON BAR (Years | Quarters | Months | Dept | Status | Severity | Theme - Ultra Compact) ── */}
-      <div className={`rounded-2xl p-2 sm:p-2.5 shadow-sm space-y-1.5 transition-all ${
+      {/* ── FILTER RIBBON BAR (Years | Quarters | Months | Dept | Status | Severity | Theme) ── */}
+      <div className={`rounded-2xl p-2.5 sm:p-3 shadow-sm space-y-2 transition-all ${
         isDark ? 'bg-slate-900/90 border border-slate-800 text-slate-200' : 'bg-white border border-slate-200 text-slate-800'
       }`}>
-        <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           
           {/* 1. Year Buttons */}
-          <div className={`flex items-center gap-0.5 p-0.5 rounded-lg ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+          <div className={`flex items-center gap-1 p-1 rounded-xl ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
             {availableYears.map(y => (
               <button
                 key={y}
                 type="button"
                 onClick={() => { setSelectedYear(y); setShowCustomDates(false); }}
-                className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
                   selectedYear === y && !showCustomDates ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -725,7 +778,7 @@ const Analytics = () => {
             <button
               type="button"
               onClick={() => { setSelectedYear('ALL'); setShowCustomDates(false); }}
-              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 selectedYear === 'ALL' && !showCustomDates ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -734,7 +787,7 @@ const Analytics = () => {
           </div>
 
           {/* 2. Quarters Buttons */}
-          <div className={`flex items-center gap-0.5 p-0.5 rounded-lg ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+          <div className={`flex items-center gap-1 p-1 rounded-xl ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
             {[
               { q: 1, labelAr: 'الربع 1', labelEn: 'Qtr 1' },
               { q: 2, labelAr: 'الربع 2', labelEn: 'Qtr 2' },
@@ -749,7 +802,7 @@ const Analytics = () => {
                   setSelectedMonth(null);
                   setShowCustomDates(false);
                 }}
-                className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                   selectedQuarter === item.q ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -767,7 +820,7 @@ const Analytics = () => {
                 setSelectedQuarter(null);
                 setShowCustomDates(false);
               }}
-              className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
                 isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
               }`}
             >
@@ -779,19 +832,19 @@ const Analytics = () => {
           </div>
 
           {/* 4. Department Dropdown */}
-          <div className="flex items-center gap-1 min-w-[140px]">
+          <div className="flex items-center gap-1 min-w-[150px]">
             {data.isDepRestricted ? (
-              <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold w-full ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold w-full ${
                 isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-100 border border-slate-200 text-slate-700'
               }`}>
-                <Lock size={11} className="text-amber-600" />
+                <Lock size={13} className="text-amber-600" />
                 <span className="truncate">{data.userDepartment ? (isRtl ? data.userDepartment.nameAr : data.userDepartment.name) : 'قسمي'}</span>
               </div>
             ) : (
               <select
                 value={selectedDepartment}
                 onChange={e => setSelectedDepartment(e.target.value)}
-                className={`w-full rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
+                className={`w-full rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
                   isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
                 }`}
               >
@@ -807,7 +860,7 @@ const Analytics = () => {
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
               isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
             }`}
           >
@@ -817,11 +870,11 @@ const Analytics = () => {
             <option value="CLOSED">{isRtl ? 'مغلقة (Closed)' : 'Closed'}</option>
           </select>
 
-          {/* 6. Severity Classification Filter (Updated to Moderate) */}
+          {/* 6. Severity Classification Filter */}
           <select
             value={selectedSeverity}
             onChange={e => setSelectedSeverity(e.target.value)}
-            className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
               isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
             }`}
           >
@@ -834,9 +887,9 @@ const Analytics = () => {
           {/* 7. Export Button */}
           <button
             onClick={handleExport}
-            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-sm flex-shrink-0"
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm flex-shrink-0"
           >
-            <Download size={12} /> {isRtl ? 'تصدير' : 'Export'}
+            <Download size={13} /> {isRtl ? 'تصدير' : 'Export'}
           </button>
 
           {/* 8. Theme Switcher */}
@@ -846,7 +899,7 @@ const Analytics = () => {
               setWallboardTheme(next);
               localStorage.setItem('hse_analytics_theme', next);
             }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border shadow-sm flex-shrink-0 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm flex-shrink-0 ${
               isDark
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                 : 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700'
@@ -862,10 +915,10 @@ const Analytics = () => {
               setIsExecutiveMode(true);
               toggleFullscreen();
             }}
-            className="flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-sm flex-shrink-0"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm flex-shrink-0"
             title={isRtl ? 'عرض شاشة المتابعة التنفيذية على كامل الشاشة بدون تمرير' : 'Display on TV/Wallboard'}
           >
-            <Tv size={12} /> {isRtl ? 'شاشة العرض' : 'Wallboard'}
+            <Tv size={14} /> {isRtl ? 'شاشة العرض' : 'Wallboard'}
           </button>
         </div>
       </div>
@@ -879,24 +932,24 @@ const Analytics = () => {
             ? 'bg-slate-900/90 border-2 border-red-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-red-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-red-200/80 dark:border-red-900/50 pb-1.5">
-            <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-1 text-red-600 dark:text-red-400">
+          <div className="flex items-center justify-between border-b border-red-200/80 dark:border-red-900/50 pb-1.5 mb-1">
+            <h3 className="text-sm sm:text-base font-black uppercase tracking-wide flex items-center gap-1.5 text-red-600 dark:text-red-400">
               <span>🧪</span>
               <span>{isRtl ? 'مؤشرات الملاحظات' : 'Incident Indicators'}</span>
             </h3>
-            <span className="text-[10px] bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 font-bold px-2 py-0.5 rounded-full font-mono">
+            <span className="text-xs sm:text-sm bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300 font-black px-2.5 py-0.5 rounded-full font-mono">
               {kpis.total} {isRtl ? 'إجمالي' : 'Total'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
             {/* 1. Total */}
             <VialCard
               icon="📊"
               label={isRtl ? 'المجموع' : 'Total'}
               count={kpis.total}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-slate-800 to-slate-600"
+              gradient="bg-gradient-to-t from-slate-800 to-slate-600"
               textColor="text-slate-800 dark:text-slate-200"
               borderColor="border-slate-500"
               fillColor="bg-slate-100 dark:bg-slate-800"
@@ -911,7 +964,7 @@ const Analytics = () => {
               label={isRtl ? 'تمت معالجتها' : 'Resolved'}
               count={kpis.resolved}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-emerald-700 to-emerald-500"
+              gradient="bg-gradient-to-t from-emerald-700 to-emerald-500"
               textColor="text-emerald-700 dark:text-emerald-300"
               borderColor="border-emerald-500"
               fillColor="bg-emerald-100 dark:bg-emerald-950/80"
@@ -926,7 +979,7 @@ const Analytics = () => {
               label={isRtl ? 'جاري المعالجة' : 'In Progress'}
               count={kpis.inProgress}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-amber-600 to-yellow-500"
+              gradient="bg-gradient-to-t from-amber-600 to-yellow-500"
               textColor="text-amber-700 dark:text-amber-300"
               borderColor="border-amber-500"
               fillColor="bg-amber-100 dark:bg-amber-950/80"
@@ -941,7 +994,7 @@ const Analytics = () => {
               label={isRtl ? 'وفق الخطة' : 'On Track'}
               count={kpis.onTrack}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-teal-700 to-cyan-500"
+              gradient="bg-gradient-to-t from-teal-700 to-cyan-500"
               textColor="text-teal-700 dark:text-teal-300"
               borderColor="border-teal-500"
               fillColor="bg-teal-100 dark:bg-teal-950/80"
@@ -956,7 +1009,7 @@ const Analytics = () => {
               label={isRtl ? 'متأخرة' : 'Overdue'}
               count={kpis.overdue}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-rose-700 to-rose-500"
+              gradient="bg-gradient-to-t from-rose-700 to-rose-500"
               textColor="text-rose-700 dark:text-rose-300"
               borderColor="border-rose-500"
               fillColor="bg-rose-100 dark:bg-rose-950/80"
@@ -971,7 +1024,7 @@ const Analytics = () => {
               label={isRtl ? 'عالية الخطورة' : 'Critical'}
               count={kpis.critical}
               total={kpis.total}
-              gradient="bg-gradient-to-r from-red-700 to-red-500"
+              gradient="bg-gradient-to-t from-red-700 to-red-500"
               textColor="text-red-700 dark:text-red-300"
               borderColor="border-red-600"
               fillColor="bg-red-100 dark:bg-red-950/80"
@@ -991,15 +1044,15 @@ const Analytics = () => {
         }`}>
           {/* Header */}
           <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5">
-            <div className="flex items-center gap-1.5">
-              <span className="p-1 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-lg">
-                <ListFilter size={16} />
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-lg">
+                <ListFilter size={18} />
               </span>
               <div>
-                <h3 className="text-xs sm:text-sm font-black text-amber-700 dark:text-amber-300">
+                <h3 className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-300">
                   {isRtl ? 'تفاصيل ومعاينة البلاغات' : 'Incident Details & Drilldown'}
                 </h3>
-                <p className="text-[9px] text-slate-400 font-semibold">
+                <p className="text-xs text-slate-400 font-semibold">
                   {activeFilter
                     ? (isRtl ? `تصفية: ${activeFilter.label}` : `Filter: ${activeFilter.label}`)
                     : (isRtl ? 'قائمة تفاعلية بالبلاغات حسب التصفية' : 'Live filtered incident stream')}
@@ -1007,15 +1060,15 @@ const Analytics = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {activeFilter && (
                 <button
                   type="button"
                   onClick={() => setActiveFilter(null)}
-                  className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 hover:bg-rose-200 flex items-center gap-0.5 border border-rose-200 dark:border-rose-900"
+                  className="text-xs font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 hover:bg-rose-200 flex items-center gap-1 border border-rose-200 dark:border-rose-900"
                   title={isRtl ? 'إلغاء التصفية' : 'Clear filter'}
                 >
-                  <X size={9} />
+                  <X size={11} />
                   <span>{isRtl ? 'إلغاء' : 'Clear'}</span>
                 </button>
               )}
@@ -1025,24 +1078,24 @@ const Analytics = () => {
                 title={isRtl ? 'اختبار وميض التحديث اللحظي' : 'Test pulse animation'}
                 className="p-1 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-all"
               >
-                <Sparkles size={13} />
+                <Sparkles size={15} />
               </button>
-              <span className="text-[11px] bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono font-black px-2 py-0.5 rounded-full">
+              <span className="text-xs sm:text-sm bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono font-black px-2.5 py-0.5 rounded-full">
                 {filteredDetailsList.length}
               </span>
             </div>
           </div>
 
           {/* Scrollable Incidents List (Compact max-h 280px) */}
-          <div className="space-y-1.5 max-h-[260px] sm:max-h-[280px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[260px] sm:max-h-[280px] overflow-y-auto pr-1">
             {filteredDetailsList.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                <FileWarning size={24} className="mx-auto mb-1.5 opacity-50 text-amber-500" />
+              <div className="text-center py-8 text-slate-400 text-sm">
+                <FileWarning size={28} className="mx-auto mb-2 opacity-50 text-amber-500" />
                 <p className="font-bold">{isRtl ? 'لا توجد بلاغات تطابق التصفية الحالية' : 'No incidents match current filter'}</p>
                 {activeFilter && (
                   <button
                     onClick={() => setActiveFilter(null)}
-                    className="mt-1.5 text-blue-500 hover:underline text-[10px] font-bold"
+                    className="mt-2 text-blue-500 hover:underline text-xs font-bold"
                   >
                     {isRtl ? 'إعادة ضبط التصفية' : 'Reset filter'}
                   </button>
@@ -1078,41 +1131,41 @@ const Analytics = () => {
                   <div
                     key={item.id || item.ticketNo}
                     onClick={() => item.id && navigate(`/incidents/${item.id}`)}
-                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
                       isDark
                         ? 'bg-slate-950/70 border-slate-800 hover:border-amber-500/60 hover:bg-slate-900'
                         : 'bg-slate-50 border-slate-200/90 hover:border-amber-400 hover:bg-white hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="font-mono text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono text-xs font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
                           {item.ticketNo || `#${item.id?.substring(0, 6)}`}
                         </span>
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${unitBadge.bg}`}>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${unitBadge.bg}`}>
                           {unitBadge.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${sevBadge.bg}`}>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`text-xs font-black px-2 py-0.5 rounded ${sevBadge.bg}`}>
                           {sevBadge.text}
                         </span>
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${statusBadge.bg}`}>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full ${statusBadge.bg}`}>
                           {statusBadge.text}
                         </span>
                       </div>
                     </div>
 
-                    <p className={`text-[11px] font-bold line-clamp-1 mb-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    <p className={`text-xs sm:text-sm font-black line-clamp-1 mb-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
                       {item.title}
                     </p>
 
-                    <div className="flex items-center justify-between text-[9px] text-slate-400 font-medium">
-                      <span className="truncate max-w-[170px]">
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
+                      <span className="truncate max-w-[200px]">
                         🏢 {isRtl ? (item.departmentNameAr || item.departmentName) : item.departmentName}
                       </span>
                       {item.createdAt && (
-                        <span className="font-mono">
+                        <span className="font-mono text-xs">
                           {new Date(item.createdAt).toLocaleDateString(isRtl ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
                         </span>
                       )}
@@ -1131,23 +1184,23 @@ const Analytics = () => {
             : 'bg-white border-2 border-emerald-500/60 text-slate-900 shadow-sm'
         }`}>
           <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-1.5 px-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="p-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-lg">
-                <MapPin size={16} />
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-lg">
+                <MapPin size={18} />
               </span>
               <div>
-                <h3 className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-300">
+                <h3 className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300">
                   {isRtl ? 'الخريطة التفاعلية المباشرة' : 'Live Incident Map'}
                 </h3>
-                <p className="text-[9px] text-slate-400 font-semibold">
+                <p className="text-xs text-slate-400 font-semibold">
                   {isRtl ? 'انقر على أي نقطة لعرض التفاصيل' : 'Click marker for details'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
-              <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs sm:text-sm bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>{data.mapCases?.length || 0} {isRtl ? 'موقع نشط' : 'Pins'}</span>
               </span>
             </div>
@@ -1159,7 +1212,7 @@ const Analytics = () => {
           </div>
 
           {/* Quick Location Landmarks Footer */}
-          <div className={`flex flex-wrap items-center justify-between text-[10px] px-2 py-1 font-black rounded-lg border ${
+          <div className={`flex flex-wrap items-center justify-between text-xs px-2.5 py-1.5 font-black rounded-lg border ${
             isDark ? 'bg-slate-950/60 border-slate-800 text-slate-400' : 'bg-slate-50/80 border-slate-100 text-slate-600'
           }`}>
             <span className="flex items-center gap-0.5">🏁 {isRtl ? 'جدة' : 'Jeddah'}</span>
@@ -1182,49 +1235,50 @@ const Analytics = () => {
             ? 'bg-slate-900/90 border-2 border-blue-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-blue-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-blue-900/50 pb-1.5">
-            <h3 className="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-              <Users size={14} />
+          <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-blue-900/50 pb-1.5 mb-1">
+            <h3 className="text-sm sm:text-base font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+              <Building2 size={16} />
               <span>{isRtl ? 'حالة الملاحظات حسب الإدارة' : 'Status by Department'}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-mono">
+            <span className="text-xs text-slate-400 font-mono font-bold">
               {(data.deptStatusBreakdown || []).length} {isRtl ? 'إدارات' : 'depts'}
             </span>
           </div>
-          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
             {(data.deptStatusBreakdown || []).slice(0, 6).map((d: any) => {
               const isDeptActive = activeFilter?.type === 'DEPARTMENT' && (activeFilter?.key === d.id || activeFilter?.key === d.name || activeFilter?.key === d.nameAr);
               const deptName = isRtl ? (d.nameAr || d.name) : d.name;
               return (
-                <div
+                <HorizontalCapsule
                   key={d.id}
+                  label={deptName}
+                  icon={<Building2 size={13} className="text-blue-500" />}
+                  count={d.total}
+                  subText={`🟢${d.closed} 🟡${d.open}`}
+                  isActive={isDeptActive}
                   onClick={() => handleToggleFilter('DEPARTMENT', d.id || deptName, deptName)}
-                  className={`p-1.5 rounded-xl cursor-pointer transition-all ${
-                    isDeptActive
-                      ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-950/40 shadow-sm'
-                      : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-bold mb-0.5">
-                    <span className={`truncate max-w-[140px] text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{deptName}</span>
-                    <span className="font-mono text-[11px] font-black">{d.total}</span>
-                  </div>
-                  {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-2 flex overflow-hidden p-0.5 shadow-inner ${
-                    isDark ? 'bg-slate-800 border border-slate-700' : 'bg-slate-100 border border-slate-200'
-                  }`}>
-                    <div
-                      style={{ width: `${d.total > 0 ? (d.open / d.total) * 100 : 0}%` }}
-                      className="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-s-full transition-all"
-                      title={`${isRtl ? 'مفتوح' : 'Open'}: ${d.open}`}
-                    />
-                    <div
-                      style={{ width: `${d.total > 0 ? (d.closed / d.total) * 100 : 0}%` }}
-                      className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-e-full transition-all"
-                      title={`${isRtl ? 'مغلق' : 'Closed'}: ${d.closed}`}
-                    />
-                  </div>
-                </div>
+                  isDark={isDark}
+                  subBar={
+                    <div className={`relative w-full h-3 sm:h-3.5 rounded-full overflow-hidden p-0.5 shadow-inner border flex ${
+                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}>
+                      <div
+                        style={{ width: `${d.total > 0 ? (d.open / d.total) * 100 : 0}%` }}
+                        className="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-s-full transition-all relative overflow-hidden"
+                        title={`${isRtl ? 'مفتوح' : 'Open'}: ${d.open}`}
+                      >
+                        <div className="absolute inset-0 bg-white/25 opacity-40 animate-pulse" />
+                      </div>
+                      <div
+                        style={{ width: `${d.total > 0 ? (d.closed / d.total) * 100 : 0}%` }}
+                        className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-e-full transition-all relative overflow-hidden"
+                        title={`${isRtl ? 'مغلق' : 'Closed'}: ${d.closed}`}
+                      >
+                        <div className="absolute inset-0 bg-white/25 opacity-40 animate-pulse" />
+                      </div>
+                    </div>
+                  }
+                />
               );
             })}
           </div>
@@ -1236,27 +1290,19 @@ const Analytics = () => {
             ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5">
+          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5 mb-1">
             <div>
-              <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                <Search size={14} />
+              <h3 className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <Search size={16} />
                 <span>{isRtl ? 'مصدر اكتشاف الحادث' : 'How Was It Detected?'}</span>
               </h3>
             </div>
-            <span className="text-[10px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-full font-mono">
+            <span className="text-xs sm:text-sm font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full font-mono">
               {(data.detectionSourceStats || []).reduce((s: number, x: any) => s + x.count, 0)}
             </span>
           </div>
-          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
             {(data.detectionSourceStats || []).map((ds: any) => {
-              const max = Math.max(...(data.detectionSourceStats || []).map((x: any) => x.count), 1);
-              const pct = max > 0 ? Math.round((ds.count / max) * 100) : 0;
-              const bgMap: Record<string, string> = {
-                INSPECTION:           isDark ? 'bg-blue-950/40 border-blue-800/60' : 'bg-blue-50 border-blue-200',
-                AUDIT:                isDark ? 'bg-violet-950/40 border-violet-800/60' : 'bg-violet-50 border-violet-200',
-                INTERNAL_OBSERVATION: isDark ? 'bg-emerald-950/40 border-emerald-800/60' : 'bg-emerald-50 border-emerald-200',
-                EXTERNAL_SOURCE:      isDark ? 'bg-amber-950/40 border-amber-800/60' : 'bg-amber-50 border-amber-200',
-              };
               const badgeBg: Record<string, string> = {
                 INSPECTION:           'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-200',
                 AUDIT:                'bg-violet-100 text-violet-800 dark:bg-violet-900/80 dark:text-violet-200',
@@ -1271,27 +1317,16 @@ const Analytics = () => {
               };
 
               return (
-                <div key={ds.key} className={`rounded-xl border p-1.5 transition-all ${bgMap[ds.key] || (isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200')}`}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`flex items-center gap-1 text-[11px] font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                      <span className="text-xs">{ds.icon}</span>
-                      <span>{isRtl ? ds.labelAr : ds.labelEn}</span>
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${badgeBg[ds.key] || 'bg-slate-100 text-slate-700'}`}>
-                        {ds.count}
-                      </span>
-                      <span className="text-[9px] font-bold text-slate-400">{ds.percentage}%</span>
-                    </div>
-                  </div>
-                  {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-1.5 overflow-hidden p-0.5 shadow-inner ${isDark ? 'bg-slate-900/80' : 'bg-white/80'}`}>
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 shadow-sm ${gradientMap[ds.key] || 'bg-blue-500'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
+                <HorizontalCapsule
+                  key={ds.key}
+                  label={isRtl ? ds.labelAr : ds.labelEn}
+                  icon={ds.icon}
+                  count={ds.count}
+                  percentage={ds.percentage}
+                  gradient={gradientMap[ds.key] || 'bg-gradient-to-r from-blue-500 to-cyan-400'}
+                  badgeBg={badgeBg[ds.key]}
+                  isDark={isDark}
+                />
               );
             })}
           </div>
@@ -1303,16 +1338,16 @@ const Analytics = () => {
             ? 'bg-slate-900/90 border-2 border-cyan-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-cyan-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-cyan-200/60 dark:border-cyan-900/50 pb-1.5">
-            <h3 className="text-xs font-black text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
-              <Flame size={14} />
+          <div className="flex items-center justify-between border-b border-cyan-200/60 dark:border-cyan-900/50 pb-1.5 mb-1">
+            <h3 className="text-sm sm:text-base font-black text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+              <Flame size={16} />
               <span>{isRtl ? 'تصنيف الملاحظات' : 'Severity Classification'}</span>
             </h3>
-            <span className="text-[9px] text-slate-400 font-semibold">
+            <span className="text-xs text-slate-400 font-bold">
               {isRtl ? 'انقر للتصفية' : 'Filter'}
             </span>
           </div>
-          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
             {(data.severityDistribution || []).map((sev: any) => {
               const max = Math.max(...(data.severityDistribution || []).map((x: any) => x.count), 1);
               const isSevActive = activeFilter?.type === 'SEVERITY' && activeFilter?.key === sev.key;
@@ -1326,39 +1361,26 @@ const Analytics = () => {
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
                 : 'bg-gradient-to-r from-emerald-600 to-teal-400';
               const pct = Math.round((sev.count / max) * 100);
+              const badgeBg = sev.key === 'MAJOR'
+                ? 'bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300'
+                : isModerate
+                ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300'
+                : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300';
+              const icon = sev.key === 'MAJOR' ? '🚨' : isModerate ? '⚠️' : '🟢';
 
               return (
-                <div
+                <HorizontalCapsule
                   key={sev.key}
+                  label={label}
+                  icon={icon}
+                  count={sev.count}
+                  percentage={pct}
+                  gradient={gradient}
+                  badgeBg={badgeBg}
+                  isActive={isSevActive}
                   onClick={() => handleToggleFilter('SEVERITY', sev.key, label)}
-                  className={`p-1.5 rounded-xl cursor-pointer transition-all ${
-                    isSevActive
-                      ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-950/40 shadow-sm'
-                      : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-bold mb-0.5">
-                    <span className={`text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{label}</span>
-                    <div className="flex items-center gap-1 font-mono">
-                      <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
-                        sev.key === 'MAJOR' ? 'bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300' :
-                        isModerate ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300' :
-                        'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-                      }`}>
-                        {sev.count}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-2 overflow-hidden p-0.5 shadow-inner ${
-                    isDark ? 'bg-slate-800 border border-slate-700' : 'bg-slate-100 border border-slate-200'
-                  }`}>
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 shadow-sm ${gradient}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
+                  isDark={isDark}
+                />
               );
             })}
           </div>
@@ -1370,13 +1392,16 @@ const Analytics = () => {
             ? 'bg-slate-900/90 border-2 border-emerald-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-emerald-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-1.5">
-            <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-              <MapPin size={14} />
+          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-1.5 mb-1">
+            <h3 className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <MapPin size={16} />
               <span>{isRtl ? 'حالة الملاحظة حسب الموقع' : 'Incidents by Location'}</span>
             </h3>
+            <span className="text-xs text-slate-400 font-mono font-bold">
+              {(data.locationDistribution || []).length} {isRtl ? 'مواقع' : 'locs'}
+            </span>
           </div>
-          <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
             {(data.locationDistribution || []).map((loc: any, i: number) => {
               const max = Math.max(...(data.locationDistribution || []).map((x: any) => x.count), 1);
               const pct = Math.round((loc.count / max) * 100);
@@ -1388,21 +1413,16 @@ const Analytics = () => {
                 'bg-gradient-to-r from-indigo-600 to-purple-400',
               ];
               return (
-                <div key={i} className="space-y-1 p-1 rounded-xl">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className={`truncate max-w-[150px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{loc.name}</span>
-                    <span className="font-mono text-xs font-black">{loc.count}</span>
-                  </div>
-                  {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-2 overflow-hidden p-0.5 shadow-inner ${
-                    isDark ? 'bg-slate-800 border border-slate-700' : 'bg-slate-100 border border-slate-200'
-                  }`}>
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 shadow-sm ${gradients[i % gradients.length]}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
+                <HorizontalCapsule
+                  key={i}
+                  label={loc.name}
+                  icon="📍"
+                  count={loc.count}
+                  percentage={pct}
+                  gradient={gradients[i % gradients.length]}
+                  badgeBg="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300"
+                  isDark={isDark}
+                />
               );
             })}
           </div>

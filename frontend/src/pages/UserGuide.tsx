@@ -227,7 +227,7 @@ const UserGuide = () => {
         ],
         kpisTitle: 'المؤشرات والرسوم البيانية الرئيسية',
         kpis: [
-          { name: 'أسطوانات قياس الأداء (KPI Vials)', desc: 'عرض إجمالي الحوادث، التذاكر المفتوحة، التذاكر قيد المراجعة، والإجراءات المكتملة بأنابيب زجاجية سائلة ذات تأثيرات بصرية حية.' },
+          { name: 'أسطوانات قياس الأداء الأفقية العريضة (Horizontal KPI Cylinders)', desc: 'عرض إجمالي الحوادث، المعالجة، قيد المعالجة، وفق الخطة، المتأخرة، والحرجة عبر كبسولات زجاجية أفقية عريضة ثلاثية الأبعاد بأرقام واضحة وكبيرة ونسب مئوية ومستويات سائلة متفاعلة.' },
           { name: 'الالتزام بمواعيد الإغلاق (SLA Compliance)', desc: 'مقارنة دقيقة باللون الأخضر الموحد للحوادث المغلقة في الوقت المحدد (On-Time) مقابل اللون الأحمر للتذاكر المتأخرة (Overdue).' },
           { name: 'توزيع مستويات الخطورة الموحدة', desc: 'تصنيف رباعي دقيق: منخفض (Low / Minor)، متوسط (Medium / Moderate)، عالي (High / Major)، وحرج (Critical).' },
           { name: 'تحليل الأقسام وتكرار المخاطر', desc: 'أشرطة بيانية متدرجة وانسيابية توضح أكثر الأقسام نشاطاً وتوزيع أنواع البلاغات لاكتشاف الأنماط المتكررة.' }
@@ -450,7 +450,7 @@ const UserGuide = () => {
         ],
         kpisTitle: 'Core Metrics & Visualization Pillars',
         kpis: [
-          { name: 'KPI Cylinder Vials', desc: 'Live visual indicators for Total Incidents, Open Tickets, In Progress, and Completed Actions with fluid liquid animations.' },
+          { name: 'Wide Horizontal KPI Cylinders', desc: 'Live visual indicators for Total Incidents, Resolved, In Progress, On Track, Overdue, and Critical metrics with wide horizontal 3D glass liquid capsules and prominent numbers.' },
           { name: 'SLA On-Time vs Overdue Performance', desc: 'Unified green styling for on-time resolutions versus high-visibility red for overdue or SLA-breaching actions.' },
           { name: 'Unified Severity Spectrum', desc: 'Standardized four-tier tracking: Low / Minor, Medium / Moderate, High / Major, and Critical.' },
           { name: 'Departmental Distribution & Hazard Breakdown', desc: 'Smooth gradient bar charts identifying department workloads, recurring incident categories, and corrective action velocity.' }
