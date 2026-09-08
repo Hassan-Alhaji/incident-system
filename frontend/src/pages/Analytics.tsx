@@ -64,7 +64,7 @@ const VialCard: React.FC<VialCardProps> = ({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`flex flex-col items-center justify-between p-2 sm:p-2.5 rounded-2xl transition-all select-none relative ${
+      className={`flex flex-col items-center justify-between p-1.5 sm:p-2 rounded-2xl transition-all select-none relative ${
         onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-[0.98]' : ''
       } ${
         isFlashing
@@ -85,27 +85,27 @@ const VialCard: React.FC<VialCardProps> = ({
         </span>
       )}
 
-      <span className={`text-xs sm:text-[13px] font-black text-center mb-1.5 h-6 flex items-center justify-center leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+      <span className={`text-[11px] sm:text-xs font-black text-center mb-1 h-5 flex items-center justify-center leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
         {label}
       </span>
       
-      {/* 3D Glass Cylinder */}
-      <div className={`relative w-12 h-20 sm:w-14 sm:h-24 rounded-2xl border-2 ${borderColor} ${isDark ? 'bg-slate-950/80' : 'bg-slate-50/80'} overflow-hidden flex flex-col justify-end p-1 shadow-inner`}>
+      {/* 3D Glass Cylinder (Compact) */}
+      <div className={`relative w-10 h-14 sm:w-12 sm:h-16 rounded-xl border-2 ${borderColor} ${isDark ? 'bg-slate-950/80' : 'bg-slate-50/80'} overflow-hidden flex flex-col justify-end p-0.5 shadow-inner`}>
         {/* Liquid level */}
         <div 
-          className={`w-full rounded-xl transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
-          style={{ height: `${pct}%`, minHeight: '24px' }}
+          className={`w-full rounded-lg transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
+          style={{ height: `${pct}%`, minHeight: '18px' }}
         >
           {/* Subtle liquid shimmer */}
           <div className="absolute inset-0 bg-white/20 opacity-40 animate-pulse" />
-          <span className="font-black text-xs sm:text-sm text-white drop-shadow-sm z-10 font-mono">
+          <span className="font-black text-[11px] sm:text-xs text-white drop-shadow-sm z-10 font-mono">
             {count}
           </span>
         </div>
       </div>
 
-      <div className="mt-1.5 text-center">
-        <span className={`text-xs sm:text-sm font-black px-2.5 py-0.5 rounded-full ${fillColor} ${textColor} font-mono shadow-sm`}>
+      <div className="mt-1 text-center">
+        <span className={`text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-full ${fillColor} ${textColor} font-mono shadow-sm`}>
           {count}
         </span>
       </div>
@@ -482,104 +482,100 @@ const Analytics = () => {
 
   const dashboardBody = (
     <>
-      {/* ── TOP HEADER ROW: FIELD ENGAGEMENT | BRANDING & CONTROLS | DRILLDOWN DETAILS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+      {/* ── TOP HEADER ROW: FIELD ENGAGEMENT | BRANDING & CONTROLS | STATUS BY UNIT (Compact) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-2.5 items-stretch">
         
         {/* 1. FIELD ENGAGEMENT & AWARENESS BOX (Top Left - Purple outlined) */}
-        <div className="lg:col-span-3 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 border-2 border-indigo-500/40 rounded-3xl p-4 text-white shadow-lg flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-3 bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 border-2 border-indigo-500/40 rounded-2xl p-2.5 sm:p-3 text-white shadow-md flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="flex items-center justify-between border-b border-indigo-400/20 pb-2 mb-2">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-indigo-500/30 rounded-lg text-indigo-300">
-                <Users size={18} />
+          <div className="flex items-center justify-between border-b border-indigo-400/20 pb-1.5 mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="p-1 bg-indigo-500/30 rounded-lg text-indigo-300">
+                <Users size={15} />
               </span>
-              <h3 className="text-sm font-black tracking-wide text-indigo-100">
+              <h3 className="text-xs sm:text-sm font-black tracking-wide text-indigo-100">
                 {isRtl ? 'المشاركة والتوعية الميدانية' : 'Field Engagement & Awareness'}
               </h3>
             </div>
-            <span className="text-[10px] bg-indigo-500/30 text-indigo-200 font-bold px-2 py-0.5 rounded-full">
+            <span className="text-[9px] bg-indigo-500/30 text-indigo-200 font-bold px-1.5 py-0.5 rounded-full">
               {isRtl ? 'ربط لحظي' : 'Live'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-center my-1">
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-2">
-              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد السلامة' : 'Safety Reports'}</p>
-              <p className="text-lg font-black text-emerald-400 font-mono">{training.safetyHours || training.safetyIncidents || 0}</p>
+          <div className="grid grid-cols-2 gap-1.5 text-center my-0.5">
+            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-1.5">
+              <p className="text-[10px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد السلامة' : 'Safety Reports'}</p>
+              <p className="text-base font-black text-emerald-400 font-mono">{training.safetyHours || training.safetyIncidents || 0}</p>
             </div>
-            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-2">
-              <p className="text-[11px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد الأمن' : 'Security Reports'}</p>
-              <p className="text-lg font-black text-blue-400 font-mono">{training.securityHours || training.securityIncidents || 0}</p>
+            <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-1.5">
+              <p className="text-[10px] font-semibold text-indigo-200 mb-0.5">{isRtl ? 'رصد الأمن' : 'Security Reports'}</p>
+              <p className="text-base font-black text-blue-400 font-mono">{training.securityHours || training.securityIncidents || 0}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-indigo-400/20 mt-1 text-xs">
-            <div className="flex items-center gap-1.5 text-indigo-200 font-bold">
-              <span>👥 {training.traineesCount || training.uniqueReporters || 0}</span>
-              <span className="text-[10px] opacity-80">{isRtl ? 'المشاركون في الرصد' : 'Active Reporters'}</span>
+          <div className="flex items-center justify-between pt-1.5 border-t border-indigo-400/20 mt-0.5 text-xs">
+            <div className="flex items-center gap-1 text-indigo-200 font-bold">
+              <span className="text-[11px]">👥 {training.traineesCount || training.uniqueReporters || 0}</span>
+              <span className="text-[9px] opacity-80">{isRtl ? 'المشاركون' : 'Reporters'}</span>
             </div>
             <div className="text-end">
-              <span className="text-[10px] text-indigo-300 block">{isRtl ? 'إجمالي الرصد' : 'Total Observations'}</span>
-              <span className="text-sm font-black text-amber-300 font-mono">{training.totalHours || training.totalIncidents || 0}</span>
+              <span className="text-[9px] text-indigo-300 block leading-none">{isRtl ? 'إجمالي الرصد' : 'Total'}</span>
+              <span className="text-xs font-black text-amber-300 font-mono">{training.totalHours || training.totalIncidents || 0}</span>
             </div>
           </div>
         </div>
 
-        {/* 2. CENTER BRANDING & TITLE & ENLARGED LIVE CLOCK & CONTROLS */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-3xl p-4 text-white shadow-lg flex flex-col items-center justify-center text-center relative overflow-hidden">
-          <div className="w-12 h-12 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center ring-2 ring-white/20 mb-1.5 shadow-inner">
-            <ShieldCheck size={28} className="text-blue-400" />
+        {/* 2. CENTER BRANDING & TITLE & COMPACT LIVE CLOCK & CONTROLS */}
+        <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 border border-slate-800 rounded-2xl p-2.5 sm:p-3 text-white shadow-md flex flex-col items-center justify-center text-center relative overflow-hidden">
+          <div className="w-8 h-8 bg-white/10 backdrop-blur rounded-xl flex items-center justify-center ring-1 ring-white/20 mb-1 shadow-inner">
+            <ShieldCheck size={20} className="text-blue-400" />
           </div>
-          <h1 className="text-base sm:text-xl font-black tracking-tight text-white leading-tight mb-1">
+          <h1 className="text-xs sm:text-sm font-black tracking-tight text-white leading-tight mb-0.5">
             {isRtl ? 'لوحة مؤشرات وبلاغات الأمن والسلامة التنفيذية' : 'Executive HSE Incidents & Safety Dashboard'}
           </h1>
           
           {data.isDepRestricted && data.userDepartment ? (
-            <div className="my-1 inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-xs font-bold shadow-sm">
-              <Lock size={13} />
-              <span>{isRtl ? `لوحة مخصصة لإدارة: ${data.userDepartment.nameAr || data.userDepartment.name}` : `Scoped for Department: ${data.userDepartment.name}`}</span>
+            <div className="my-0.5 inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 rounded-full text-[10px] font-bold shadow-sm">
+              <Lock size={11} />
+              <span>{isRtl ? `إدارة: ${data.userDepartment.nameAr || data.userDepartment.name}` : `Dept: ${data.userDepartment.name}`}</span>
             </div>
           ) : (
-            <p className="text-blue-200/80 text-xs font-medium mb-1">
+            <p className="text-blue-200/80 text-[10px] font-medium mb-0.5">
               {isRtl ? 'الإدارة العامة للسلامة والأمن والمخاطر' : 'General Directorate of Safety & Security'}
             </p>
           )}
 
-          {/* ── Prominent Large Live Digital Clock ── */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 my-2 bg-slate-950/90 border border-slate-700/80 rounded-2xl px-4 py-2 shadow-inner w-full max-w-sm">
-            <div className="flex items-center gap-2">
-              <Clock size={22} className="text-emerald-400 animate-pulse" />
-              <span className="font-mono text-xl sm:text-2xl font-black text-white tracking-widest drop-shadow-md">
+          {/* ── Compact Unified Live Clock & Live Monitoring Badge ── */}
+          <div className="flex items-center justify-center gap-2 my-1 bg-slate-950/90 border border-slate-700/80 rounded-xl px-2.5 py-1 shadow-inner w-full max-w-sm">
+            <div className="flex items-center gap-1">
+              <Clock size={15} className="text-emerald-400 animate-pulse" />
+              <span className="font-mono text-sm sm:text-base font-black text-white tracking-wider">
                 {timeStr}
               </span>
             </div>
-            <div className="hidden sm:block h-6 w-px bg-slate-700" />
-            <span className="text-xs font-bold text-slate-300">
+            <div className="h-3.5 w-px bg-slate-700" />
+            <span className="text-[10px] font-bold text-slate-300">
               {dateStr}
             </span>
-          </div>
-
-          {/* ── Prominent Large LIVE Indicator Badge ── */}
-          <div className="inline-flex items-center gap-2 text-xs font-black text-emerald-300 bg-emerald-950/90 px-3.5 py-1.5 rounded-full border-2 border-emerald-500/60 shadow-lg shadow-emerald-500/25 mb-2">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span className="tracking-wider">{isRtl ? 'بث مباشر لحظي' : 'LIVE MONITORING'}</span>
+            <div className="h-3.5 w-px bg-slate-700" />
+            <div className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-950/90 px-2 py-0.5 rounded-full border border-emerald-500/60 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>{isRtl ? 'مباشر' : 'LIVE'}</span>
+            </div>
           </div>
 
           {/* Controls: Mode Switcher + Theme Switcher + Fullscreen */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700">
+          <div className="flex flex-wrap items-center justify-center gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
             <button
               onClick={() => setDashboardMode('EXECUTIVE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'EXECUTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '📊 اللوحة التنفيذية' : 'Executive View'}
             </button>
             <button
               onClick={() => setDashboardMode('CULTURE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${dashboardMode === 'CULTURE' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white'}`}
             >
               {isRtl ? '🎯 ثقافة السلامة' : 'Safety Culture'}
             </button>
@@ -591,7 +587,7 @@ const Analytics = () => {
                 setWallboardTheme(next);
                 localStorage.setItem('hse_analytics_theme', next);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${
+              className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all border flex items-center gap-1 ${
                 isDark
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                   : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
@@ -608,53 +604,53 @@ const Analytics = () => {
                 setIsExecutiveMode(true);
                 toggleFullscreen();
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1.5"
+              className="px-2 py-1 rounded-lg text-[11px] font-bold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm flex items-center gap-1"
               title={isRtl ? 'عرض شاشة المتابعة التنفيذية على كامل الشاشة بدون إخفاء أي بيانات' : 'Full Wallboard Mode'}
             >
-              <Tv size={14} />
-              <span>{isRtl ? '🖥️ تكبير الشاشة' : 'Wallboard'}</span>
+              <Tv size={12} />
+              <span>{isRtl ? '🖥️ تكبير' : 'Wallboard'}</span>
             </button>
           </div>
         </div>
 
-        {/* 3. UNITS STATUS & HIGH SEVERITY FOCUS (Top Right - Col-Span-5 - Moved here!) */}
-        <div className={`lg:col-span-5 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-3 transition-all ${
+        {/* 3. UNITS STATUS & HIGH SEVERITY FOCUS (Top Right - Col-Span-5 - Compact) */}
+        <div className={`lg:col-span-5 rounded-2xl p-2.5 sm:p-3 shadow-md flex flex-col justify-between space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
           <div>
-            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2 mb-2.5">
-              <h3 className="text-sm font-black uppercase tracking-wide flex items-center gap-2 text-amber-600 dark:text-amber-400">
+            <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5 mb-1.5">
+              <h3 className="text-xs sm:text-sm font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <span>📊</span>
                 <span>{isRtl ? 'حالة الملاحظات حسب الوحدة' : 'Status by Unit'}</span>
               </h3>
-              <div className="flex items-center gap-2 text-xs font-black">
+              <div className="flex items-center gap-1.5 text-[10px] font-black">
                 <span className="text-blue-600 dark:text-blue-400">{isRtl ? 'مفتوحة' : 'Open'}</span>
                 <span className="text-amber-600 dark:text-amber-400">{isRtl ? 'جاري' : 'In Prog'}</span>
                 <span className="text-emerald-600 dark:text-emerald-400">{isRtl ? 'مغلقة' : 'Closed'}</span>
               </div>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-1.5">
               {units.map((u: any) => (
-                <div key={u.key} className={`rounded-2xl p-2.5 transition-all ${
+                <div key={u.key} className={`rounded-xl p-1.5 sm:p-2 transition-all ${
                   isDark ? 'bg-slate-950/70 border border-slate-800/80' : 'bg-slate-50 border border-slate-100'
                 }`}>
-                  <div className="flex items-center justify-between mb-1.5 text-xs sm:text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{u.icon}</span>
-                      <span className={`font-black text-xs sm:text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
+                  <div className="flex items-center justify-between mb-1 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">{u.icon}</span>
+                      <span className={`font-black text-[11px] sm:text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{isRtl ? u.labelAr : u.labelEn}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs font-black font-mono">
-                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
-                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
+                    <div className="flex items-center gap-1 text-[10px] font-black font-mono">
+                      <span className="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-200/50 dark:border-blue-800/50">{u.open}</span>
+                      <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-800/50">{u.inProgress}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-800/50">{u.closed}</span>
                       <span className="text-slate-500 font-bold ml-0.5">({u.total})</span>
                     </div>
                   </div>
-                  {/* Modern Pill Stacked Progress Bar with smooth gradients */}
-                  <div className={`w-full rounded-full h-3.5 flex overflow-hidden p-0.5 shadow-inner ${
+                  {/* Modern Pill Stacked Progress Bar with smooth gradients (Compact h-2.5) */}
+                  <div className={`w-full rounded-full h-2.5 flex overflow-hidden p-0.5 shadow-inner ${
                     isDark ? 'bg-slate-900 border border-slate-800' : 'bg-slate-200/90 border border-slate-300/60'
                   }`}>
                     <div
@@ -678,22 +674,22 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* Bottom: Focus on High / Major Severity (عالية التصنيف) */}
-          <div className="pt-2 border-t border-amber-200/60 dark:border-slate-800">
-            <h4 className="text-xs font-black text-rose-600 dark:text-rose-400 mb-1.5 flex items-center gap-1.5">
+          {/* Bottom: Focus on High / Major Severity (عالية التصنيف - Compact) */}
+          <div className="pt-1.5 border-t border-amber-200/60 dark:border-slate-800">
+            <h4 className="text-[11px] font-black text-rose-600 dark:text-rose-400 mb-1 flex items-center gap-1">
               <span>⚠️</span>
               <span>{isRtl ? 'عالية التصنيف (Major Severity)' : 'Major Severity Focus'}</span>
             </h4>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-1.5 text-center">
               {units.map((u: any) => (
-                <div key={u.key} className={`rounded-2xl p-2 transition-all ${
+                <div key={u.key} className={`rounded-xl p-1.5 transition-all ${
                   isDark
                     ? 'bg-rose-950/40 border border-rose-800/50 text-rose-200'
                     : 'bg-red-50/80 border border-red-200 text-red-900 shadow-sm'
                 }`}>
-                  <span className="text-sm">{u.icon}</span>
-                  <p className="text-[11px] font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
-                  <p className="text-lg font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
+                  <span className="text-xs">{u.icon}</span>
+                  <p className="text-[10px] font-bold truncate mt-0.5">{isRtl ? u.labelAr : u.labelEn}</p>
+                  <p className="text-base font-black text-red-600 dark:text-red-400 font-mono">{u.major}</p>
                 </div>
               ))}
             </div>
@@ -701,20 +697,20 @@ const Analytics = () => {
         </div>
       </div>
 
-      {/* ── FILTER RIBBON BAR (Years | Quarters | Months | Dept | Status | Severity | Theme) ── */}
-      <div className={`rounded-2xl p-3.5 shadow-sm space-y-3 transition-all ${
+      {/* ── FILTER RIBBON BAR (Years | Quarters | Months | Dept | Status | Severity | Theme - Ultra Compact) ── */}
+      <div className={`rounded-2xl p-2 sm:p-2.5 shadow-sm space-y-1.5 transition-all ${
         isDark ? 'bg-slate-900/90 border border-slate-800 text-slate-200' : 'bg-white border border-slate-200 text-slate-800'
       }`}>
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           
           {/* 1. Year Buttons */}
-          <div className={`flex items-center gap-1 p-1 rounded-xl ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+          <div className={`flex items-center gap-0.5 p-0.5 rounded-lg ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
             {availableYears.map(y => (
               <button
                 key={y}
                 type="button"
                 onClick={() => { setSelectedYear(y); setShowCustomDates(false); }}
-                className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all ${
                   selectedYear === y && !showCustomDates ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -724,7 +720,7 @@ const Analytics = () => {
             <button
               type="button"
               onClick={() => { setSelectedYear('ALL'); setShowCustomDates(false); }}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
                 selectedYear === 'ALL' && !showCustomDates ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -733,7 +729,7 @@ const Analytics = () => {
           </div>
 
           {/* 2. Quarters Buttons */}
-          <div className={`flex items-center gap-1 p-1 rounded-xl ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
+          <div className={`flex items-center gap-0.5 p-0.5 rounded-lg ${isDark ? 'bg-slate-950' : 'bg-slate-100'}`}>
             {[
               { q: 1, labelAr: 'الربع 1', labelEn: 'Qtr 1' },
               { q: 2, labelAr: 'الربع 2', labelEn: 'Qtr 2' },
@@ -748,7 +744,7 @@ const Analytics = () => {
                   setSelectedMonth(null);
                   setShowCustomDates(false);
                 }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
                   selectedQuarter === item.q ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -758,7 +754,7 @@ const Analytics = () => {
           </div>
 
           {/* 3. Month Quick Select */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <select
               value={selectedMonth || ''}
               onChange={e => {
@@ -766,7 +762,7 @@ const Analytics = () => {
                 setSelectedQuarter(null);
                 setShowCustomDates(false);
               }}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none ${
+              className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
                 isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
               }`}
             >
@@ -778,19 +774,19 @@ const Analytics = () => {
           </div>
 
           {/* 4. Department Dropdown */}
-          <div className="flex items-center gap-1.5 min-w-[160px]">
+          <div className="flex items-center gap-1 min-w-[140px]">
             {data.isDepRestricted ? (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold w-full ${
+              <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold w-full ${
                 isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-100 border border-slate-200 text-slate-700'
               }`}>
-                <Lock size={12} className="text-amber-600" />
+                <Lock size={11} className="text-amber-600" />
                 <span className="truncate">{data.userDepartment ? (isRtl ? data.userDepartment.nameAr : data.userDepartment.name) : 'قسمي'}</span>
               </div>
             ) : (
               <select
                 value={selectedDepartment}
                 onChange={e => setSelectedDepartment(e.target.value)}
-                className={`w-full rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none ${
+                className={`w-full rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
                   isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
                 }`}
               >
@@ -806,13 +802,13 @@ const Analytics = () => {
           <select
             value={selectedStatus}
             onChange={e => setSelectedStatus(e.target.value)}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none ${
+            className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
               isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
             }`}
           >
             <option value="ALL">{isRtl ? '📌 جميع الحالات' : '📌 All Statuses'}</option>
             <option value="OPEN">{isRtl ? 'مفتوحة (Open)' : 'Open'}</option>
-            <option value="IN_PROGRESS">{isRtl ? 'جاري المعالجة (In Progress)' : 'In Progress'}</option>
+            <option value="IN_PROGRESS">{isRtl ? 'جاري المعالجة' : 'In Progress'}</option>
             <option value="CLOSED">{isRtl ? 'مغلقة (Closed)' : 'Closed'}</option>
           </select>
 
@@ -820,7 +816,7 @@ const Analytics = () => {
           <select
             value={selectedSeverity}
             onChange={e => setSelectedSeverity(e.target.value)}
-            className={`rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none ${
+            className={`rounded-lg px-2 py-1 text-[11px] font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
               isDark ? 'bg-slate-950 border border-slate-800 text-slate-200' : 'bg-slate-50 border border-slate-200 text-slate-700'
             }`}
           >
@@ -833,9 +829,9 @@ const Analytics = () => {
           {/* 7. Export Button */}
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm flex-shrink-0"
+            className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-sm flex-shrink-0"
           >
-            <Download size={13} /> {isRtl ? 'تصدير' : 'Export'}
+            <Download size={12} /> {isRtl ? 'تصدير' : 'Export'}
           </button>
 
           {/* 8. Theme Switcher */}
@@ -845,7 +841,7 @@ const Analytics = () => {
               setWallboardTheme(next);
               localStorage.setItem('hse_analytics_theme', next);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm flex-shrink-0 ${
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border shadow-sm flex-shrink-0 ${
               isDark
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                 : 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700'
@@ -861,25 +857,25 @@ const Analytics = () => {
               setIsExecutiveMode(true);
               toggleFullscreen();
             }}
-            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm flex-shrink-0"
+            className="flex items-center gap-1 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all shadow-sm flex-shrink-0"
             title={isRtl ? 'عرض شاشة المتابعة التنفيذية على كامل الشاشة بدون تمرير' : 'Display on TV/Wallboard'}
           >
-            <Tv size={13} /> {isRtl ? 'شاشة العرض' : 'Wallboard'}
+            <Tv size={12} /> {isRtl ? 'شاشة العرض' : 'Wallboard'}
           </button>
         </div>
       </div>
 
-      {/* ── MAIN CENTERPIECE SECTION: VIALS (LEFT 3 cols) | UNITS STATUS (CENTER 5 cols) | INTERACTIVE MAP (RIGHT 4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+      {/* ── CENTERPIECE 3-COLUMN ROW: VIALS (3 cols) | INCIDENT DRILLDOWN (5 cols) | LIVE MAP (4 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-2.5 items-stretch">
         
-        {/* ── 1. COLUMN LEFT (3 cols): 6 VIAL METRIC GAUGES (Red outlined) ── */}
-        <div className={`lg:col-span-3 rounded-3xl p-3 sm:p-3.5 shadow-sm flex flex-col justify-between space-y-2.5 transition-all ${
+        {/* ── 1. COLUMN LEFT (3 cols): 6 VIAL METRICS GAUGES ── */}
+        <div className={`lg:col-span-3 rounded-2xl p-2.5 sm:p-3 shadow-md flex flex-col justify-between space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-red-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-red-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-red-200/80 dark:border-red-900/50 pb-2">
-            <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-1.5 text-red-600 dark:text-red-400">
+          <div className="flex items-center justify-between border-b border-red-200/80 dark:border-red-900/50 pb-1.5">
+            <h3 className="text-xs font-black uppercase tracking-wide flex items-center gap-1 text-red-600 dark:text-red-400">
               <span>🧪</span>
               <span>{isRtl ? 'مؤشرات الملاحظات' : 'Incident Indicators'}</span>
             </h3>
@@ -888,7 +884,7 @@ const Analytics = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
             {/* 1. Total */}
             <VialCard
               label={isRtl ? 'المجموع' : 'Total'}
@@ -976,39 +972,39 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* ── 2. COLUMN CENTER (5 cols): INCIDENT DETAILS & DRILLDOWN (Moved to center!) ── */}
-        <div className={`lg:col-span-5 rounded-3xl p-3.5 shadow-sm flex flex-col justify-between space-y-2.5 transition-all ${
+        {/* ── 2. COLUMN CENTER (5 cols): INCIDENT DETAILS & DRILLDOWN (Compact max-h 280px) ── */}
+        <div className={`lg:col-span-5 rounded-2xl p-2.5 sm:p-3 shadow-md flex flex-col justify-between space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-xl">
-                <ListFilter size={18} />
+          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="p-1 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-lg">
+                <ListFilter size={16} />
               </span>
               <div>
-                <h3 className="text-sm font-black text-amber-700 dark:text-amber-300">
+                <h3 className="text-xs sm:text-sm font-black text-amber-700 dark:text-amber-300">
                   {isRtl ? 'تفاصيل ومعاينة البلاغات' : 'Incident Details & Drilldown'}
                 </h3>
-                <p className="text-[10px] text-slate-400 font-semibold">
+                <p className="text-[9px] text-slate-400 font-semibold">
                   {activeFilter
-                    ? (isRtl ? `تصفية نشطة: ${activeFilter.label}` : `Active filter: ${activeFilter.label}`)
+                    ? (isRtl ? `تصفية: ${activeFilter.label}` : `Filter: ${activeFilter.label}`)
                     : (isRtl ? 'قائمة تفاعلية بالبلاغات حسب التصفية' : 'Live filtered incident stream')}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {activeFilter && (
                 <button
                   type="button"
                   onClick={() => setActiveFilter(null)}
-                  className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 hover:bg-rose-200 flex items-center gap-1 border border-rose-200 dark:border-rose-900"
+                  className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 hover:bg-rose-200 flex items-center gap-0.5 border border-rose-200 dark:border-rose-900"
                   title={isRtl ? 'إلغاء التصفية' : 'Clear filter'}
                 >
-                  <X size={10} />
+                  <X size={9} />
                   <span>{isRtl ? 'إلغاء' : 'Clear'}</span>
                 </button>
               )}
@@ -1018,24 +1014,24 @@ const Analytics = () => {
                 title={isRtl ? 'اختبار وميض التحديث اللحظي' : 'Test pulse animation'}
                 className="p-1 rounded-lg text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 transition-all"
               >
-                <Sparkles size={14} />
+                <Sparkles size={13} />
               </button>
-              <span className="text-xs bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono font-black px-2.5 py-0.5 rounded-full">
+              <span className="text-[11px] bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono font-black px-2 py-0.5 rounded-full">
                 {filteredDetailsList.length}
               </span>
             </div>
           </div>
 
-          {/* Scrollable Incidents List */}
-          <div className="space-y-2 max-h-[440px] sm:max-h-[460px] overflow-y-auto pr-1">
+          {/* Scrollable Incidents List (Compact max-h 280px) */}
+          <div className="space-y-1.5 max-h-[260px] sm:max-h-[280px] overflow-y-auto pr-1">
             {filteredDetailsList.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 text-xs">
-                <FileWarning size={28} className="mx-auto mb-2 opacity-50 text-amber-500" />
+              <div className="text-center py-8 text-slate-400 text-xs">
+                <FileWarning size={24} className="mx-auto mb-1.5 opacity-50 text-amber-500" />
                 <p className="font-bold">{isRtl ? 'لا توجد بلاغات تطابق التصفية الحالية' : 'No incidents match current filter'}</p>
                 {activeFilter && (
                   <button
                     onClick={() => setActiveFilter(null)}
-                    className="mt-2 text-blue-500 hover:underline text-[11px] font-bold"
+                    className="mt-1.5 text-blue-500 hover:underline text-[10px] font-bold"
                   >
                     {isRtl ? 'إعادة ضبط التصفية' : 'Reset filter'}
                   </button>
@@ -1071,36 +1067,36 @@ const Analytics = () => {
                   <div
                     key={item.id || item.ticketNo}
                     onClick={() => item.id && navigate(`/incidents/${item.id}`)}
-                    className={`p-2.5 rounded-2xl border transition-all cursor-pointer ${
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
                       isDark
                         ? 'bg-slate-950/70 border-slate-800 hover:border-amber-500/60 hover:bg-slate-900'
                         : 'bg-slate-50 border-slate-200/90 hover:border-amber-400 hover:bg-white hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-mono text-[11px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
+                    <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="font-mono text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/60">
                           {item.ticketNo || `#${item.id?.substring(0, 6)}`}
                         </span>
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${unitBadge.bg}`}>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${unitBadge.bg}`}>
                           {unitBadge.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${sevBadge.bg}`}>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${sevBadge.bg}`}>
                           {sevBadge.text}
                         </span>
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${statusBadge.bg}`}>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${statusBadge.bg}`}>
                           {statusBadge.text}
                         </span>
                       </div>
                     </div>
 
-                    <p className={`text-xs font-bold line-clamp-1 mb-1 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    <p className={`text-[11px] font-bold line-clamp-1 mb-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                       {item.title}
                     </p>
 
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 font-medium">
                       <span className="truncate max-w-[170px]">
                         🏢 {isRtl ? (item.departmentNameAr || item.departmentName) : item.departmentName}
                       </span>
@@ -1117,65 +1113,65 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* ── 3. COLUMN RIGHT (4 cols): LIVE INTERACTIVE INCIDENT MAP (Green outlined - Enlarged!) ── */}
-        <div className={`lg:col-span-4 rounded-3xl p-3.5 shadow-md flex flex-col justify-between space-y-2 transition-all overflow-hidden ${
+        {/* ── 3. COLUMN RIGHT (4 cols): LIVE INTERACTIVE INCIDENT MAP (Compact 280px) ── */}
+        <div className={`lg:col-span-4 rounded-2xl p-2.5 sm:p-3 shadow-md flex flex-col justify-between space-y-1.5 transition-all overflow-hidden ${
           isDark
             ? 'bg-slate-900/90 border-2 border-emerald-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-emerald-500/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-2 px-1">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-xl">
-                <MapPin size={20} />
+          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-1.5 px-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="p-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 rounded-lg">
+                <MapPin size={16} />
               </span>
               <div>
-                <h3 className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300">
+                <h3 className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-300">
                   {isRtl ? 'الخريطة التفاعلية المباشرة' : 'Live Incident Map'}
                 </h3>
-                <p className="text-[11px] text-slate-400 font-semibold">
-                  {isRtl ? 'انقر على أي نقطة لعرض التفاصيل' : 'Click any marker to inspect details'}
+                <p className="text-[9px] text-slate-400 font-semibold">
+                  {isRtl ? 'انقر على أي نقطة لعرض التفاصيل' : 'Click marker for details'}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 font-mono">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>{data.mapCases?.length || 0} {isRtl ? 'موقع نشط' : 'Pins'}</span>
               </span>
             </div>
           </div>
 
-          {/* Expanded High-Resolution Map Container (Enlarged to 480-520px) */}
-          <div className={`rounded-2xl overflow-hidden border ${isDark ? 'border-slate-800' : 'border-slate-200/90'} h-[460px] sm:h-[500px] shadow-inner relative`}>
+          {/* Compact Map Container (260-280px to fit on single screen) */}
+          <div className={`rounded-xl overflow-hidden border ${isDark ? 'border-slate-800' : 'border-slate-200/90'} h-[260px] sm:h-[280px] shadow-inner relative`}>
             <AnalyticsMap cases={data.mapCases || []} isRtl={isRtl} />
           </div>
 
           {/* Quick Location Landmarks Footer */}
-          <div className={`flex flex-wrap items-center justify-between text-xs px-2.5 py-1.5 font-black rounded-xl border ${
+          <div className={`flex flex-wrap items-center justify-between text-[10px] px-2 py-1 font-black rounded-lg border ${
             isDark ? 'bg-slate-950/60 border-slate-800 text-slate-400' : 'bg-slate-50/80 border-slate-100 text-slate-600'
           }`}>
-            <span className="flex items-center gap-1">🏁 {isRtl ? 'حلبة جدة' : 'Jeddah'}</span>
-            <span className="flex items-center gap-1">🏢 {isRtl ? 'المقر الرئيسي' : 'HQ'}</span>
-            <span className="flex items-center gap-1">📍 {isRtl ? 'الرياض' : 'Riyadh'}</span>
-            <span className="flex items-center gap-1 text-red-500">🔴 {isRtl ? 'حرجة' : 'Major'}</span>
-            <span className="flex items-center gap-1 text-amber-500">🟠 {isRtl ? 'متوسطة' : 'Moderate'}</span>
-            <span className="flex items-center gap-1 text-emerald-500">🟢 {isRtl ? 'منخفضة' : 'Minor'}</span>
+            <span className="flex items-center gap-0.5">🏁 {isRtl ? 'جدة' : 'Jeddah'}</span>
+            <span className="flex items-center gap-0.5">🏢 {isRtl ? 'المقر' : 'HQ'}</span>
+            <span className="flex items-center gap-0.5">📍 {isRtl ? 'الرياض' : 'Riyadh'}</span>
+            <span className="flex items-center gap-0.5 text-red-500">🔴 {isRtl ? 'حرجة' : 'Major'}</span>
+            <span className="flex items-center gap-0.5 text-amber-500">🟠 {isRtl ? 'متوسطة' : 'Mod'}</span>
+            <span className="flex items-center gap-0.5 text-emerald-500">🟢 {isRtl ? 'منخفضة' : 'Minor'}</span>
           </div>
         </div>
 
       </div>
 
-      {/* ── BOTTOM 4-CARD ROW: DEPT STATUS (Blue) | DETECTION SOURCE (Yellow) | SEVERITY (Cyan) | LOCATION (Green) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* ── BOTTOM 4-CARD ROW: DEPT STATUS (Blue) | DETECTION SOURCE (Yellow) | SEVERITY (Cyan) | LOCATION (Green) (Compact) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
         
         {/* CARD 1 (Bottom Left - Blue): حالة الملاحظات حسب الإدارة */}
-        <div className={`rounded-3xl p-4 shadow-sm space-y-3 transition-all ${
+        <div className={`rounded-2xl p-2.5 sm:p-3 shadow-sm space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-blue-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-blue-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-blue-900/50 pb-2">
+          <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-blue-900/50 pb-1.5">
             <h3 className="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
               <Users size={14} />
               <span>{isRtl ? 'حالة الملاحظات حسب الإدارة' : 'Status by Department'}</span>
@@ -1184,7 +1180,7 @@ const Analytics = () => {
               {(data.deptStatusBreakdown || []).length} {isRtl ? 'إدارات' : 'depts'}
             </span>
           </div>
-          <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
             {(data.deptStatusBreakdown || []).slice(0, 6).map((d: any) => {
               const isDeptActive = activeFilter?.type === 'DEPARTMENT' && (activeFilter?.key === d.id || activeFilter?.key === d.name || activeFilter?.key === d.nameAr);
               const deptName = isRtl ? (d.nameAr || d.name) : d.name;
@@ -1192,15 +1188,15 @@ const Analytics = () => {
                 <div
                   key={d.id}
                   onClick={() => handleToggleFilter('DEPARTMENT', d.id || deptName, deptName)}
-                  className={`p-2 rounded-2xl cursor-pointer transition-all ${
+                  className={`p-1.5 rounded-xl cursor-pointer transition-all ${
                     isDeptActive
                       ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-950/40 shadow-sm'
                       : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-bold mb-1">
-                    <span className={`truncate max-w-[140px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{deptName}</span>
-                    <span className="font-mono text-xs font-black">{d.total}</span>
+                  <div className="flex items-center justify-between text-xs font-bold mb-0.5">
+                    <span className={`truncate max-w-[140px] text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{deptName}</span>
+                    <span className="font-mono text-[11px] font-black">{d.total}</span>
                   </div>
                   {/* Modern Pill Progress Bar */}
                   <div className={`w-full rounded-full h-2 flex overflow-hidden p-0.5 shadow-inner ${
@@ -1224,26 +1220,23 @@ const Analytics = () => {
         </div>
 
         {/* CARD 2 (Yellow): كيف تم اكتشاف الملاحظة / الحادث؟ */}
-        <div className={`rounded-3xl p-4 shadow-sm space-y-3 transition-all ${
+        <div className={`rounded-2xl p-2.5 sm:p-3 shadow-sm space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-amber-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-amber-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-2">
+          <div className="flex items-center justify-between border-b border-amber-200/60 dark:border-amber-900/50 pb-1.5">
             <div>
               <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                 <Search size={14} />
                 <span>{isRtl ? 'مصدر اكتشاف الحادث' : 'How Was It Detected?'}</span>
               </h3>
-              <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                {isRtl ? 'طريقة اكتشاف الحادث أو الملاحظة' : 'Detection method'}
-              </p>
             </div>
             <span className="text-[10px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-full font-mono">
               {(data.detectionSourceStats || []).reduce((s: number, x: any) => s + x.count, 0)}
             </span>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
             {(data.detectionSourceStats || []).map((ds: any) => {
               const max = Math.max(...(data.detectionSourceStats || []).map((x: any) => x.count), 1);
               const pct = max > 0 ? Math.round((ds.count / max) * 100) : 0;
@@ -1267,21 +1260,21 @@ const Analytics = () => {
               };
 
               return (
-                <div key={ds.key} className={`rounded-2xl border p-2.5 transition-all ${bgMap[ds.key] || (isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200')}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`flex items-center gap-1.5 text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                      <span className="text-sm">{ds.icon}</span>
+                <div key={ds.key} className={`rounded-xl border p-1.5 transition-all ${bgMap[ds.key] || (isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200')}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`flex items-center gap-1 text-[11px] font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                      <span className="text-xs">{ds.icon}</span>
                       <span>{isRtl ? ds.labelAr : ds.labelEn}</span>
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${badgeBg[ds.key] || 'bg-slate-100 text-slate-700'}`}>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${badgeBg[ds.key] || 'bg-slate-100 text-slate-700'}`}>
                         {ds.count}
                       </span>
-                      <span className="text-[10px] font-bold text-slate-400">{ds.percentage}%</span>
+                      <span className="text-[9px] font-bold text-slate-400">{ds.percentage}%</span>
                     </div>
                   </div>
                   {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-2 overflow-hidden p-0.5 shadow-inner ${isDark ? 'bg-slate-900/80' : 'bg-white/80'}`}>
+                  <div className={`w-full rounded-full h-1.5 overflow-hidden p-0.5 shadow-inner ${isDark ? 'bg-slate-900/80' : 'bg-white/80'}`}>
                     <div
                       className={`h-full rounded-full transition-all duration-700 shadow-sm ${gradientMap[ds.key] || 'bg-blue-500'}`}
                       style={{ width: `${pct}%` }}
@@ -1294,21 +1287,21 @@ const Analytics = () => {
         </div>
 
         {/* CARD 3 (Cyan): تصنيف الملاحظات (Severity Levels - Clickable Drilldown) */}
-        <div className={`rounded-3xl p-4 shadow-sm space-y-3 transition-all ${
+        <div className={`rounded-2xl p-2.5 sm:p-3 shadow-sm space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-cyan-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-cyan-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-cyan-200/60 dark:border-cyan-900/50 pb-2">
+          <div className="flex items-center justify-between border-b border-cyan-200/60 dark:border-cyan-900/50 pb-1.5">
             <h3 className="text-xs font-black text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
               <Flame size={14} />
               <span>{isRtl ? 'تصنيف الملاحظات' : 'Severity Classification'}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-semibold">
-              {isRtl ? 'انقر للتصفية' : 'Click to filter'}
+            <span className="text-[9px] text-slate-400 font-semibold">
+              {isRtl ? 'انقر للتصفية' : 'Filter'}
             </span>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5 max-h-[125px] sm:max-h-[135px] overflow-y-auto pr-1">
             {(data.severityDistribution || []).map((sev: any) => {
               const max = Math.max(...(data.severityDistribution || []).map((x: any) => x.count), 1);
               const isSevActive = activeFilter?.type === 'SEVERITY' && activeFilter?.key === sev.key;
@@ -1327,16 +1320,16 @@ const Analytics = () => {
                 <div
                   key={sev.key}
                   onClick={() => handleToggleFilter('SEVERITY', sev.key, label)}
-                  className={`p-2 rounded-2xl cursor-pointer transition-all ${
+                  className={`p-1.5 rounded-xl cursor-pointer transition-all ${
                     isSevActive
                       ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-950/40 shadow-sm'
                       : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-bold mb-1">
-                    <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{label}</span>
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${
+                  <div className="flex items-center justify-between text-xs font-bold mb-0.5">
+                    <span className={`text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{label}</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
                         sev.key === 'MAJOR' ? 'bg-red-100 dark:bg-red-950/80 text-red-700 dark:text-red-300' :
                         isModerate ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300' :
                         'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
@@ -1346,7 +1339,7 @@ const Analytics = () => {
                     </div>
                   </div>
                   {/* Modern Pill Progress Bar */}
-                  <div className={`w-full rounded-full h-2.5 overflow-hidden p-0.5 shadow-inner ${
+                  <div className={`w-full rounded-full h-2 overflow-hidden p-0.5 shadow-inner ${
                     isDark ? 'bg-slate-800 border border-slate-700' : 'bg-slate-100 border border-slate-200'
                   }`}>
                     <div
@@ -1361,12 +1354,12 @@ const Analytics = () => {
         </div>
 
         {/* CARD 4 (Bottom Right - Green): حالة الملاحظة حسب الموقع */}
-        <div className={`rounded-3xl p-4 shadow-sm space-y-3 transition-all ${
+        <div className={`rounded-2xl p-2.5 sm:p-3 shadow-sm space-y-2 transition-all ${
           isDark
             ? 'bg-slate-900/90 border-2 border-emerald-500/40 text-slate-100 shadow-lg'
             : 'bg-white border-2 border-emerald-400/60 text-slate-900 shadow-sm'
         }`}>
-          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-2">
+          <div className="flex items-center justify-between border-b border-emerald-200/60 dark:border-emerald-900/50 pb-1.5">
             <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <MapPin size={14} />
               <span>{isRtl ? 'حالة الملاحظة حسب الموقع' : 'Incidents by Location'}</span>
@@ -1465,30 +1458,30 @@ const Analytics = () => {
   // ── EXECUTIVE WALLBOARD MODE (Single-Page Fullscreen with Command Bar) ─────
   if (isExecutiveMode) {
     return (
-      <div className={`fixed inset-0 z-50 overflow-y-auto p-3 sm:p-5 flex flex-col space-y-3.5 select-none ${
+      <div className={`fixed inset-0 z-50 overflow-y-auto p-2 sm:p-2.5 flex flex-col space-y-2 select-none ${
         isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
       } ${isRtl ? 'font-arabic dir-rtl' : 'font-sans dir-ltr'}`}>
         
-        {/* Top Wallboard Command Bar */}
-        <div className={`h-12 flex-shrink-0 flex items-center justify-between px-3.5 sm:px-4 rounded-2xl backdrop-blur shadow-lg ${
+        {/* Top Wallboard Command Bar (Compact h-10) */}
+        <div className={`h-10 flex-shrink-0 flex items-center justify-between px-3 sm:px-3.5 rounded-xl backdrop-blur shadow-md ${
           isDark ? 'bg-slate-900/95 border border-slate-800' : 'bg-white border border-slate-200'
         }`}>
           {/* Left: Brand + Scope */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-500 shadow-inner">
-              <ShieldCheck size={20} />
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-500 shadow-inner">
+              <ShieldCheck size={16} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className={`text-xs sm:text-sm font-black tracking-wide ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <div className="flex items-center gap-1.5">
+                <h1 className={`text-[11px] sm:text-xs font-black tracking-wide ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {isRtl ? 'لوحة المتابعة التنفيذية المباشرة — HSE Command Center' : 'HSE Executive Command Center — Live Wallboard'}
                 </h1>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-500 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[9px] text-emerald-500 bg-emerald-50 dark:bg-emerald-950/80 px-1.5 py-0.2 rounded-full border border-emerald-500/30 font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                   <span>{isRtl ? 'مباشر' : 'Live'}</span>
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">
+              <p className="text-[9px] text-slate-400 font-medium leading-none">
                 {data.isDepRestricted && data.userDepartment
                   ? (isRtl ? `إدارة: ${data.userDepartment.nameAr || data.userDepartment.name}` : `Dept: ${data.userDepartment.name}`)
                   : (isRtl ? 'الإدارة العامة للسلامة والأمن والمخاطر' : 'General Directorate of Safety & Security')}
@@ -1497,16 +1490,16 @@ const Analytics = () => {
           </div>
 
           {/* Center: Live Digital Clock & Date */}
-          <div className="hidden md:flex flex-col items-center">
-            <div className={`flex items-center gap-2 font-mono font-black text-sm tracking-wider ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              <Clock size={14} className="text-emerald-500" />
+          <div className="hidden md:flex items-center gap-2 font-mono font-black text-xs tracking-wider">
+            <div className={`flex items-center gap-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              <Clock size={13} className="text-emerald-500" />
               <span>{timeStr}</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-medium">{dateStr}</span>
+            <span className="text-[10px] text-slate-400 font-medium">({dateStr})</span>
           </div>
 
           {/* Right: Theme Switcher + Fullscreen + Exit */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Theme Switcher */}
             <button
               type="button"
@@ -1515,7 +1508,7 @@ const Analytics = () => {
                 setWallboardTheme(next);
                 localStorage.setItem('hse_analytics_theme', next);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border shadow-sm ${
                 isDark
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
                   : 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700'
@@ -1523,7 +1516,7 @@ const Analytics = () => {
               title={isDark ? (isRtl ? 'التبديل إلى الوضع الأبيض' : 'Switch to Light') : (isRtl ? 'التبديل إلى الوضع الداكن' : 'Switch to Dark')}
             >
               <span>{isDark ? '☀️' : '🌙'}</span>
-              <span>{isDark ? (isRtl ? 'الوضع الأبيض' : 'Light Mode') : (isRtl ? 'الوضع الداكن' : 'Dark Mode')}</span>
+              <span>{isDark ? (isRtl ? 'أبيض' : 'Light') : (isRtl ? 'داكن' : 'Dark')}</span>
             </button>
 
             {/* Live Refresh */}
@@ -1531,11 +1524,11 @@ const Analytics = () => {
               type="button"
               onClick={() => fetchData(true)}
               title={isRtl ? 'تحديث لحظي الآن' : 'Live Refresh'}
-              className={`p-1.5 rounded-xl transition-all border ${
+              className={`p-1 rounded-lg transition-all border ${
                 isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
               }`}
             >
-              <RefreshCw size={14} className={refreshing ? 'animate-spin text-blue-500' : ''} />
+              <RefreshCw size={13} className={refreshing ? 'animate-spin text-blue-500' : ''} />
             </button>
 
             {/* Fullscreen Toggle */}
@@ -1543,11 +1536,11 @@ const Analytics = () => {
               type="button"
               onClick={toggleFullscreen}
               title={isFullscreen ? (isRtl ? 'إنهاء ملء الشاشة' : 'Exit Fullscreen') : (isRtl ? 'ملء الشاشة' : 'Fullscreen')}
-              className={`p-1.5 rounded-xl transition-all border ${
+              className={`p-1 rounded-lg transition-all border ${
                 isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
               }`}
             >
-              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
 
             {/* Exit Wallboard */}
@@ -1559,9 +1552,9 @@ const Analytics = () => {
                   document.exitFullscreen().catch(() => {});
                 }
               }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+              className="flex items-center gap-1 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm"
             >
-              <X size={13} />
+              <X size={12} />
               <span className="hidden sm:inline">{isRtl ? 'خروج' : 'Exit'}</span>
             </button>
           </div>
@@ -1575,8 +1568,8 @@ const Analytics = () => {
 
   // ── STANDARD VIEW ─────────────────────────────────────────────────────────
   return (
-    <div className={`space-y-4 pb-12 relative ${
-      isDark ? 'bg-slate-950 -mx-4 -mt-4 p-4 rounded-3xl text-slate-100' : 'text-slate-900'
+    <div className={`space-y-2.5 pb-8 relative ${
+      isDark ? 'bg-slate-950 -mx-4 -mt-4 p-3 rounded-3xl text-slate-100' : 'text-slate-900'
     } ${isRtl ? 'font-arabic dir-rtl' : 'font-sans dir-ltr'}`}>
       {dashboardBody}
     </div>
