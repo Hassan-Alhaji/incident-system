@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import { ShieldCheck, Mail, KeyRound, Globe, ArrowRight, CheckCircle2 } from 'lucide-react-native';
+import { ShieldCheck, Mail, KeyRound, Globe, ArrowRight, CheckCircle2, Zap } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, setApiBaseUrl, DEFAULT_API_BASE, LOCAL_DEV_API_BASE } from '../config';
 
@@ -23,12 +23,27 @@ WebBrowser.maybeCompleteAuthSession();
 export const LoginScreen: React.FC = () => {
   const { requestOtp, verifyOtp, loginWithSsoCode } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('reporter@system.com');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [customServerUrl, setCustomServerUrl] = useState(DEFAULT_API_BASE);
+
+  // 0. Quick Reporter Login for direct testing
+  const handleQuickReporterLogin = async () => {
+    try {
+      setLoading(true);
+      await setApiBaseUrl(LOCAL_DEV_API_BASE);
+      await requestOtp('reporter@system.com');
+      await verifyOtp('reporter@system.com', '000000');
+    } catch (e: any) {
+      const msg = e.response?.data?.message || e.message || 'تعذر الدخول السريع. يرجى التأكد من تشغيل السيرفر المحلي.';
+      Alert.alert('خطأ في الدخول', msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 1. Microsoft SSO Flow
   const handleMicrosoftSso = async () => {
@@ -122,6 +137,35 @@ export const LoginScreen: React.FC = () => {
 
         {/* Login Card */}
         <View style={styles.card}>
+          {/* Quick Reporter Test Login (Prominent One-Tap) */}
+          <TouchableOpacity
+            style={[styles.quickReporterButton, loading && styles.buttonDisabled]}
+            onPress={handleQuickReporterLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <>
+                <View style={styles.quickReporterIcon}>
+                  <Zap size={20} color="#ffffff" />
+                </View>
+                <View style={styles.quickReporterTextCol}>
+                  <Text style={styles.quickReporterTitle}>⚡ دخول سريع كـ مُبلّغ (Reporter)</Text>
+                  <Text style={styles.quickReporterSubtitle}>دخول فوري بحساب الاختبار reporter@system.com</Text>
+                </View>
+                <ArrowRight size={18} color="#38bdf8" />
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>أو الدخول بحساب آخر</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           {/* Microsoft SSO Primary Button */}
           <TouchableOpacity
             style={[styles.ssoButton, loading && styles.buttonDisabled]}
@@ -462,5 +506,47 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     textAlign: 'left',
+  },
+  quickReporterButton: {
+    backgroundColor: '#0369a1',
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickReporterIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#0284c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  quickReporterTextCol: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  quickReporterTitle: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  quickReporterSubtitle: {
+    color: '#bae6fd',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+    textAlign: 'right',
   },
 });

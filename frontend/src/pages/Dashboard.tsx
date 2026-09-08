@@ -54,7 +54,8 @@ interface Ticket {
 
 const PRIORITY_CONFIG: Record<string, { label: string; chipCls: string }> = {
   MINOR:       { label: 'Minor',       chipCls: 'bg-blue-100 text-blue-700' },
-  SIGNIFICANT: { label: 'Significant', chipCls: 'bg-amber-100 text-amber-700' },
+  SIGNIFICANT: { label: 'Moderate',    chipCls: 'bg-amber-100 text-amber-700' },
+  MODERATE:    { label: 'Moderate',    chipCls: 'bg-amber-100 text-amber-700' },
   MAJOR:       { label: 'Major',       chipCls: 'bg-orange-100 text-orange-700' },
   SEVERE:      { label: 'Severe',      chipCls: 'bg-red-100 text-red-700' },
 };

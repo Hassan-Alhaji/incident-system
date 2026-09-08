@@ -187,12 +187,16 @@ export const CreateReportScreen: React.FC<Props> = ({ onBack, onSuccess }) => {
       const incidentDate = now.toISOString().split('T')[0];
       const incidentTime = now.toTimeString().slice(0, 5);
 
+      const selectedTypeObj = INCIDENT_TYPES.find(t => t.id === incidentType);
+      const categoryTag = incidentType !== 'OBSERVATION' ? `[تصنيف المبلّغ: ${selectedTypeObj?.labelAr || incidentType}]\n` : '';
+      const finalDescription = `${categoryTag}${whatHappened.trim()}`;
+
       const payload = {
-        incidentType,
+        incidentType: 'OBSERVATION',
         incidentDate,
         incidentTime,
-        whatHappened: whatHappened.trim(),
-        hasInjury,
+        whatHappened: finalDescription,
+        hasInjury: Boolean(hasInjury),
         locationLat: locationCoords?.lat || null,
         locationLng: locationCoords?.lng || null,
         locationAddress: locationAddress || 'موقع محدد عبر الجوال',

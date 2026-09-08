@@ -559,7 +559,7 @@
   },
   "classification": {
     "MINOR": "Minor",
-    "SIGNIFICANT": "Significant",
+    "SIGNIFICANT": "Moderate",
     "MAJOR": "Major"
   },
   "analytics": {

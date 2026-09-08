@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import SafeStorage from '../utils/storage';
 import { User } from '../types';
 import { requestOtpApi, verifyOtpApi, redeemSsoCodeApi } from '../services/api';
 
@@ -29,8 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadStoredSession = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
-      const storedUser = await AsyncStorage.getItem(USER_KEY);
+      const storedToken = await SafeStorage.getItem(TOKEN_KEY);
+      const storedUser = await SafeStorage.getItem(USER_KEY);
       if (storedToken && storedUser) {
         setToken(storedToken);
         setUser(JSON.parse(storedUser));
@@ -48,9 +48,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyOtp = async (email: string, otp: string) => {
     const data = await verifyOtpApi(email, otp);
-    if (data.token && data.user) {
+    if (data.token) {
+      const userData = data.user || data;
       setToken(data.token);
-      setUser(data.user);
+      setUser(userData);
     }
     return data;
   };
@@ -65,8 +66,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    await AsyncStorage.removeItem(USER_KEY);
+    await SafeStorage.removeItem(TOKEN_KEY);
+    await SafeStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
   };

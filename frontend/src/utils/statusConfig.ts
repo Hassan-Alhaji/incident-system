@@ -1,6 +1,8 @@
 export const STATUS_CONFIG: Record<string, { label: string; accent: string; chip: string }> = {
   // Active backend statuses
-  SUBMITTED:              { label: 'Submitted',            accent: '#3b82f6', chip: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  OPEN:                   { label: 'Open',                 accent: '#3b82f6', chip: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  SUBMITTED:              { label: 'Open',                 accent: '#3b82f6', chip: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' },
+  IN_PROGRESS:            { label: 'In Progress',          accent: '#f59e0b', chip: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
   ASSIGNED:               { label: 'Assigned',             accent: '#f59e0b', chip: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
   ASSIGNED_TO_HR:         { label: 'Assigned to HR',       accent: '#8b5cf6', chip: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200' },
   UNDER_REVIEW:           { label: 'Under Review',         accent: '#6366f1', chip: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' },

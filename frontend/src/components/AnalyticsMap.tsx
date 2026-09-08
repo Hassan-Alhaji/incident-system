@@ -63,6 +63,7 @@ interface MapCase {
 interface AnalyticsMapProps {
   cases: MapCase[];
   isRtl: boolean;
+  className?: string;
 }
 
 const MapBounds: React.FC<{ cases: MapCase[] }> = ({ cases }) => {
@@ -78,7 +79,43 @@ const MapBounds: React.FC<{ cases: MapCase[] }> = ({ cases }) => {
   return null;
 };
 
-const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl }) => {
+const getSeverityLabel = (severity: string, isRtl: boolean) => {
+  switch (severity) {
+    case 'FATAL':
+    case 'CRITICAL':
+    case 'SEVERE':
+    case 'MAJOR':
+      return isRtl ? 'حرجة / عالية' : 'Major';
+    case 'SIGNIFICANT':
+    case 'MODERATE':
+      return isRtl ? 'متوسطة' : 'Significant';
+    case 'MINOR':
+    default:
+      return isRtl ? 'منخفضة' : 'Minor';
+  }
+};
+
+const getStatusLabel = (status: string, isRtl: boolean) => {
+  switch (status) {
+    case 'CLOSED':
+      return isRtl ? 'مغلقة' : 'Closed';
+    case 'SUBMITTED':
+      return isRtl ? 'جديدة' : 'Submitted';
+    case 'ASSIGNED':
+    case 'UNDER_REVIEW':
+    case 'IN_PROGRESS':
+    case 'PENDING_REMINDER':
+    case 'ESCALATED':
+    case 'RETURNED_TO_DEPARTMENT':
+      return isRtl ? 'جاري المعالجة' : 'In Progress';
+    case 'RETURNED_TO_REPORTER':
+      return isRtl ? 'معادة للراصد' : 'Returned';
+    default:
+      return status;
+  }
+};
+
+const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl, className }) => {
   const navigate = useNavigate();
   const validCases = cases.filter(c => c.locationLat && c.locationLng);
 
@@ -86,7 +123,7 @@ const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl }) => {
   const defaultCenter: [number, number] = [23.8859, 45.0792];
 
   return (
-    <div className="w-full h-[400px] md:h-[550px] rounded-xl overflow-hidden shadow-inner border border-slate-200 relative">
+    <div className={className || "w-full h-[400px] md:h-[550px] rounded-xl overflow-hidden shadow-inner border border-slate-200 relative"}>
       <MapContainer center={defaultCenter} zoom={5} className="w-full h-full z-0">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -106,10 +143,10 @@ const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl }) => {
                     <p className="font-bold text-slate-800 text-sm mb-1">{c.ticketNo}</p>
                     <div className="flex gap-2 text-xs mb-2">
                       <span className="font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: color, color: 'white' }}>
-                        {c.severityLevel}
+                        {getSeverityLabel(c.severityLevel, isRtl)}
                       </span>
                       <span className="font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                        {c.status}
+                        {getStatusLabel(c.status, isRtl)}
                       </span>
                     </div>
                     {c.location && <p className="text-xs text-slate-500 mb-3">{c.location}</p>}

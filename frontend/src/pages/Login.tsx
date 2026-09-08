@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle, Globe, Mail, Loader2,
   UserPlus, LogIn, Phone, Lightbulb, ArrowLeft, CheckCircle2,
+  Smartphone, QrCode, Copy, Check, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import api from '../utils/api';
 import { getRandomSafetyTip } from '../utils/safetyTips';
@@ -39,6 +40,14 @@ const Login = () => {
 
   const [safetyTip, setSafetyTip] = useState(() => getRandomSafetyTip(currentLang));
   const [tipFade, setTipFade] = useState(true);
+  const [showMobileQR, setShowMobileQR] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  const handleCopyExpoUrl = () => {
+    navigator.clipboard.writeText('exp://192.168.8.24:8081');
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
 
   useEffect(() => { if (user) navigate('/dashboard'); }, [user, navigate]);
 
@@ -847,6 +856,108 @@ const Login = () => {
             >
               {safetyTip}
             </p>
+          </div>
+
+          {/* Mobile App (Expo Go) Preview Option */}
+          <div className="mt-8 pt-6 border-t border-slate-100" dir={isArabic ? 'rtl' : 'ltr'}>
+            <button
+              type="button"
+              onClick={() => setShowMobileQR(prev => !prev)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/60 hover:from-blue-100/70 hover:to-indigo-100/70 border border-blue-100/80 transition-all group text-right"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                  <Smartphone size={17} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-black text-slate-800">
+                      {isArabic ? 'تجربة تطبيق الجوال' : 'Try Mobile App'}
+                    </p>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-600/10 text-blue-600">
+                      Expo Go
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {isArabic ? 'امسح الرمز لتجربة رفع البلاغات' : 'Scan QR code to test reporting'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-slate-400 group-hover:text-slate-600 transition-colors">
+                {showMobileQR ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </button>
+
+            {showMobileQR && (
+              <div className="mt-3 p-4 rounded-2xl bg-slate-900 text-white shadow-xl shadow-slate-900/10 border border-slate-800 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <QrCode size={16} className="text-blue-400" />
+                    <span className="text-xs font-bold text-slate-200">
+                      {isArabic ? 'رمز الاستجابة السريعة (QR)' : 'Expo QR Code'}
+                    </span>
+                  </div>
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    {isArabic ? 'الخادم نشط' : 'Server Online'}
+                  </span>
+                </div>
+
+                {/* QR Code Image */}
+                <div className="bg-white p-2.5 rounded-xl flex items-center justify-center shadow-inner mx-auto max-w-[200px]">
+                  <img
+                    src="/api/expo-qr"
+                    alt="Expo Go QR"
+                    className="w-44 h-44 object-contain rounded-lg"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent('exp://192.168.8.24:8081');
+                    }}
+                  />
+                </div>
+
+                {/* Instructions */}
+                <div className="mt-3.5 space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-blue-400 font-bold">1.</span>
+                    <span>{isArabic ? 'امسح الكود بكاميرا الآيفون أو تطبيق Expo Go بالأندرويد.' : 'Scan with iPhone camera or Expo Go on Android.'}</span>
+                  </p>
+                  <p className="flex items-start gap-1.5">
+                    <span className="text-blue-400 font-bold">2.</span>
+                    <span>{isArabic ? 'تأكد من اتصال الجوال بنفس شبكة الـ Wi-Fi.' : 'Ensure device is on the same Wi-Fi network.'}</span>
+                  </p>
+                </div>
+
+                {/* Test Credentials Box */}
+                <div className="mt-3 p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-[11px]">
+                  <p className="text-slate-400 text-[10px] font-bold mb-1">
+                    {isArabic ? 'بيانات دخول المبلّغ التجريبية:' : 'Test Reporter Credentials:'}
+                  </p>
+                  <div className="flex items-center justify-between text-slate-200">
+                    <span>{isArabic ? 'البريد:' : 'Email:'} <code className="text-blue-300 font-mono">reporter@system.com</code></span>
+                    <span>OTP: <code className="text-emerald-400 font-bold font-mono">000000</code></span>
+                  </div>
+                </div>
+
+                {/* Copy URL Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyExpoUrl}
+                  className="mt-3 w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5"
+                >
+                  {copiedUrl ? (
+                    <>
+                      <Check size={13} className="text-emerald-400" />
+                      <span className="text-emerald-400">{isArabic ? 'تم نسخ الرابط!' : 'URL Copied!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} />
+                      <span>{isArabic ? 'نسخ رابط Expo يدوياً' : 'Copy Expo URL'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           <p className="text-center text-slate-400 text-xs mt-8">

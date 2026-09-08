@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import SafeStorage from '../utils/storage';
 import { getApiBaseUrl } from '../config';
 
 const TOKEN_KEY = '@hse_auth_token';
@@ -19,7 +19,7 @@ export const getApiClient = async (): Promise<AxiosInstance> => {
     });
 
     apiInstance.interceptors.request.use(async (config) => {
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      const token = await SafeStorage.getItem(TOKEN_KEY);
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -31,8 +31,8 @@ export const getApiClient = async (): Promise<AxiosInstance> => {
       async (err) => {
         if (err.response?.status === 401) {
           // Token expired, clear storage
-          await AsyncStorage.removeItem(TOKEN_KEY);
-          await AsyncStorage.removeItem(USER_KEY);
+          await SafeStorage.removeItem(TOKEN_KEY);
+          await SafeStorage.removeItem(USER_KEY);
         }
         return Promise.reject(err);
       }
@@ -51,8 +51,11 @@ export const verifyOtpApi = async (email: string, otp: string) => {
   const client = await getApiClient();
   const res = await client.post('/auth/otp/verify', { email, otp });
   if (res.data.token) {
-    await AsyncStorage.setItem(TOKEN_KEY, res.data.token);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
+    const { token, ...userObj } = res.data;
+    const userData = res.data.user || userObj;
+    await SafeStorage.setItem(TOKEN_KEY, token);
+    await SafeStorage.setItem(USER_KEY, JSON.stringify(userData));
+    return { token, user: userData, ...res.data };
   }
   return res.data;
 };
@@ -61,8 +64,8 @@ export const redeemSsoCodeApi = async (code: string) => {
   const client = await getApiClient();
   const res = await client.get(`/auth/sso-exchange?code=${encodeURIComponent(code)}`);
   if (res.data.token) {
-    await AsyncStorage.setItem(TOKEN_KEY, res.data.token);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
+    await SafeStorage.setItem(TOKEN_KEY, res.data.token);
+    await SafeStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
   }
   return res.data;
 };

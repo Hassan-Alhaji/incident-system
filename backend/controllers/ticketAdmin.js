@@ -793,7 +793,7 @@ const getAnalytics = async (req, res) => {
 
             severityDistribution: [
                 { key: 'MAJOR', labelAr: 'عالية (Major)', labelEn: 'Major (High)', count: tickets.filter(t => t.severityLevel === 'MAJOR').length, color: '#ef4444' },
-                { key: 'SIGNIFICANT', labelAr: 'متوسطة (Significant)', labelEn: 'Significant (Medium)', count: tickets.filter(t => t.severityLevel === 'SIGNIFICANT').length, color: '#f59e0b' },
+                { key: 'SIGNIFICANT', labelAr: 'متوسطة (Moderate)', labelEn: 'Moderate', count: tickets.filter(t => t.severityLevel === 'SIGNIFICANT').length, color: '#f59e0b' },
                 { key: 'MINOR', labelAr: 'منخفضة (Minor)', labelEn: 'Minor (Low)', count: tickets.filter(t => !t.severityLevel || t.severityLevel === 'MINOR').length, color: '#10b981' }
             ],
 

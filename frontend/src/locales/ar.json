@@ -196,7 +196,7 @@
     "RED": "أحمر (عالي)",
     "GREEN": "أخضر (منخفض)",
     "MINOR": "بسيط",
-    "SIGNIFICANT": "مؤثر",
+    "SIGNIFICANT": "متوسطة (Moderate)",
     "MAJOR": "جسيم",
     "SEVERE": "شديد الخطورة"
   },
@@ -565,7 +565,7 @@
   },
   "classification": {
     "MINOR": "بسيط (Minor)",
-    "SIGNIFICANT": "مؤثر (Significant)",
+    "SIGNIFICANT": "متوسطة (Moderate)",
     "MAJOR": "جسيم (Major)"
   },
   "analytics": {

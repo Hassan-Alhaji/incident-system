@@ -1,17 +1,18 @@
 // HSE Incident System - Mobile App Configuration
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import SafeStorage from './utils/storage';
 
 // Default Server URL:
-// 1. Cloud UAT: https://hsedev.saudimotorsport.com
-// 2. Local LAN (when phone and PC are on same WiFi): http://192.168.1.60:3000
-export const DEFAULT_API_BASE = 'https://hsedev.saudimotorsport.com/api';
-export const LOCAL_DEV_API_BASE = 'http://192.168.1.60:3000/api';
+// 1. Local LAN: http://10.15.101.245:3000/api
+// 2. Cloud UAT: https://hsedev.saudimotorsport.com/api
+export const DEFAULT_API_BASE = 'http://10.15.101.245:3000/api';
+export const LOCAL_DEV_API_BASE = 'http://10.15.101.245:3000/api';
+export const CLOUD_UAT_API_BASE = 'https://hsedev.saudimotorsport.com/api';
 
 const API_SERVER_KEY = '@hse_api_server_url';
 
 export const getApiBaseUrl = async (): Promise<string> => {
   try {
-    const saved = await AsyncStorage.getItem(API_SERVER_KEY);
+    const saved = await SafeStorage.getItem(API_SERVER_KEY);
     return saved || DEFAULT_API_BASE;
   } catch {
     return DEFAULT_API_BASE;
@@ -19,5 +20,5 @@ export const getApiBaseUrl = async (): Promise<string> => {
 };
 
 export const setApiBaseUrl = async (url: string): Promise<void> => {
-  await AsyncStorage.setItem(API_SERVER_KEY, url);
+  await SafeStorage.setItem(API_SERVER_KEY, url);
 };

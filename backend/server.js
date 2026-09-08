@@ -91,7 +91,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Rate Limiting
 const authLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
-    max: 10, // Max 10 attempts per IP
+    max: isProd ? 10 : 300, // in dev mode allow 300 so testing is never blocked
     message: { message: 'Too many authentication attempts. Please try again after 1 minute.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -145,6 +145,30 @@ app.use('/api/zones', require('./routes/zoneRoutes'));
 app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/service-providers', require('./routes/serviceProviderRoutes'));
 app.use('/api/maintenance', require('./routes/maintenanceRoutes'));
+
+// Expo Go QR Code endpoint for mobile LAN preview
+app.get('/api/expo-qr', async (req, res) => {
+    try {
+        const qrcode = require('qrcode');
+        const os = require('os');
+        const nets = os.networkInterfaces();
+        let detectedIp = '10.15.101.245';
+        for (const name of Object.keys(nets)) {
+            for (const net of nets[name]) {
+                if (net.family === 'IPv4' && !net.internal) {
+                    detectedIp = net.address;
+                    break;
+                }
+            }
+        }
+        const text = req.query.url || `exp://${detectedIp}:8081`;
+        const png = await qrcode.toBuffer(text, { width: 260, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+        res.type('image/png').send(png);
+    } catch (e) {
+        res.status(500).send(e.message);
+    }
+});
+
 app.get('/', (req, res) => {
     res.json({
         message: 'Incident System API is running',

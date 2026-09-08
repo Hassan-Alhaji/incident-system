@@ -53,7 +53,7 @@ export const ServiceProviderCard: React.FC<{ sp: any; rank: number; t: any; isRt
                             📋 {t('analytics.spv.dept', 'Dept')}: {isRtl ? sp.departmentAr || sp.department : sp.department}
                         </span>
                         <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${sp.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
-                            {sp.status === 'ACTIVE' ? '🟢' : '🔴'} {sp.status}
+                            {sp.status === 'ACTIVE' ? `🟢 ${isRtl ? 'نشط' : 'Active'}` : `🔴 ${isRtl ? 'غير نشط' : 'Inactive'}`}
                         </span>
                         <span className="text-[11px] bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-lg border border-slate-200">
                             {t('analytics.spv.total', 'Total')}: {sp.totalViolations} {t('analytics.spv.violations', 'violations')}

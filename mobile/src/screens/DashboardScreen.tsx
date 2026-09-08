@@ -189,6 +189,9 @@ export const DashboardScreen: React.FC<Props> = ({ onOpenNewTicket, onSelectTick
         <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
           <LogOut size={18} color="#ef4444" />
         </TouchableOpacity>
+        <View style={styles.serverBadge}>
+          <Text style={styles.serverBadgeText}>🟢 محلي (192.168.8.24)</Text>
+        </View>
         <View style={styles.userProfile}>
           <Text style={styles.userName}>{user?.name || 'الموظف الميداني'}</Text>
           <View style={styles.userRoleBadge}>
@@ -365,6 +368,19 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: '#1e293b',
     borderRadius: 10,
+  },
+  serverBadge: {
+    backgroundColor: '#0f291e',
+    borderColor: '#059669',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  serverBadgeText: {
+    color: '#34d399',
+    fontSize: 10,
+    fontWeight: '700',
   },
   newReportButton: {
     flexDirection: 'row',

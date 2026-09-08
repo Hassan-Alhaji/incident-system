@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "axios": "^1.20.0",
     "expo": "~57.0.20",
     "expo-auth-session": "^57.0.11",

@@ -124,7 +124,7 @@ export const ControllerSubmittedPanel = ({
                 <div className="grid grid-cols-3 gap-2">
                     {[
                         { value: 'MINOR', labelEn: 'Minor', labelAr: 'بسيط', icon: '🟢', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', activeBorder: 'border-emerald-500' },
-                        { value: 'SIGNIFICANT', labelEn: 'Significant', labelAr: 'مهم', icon: '🟡', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200', activeBorder: 'border-yellow-500' },
+                        { value: 'SIGNIFICANT', labelEn: 'Moderate', labelAr: 'متوسطة', icon: '🟡', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', activeBorder: 'border-amber-500' },
                         { value: 'MAJOR', labelEn: 'Major', labelAr: 'جسيم', icon: '🔴', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', activeBorder: 'border-red-500' }
                     ].map(sev => {
                         const isSelected = severityLevel === sev.value;

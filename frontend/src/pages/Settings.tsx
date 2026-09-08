@@ -41,7 +41,8 @@ const statusColors: Record<string, string> = {
 
 const Settings = () => {
  const { user } = useAuth();
- const { t } = useTranslation();
+ const { t, i18n } = useTranslation();
+ const isRtl = i18n.language === 'ar';
  const { showToast } = useToast();
  const [users, setUsers] = useState<any[]>([]);
  const [loading, setLoading] = useState(true);
@@ -155,15 +156,20 @@ const Settings = () => {
  };
 
  const handleDepartmentSubmit = async () => {
- setDepartmentError('');
- try {
-   if (editingDepartmentId) {
-     await api.put(`/departments/${editingDepartmentId}`, departmentFormData);
-   } else {
-     await api.post('/departments', departmentFormData);
-   }
-   setShowDepartmentModal(false); setEditingDepartmentId(null); fetchDepartments();
- } catch (err: any) { setDepartmentError(err.response?.data?.message || t('errors.failedCreateDept')); }
+    setDepartmentError('');
+    try {
+      if (editingDepartmentId) {
+        await api.put(`/departments/${editingDepartmentId}`, departmentFormData);
+      } else {
+        await api.post('/departments', departmentFormData);
+      }
+      setShowDepartmentModal(false);
+      setEditingDepartmentId(null);
+      fetchDepartments();
+    } catch (err: any) {
+      setDepartmentError(err.response?.data?.message || t('errors.failedCreateDept'));
+    }
+ };
 
  const syncDepartmentsFromAzure = async () => {
    if (syncingAzure) return;
@@ -186,7 +192,6 @@ const Settings = () => {
    }
  };
 
- };
  const openEditDepartment = (d: any) => {
    setEditingDepartmentId(d.id);
    setDepartmentFormData({
