@@ -6,7 +6,7 @@ import {
   FileText, CheckCircle2, Users, Search, HelpCircle,
   Clock, MapPin, Camera, ClipboardList, Send, Printer,
   ChevronDown, ChevronUp, LifeBuoy, Flame, CheckCircle,
-  ExternalLink, UserCheck, Sliders, Eye
+  ExternalLink, UserCheck, Sliders, Eye, BarChart3, Tv, Sun, Moon
 } from 'lucide-react';
 
 const UserGuide = () => {
@@ -14,7 +14,7 @@ const UserGuide = () => {
   const navigate = useNavigate();
   const isArabic = i18n.language.startsWith('ar');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'roles' | 'wizard' | 'workflow' | 'investigation' | 'faq'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'roles' | 'wizard' | 'workflow' | 'investigation' | 'analytics' | 'faq'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -40,6 +40,7 @@ const UserGuide = () => {
         wizard: 'خطوات رفع بلاغ',
         workflow: 'دورة حياة البلاغ',
         investigation: 'التحقيق والإجراءات (CAPA)',
+        analytics: 'التحليلات وشاشة العرض',
         faq: 'الأسئلة الشائعة',
       },
       overview: {
@@ -195,6 +196,43 @@ const UserGuide = () => {
           { title: 'إلزامية إرفاق دليل الإنجاز (Evidence Mandatory)', desc: 'لا يمكن إغلاق أي إجراء تصحيحي دون إرفاق صور تثبت معالجة الخلل (قبل / بعد).' }
         ]
       },
+      analytics: {
+        heading: 'التحليلات وشاشة العرض التنفيذية (Analytics & Wallboard)',
+        desc: 'توفر المنصة مركز تحكم وتحليلات بيانية متقدمة تتيح للقيادة العليا ومسؤولي السلامة رصد المؤشرات الحيوية للحوادث، الخرائط الجغرافية، ونسب الإغلاق بشكل لحظي ومباشر.',
+        features: [
+          {
+            title: 'شاشة العرض التنفيذية (Executive Wallboard)',
+            desc: 'وضع شاشة كاملة مصمم خصيصاً للشاشات الكبيرة وغرف العمليات وقاعات الاجتماعات (Full HD & 4K)، يمنحك نظرة شاملة بنقرة واحدة عبر زر (تكبير الشاشة 🖥️) دون الحاجة للتمرير مع عرض كافة المخططات والتصنيفات بدقة متناهية.',
+            icon: Tv,
+            badge: 'شاشات العرض الكبيرة'
+          },
+          {
+            title: 'المظهر المزدوج (الوضع الداكن والفاتح)',
+            desc: 'إمكانية التبديل الفوري بين الوضع الليلي المظلم الفاخر المخصص لغرف المراقبة والتحكم، والوضع النهاري الأبيض المضيء والواضح للقاعات المضيئة والمكاتب عبر زر التبديل المخصص (☀️ / 🌙).',
+            icon: Sun,
+            badge: 'داكن / فاتح'
+          },
+          {
+            title: 'الخريطة التفاعلية المباشرة على اليمين',
+            desc: 'تتمركز الخريطة التفاعلية بشكل جانبي ثابت ومميز على الجانب الأيمن لعرض التوزيع الجغرافي الدقيق للبلاغات وأماكن تركز المخاطر في الحلبة والمرافق، مع إمكانية التكبير والتصغير وتحديد مواقع البلاغات بنقرة واحدة.',
+            icon: MapPin,
+            badge: 'خريطة تفاعلية'
+          },
+          {
+            title: 'التصفية الفورية والتحليل العميق (Zero-Lag Drilldown)',
+            desc: 'عند النقر على أي أسطوانة مؤشرات قياس (Vial) أو أي شريط بياني أو مستوى خطورة أو قسم، يُصفى جدول تفاصيل الحوادث أسفل الشاشة فورياً في الذاكرة بدون أي تأخير أو إعادة تحميل للصفحة.',
+            icon: BarChart3,
+            badge: 'تفاعل فوري'
+          }
+        ],
+        kpisTitle: 'المؤشرات والرسوم البيانية الرئيسية',
+        kpis: [
+          { name: 'أسطوانات قياس الأداء (KPI Vials)', desc: 'عرض إجمالي الحوادث، التذاكر المفتوحة، التذاكر قيد المراجعة، والإجراءات المكتملة بأنابيب زجاجية سائلة ذات تأثيرات بصرية حية.' },
+          { name: 'الالتزام بمواعيد الإغلاق (SLA Compliance)', desc: 'مقارنة دقيقة باللون الأخضر الموحد للحوادث المغلقة في الوقت المحدد (On-Time) مقابل اللون الأحمر للتذاكر المتأخرة (Overdue).' },
+          { name: 'توزيع مستويات الخطورة الموحدة', desc: 'تصنيف رباعي دقيق: منخفض (Low / Minor)، متوسط (Medium / Moderate)، عالي (High / Major)، وحرج (Critical).' },
+          { name: 'تحليل الأقسام وتكرار المخاطر', desc: 'أشرطة بيانية متدرجة وانسيابية توضح أكثر الأقسام نشاطاً وتوزيع أنواع البلاغات لاكتشاف الأنماط المتكررة.' }
+        ]
+      },
       faq: {
         heading: 'الأسئلة الأكثر شيوعاً (FAQ)',
         desc: 'إجابات على أهم الاستفسارات التقنية والتشغيلية في المنصة:',
@@ -225,6 +263,7 @@ const UserGuide = () => {
         wizard: 'Reporting Wizard',
         workflow: 'Incident Workflow',
         investigation: 'RCA & CAPA',
+        analytics: 'Analytics & Wallboard',
         faq: 'FAQ',
       },
       overview: {
@@ -380,6 +419,43 @@ const UserGuide = () => {
           { title: 'Mandatory Evidence Verification', desc: 'Actions cannot be signed off without verifiable photo/document proof (Before & After).' }
         ]
       },
+      analytics: {
+        heading: 'Analytics & Executive Wallboard',
+        desc: 'An advanced real-time business intelligence and monitoring dashboard designed for executive leadership and safety directors to track incident trends, geographic hotspots, and resolution SLAs.',
+        features: [
+          {
+            title: 'Executive Wallboard Mode',
+            desc: 'A dedicated zero-scroll full-screen dashboard optimized for operations centers, command rooms, and 4K displays. Launch instantly via the Wallboard button (🖥️) for an uncompromised view of all charts and metrics.',
+            icon: Tv,
+            badge: 'Big Screen Display'
+          },
+          {
+            title: 'Dual Theme Switcher (Light & Dark)',
+            desc: 'Seamlessly toggle between a sleek, high-contrast dark operations theme and a crisp, executive light theme via the sun/moon switcher (☀️ / 🌙) to suit any viewing environment or lighting condition.',
+            icon: Sun,
+            badge: 'Dark / Light'
+          },
+          {
+            title: 'Live Interactive Map on the Right',
+            desc: 'A dedicated, right-aligned interactive map visualizes real-time incident geolocations, track areas, and facility density clusters with immediate click-to-view interaction.',
+            icon: MapPin,
+            badge: 'Real-time Map'
+          },
+          {
+            title: 'Zero-Lag Interactive Drilldown',
+            desc: 'Clicking any KPI cylinder vial, bar chart, severity pill, or department instantly filters the detailed incidents table in-memory with zero latency and no server roundtrips.',
+            icon: BarChart3,
+            badge: 'Instant Filter'
+          }
+        ],
+        kpisTitle: 'Core Metrics & Visualization Pillars',
+        kpis: [
+          { name: 'KPI Cylinder Vials', desc: 'Live visual indicators for Total Incidents, Open Tickets, In Progress, and Completed Actions with fluid liquid animations.' },
+          { name: 'SLA On-Time vs Overdue Performance', desc: 'Unified green styling for on-time resolutions versus high-visibility red for overdue or SLA-breaching actions.' },
+          { name: 'Unified Severity Spectrum', desc: 'Standardized four-tier tracking: Low / Minor, Medium / Moderate, High / Major, and Critical.' },
+          { name: 'Departmental Distribution & Hazard Breakdown', desc: 'Smooth gradient bar charts identifying department workloads, recurring incident categories, and corrective action velocity.' }
+        ]
+      },
       faq: {
         heading: 'Frequently Asked Questions (FAQ)',
         desc: 'Quick answers to common operational and technical questions:',
@@ -477,6 +553,7 @@ const UserGuide = () => {
               { id: 'wizard', label: tLang.tabs.wizard, icon: ClipboardList },
               { id: 'workflow', label: tLang.tabs.workflow, icon: Sliders },
               { id: 'investigation', label: tLang.tabs.investigation, icon: Search },
+              { id: 'analytics', label: tLang.tabs.analytics, icon: BarChart3 },
               { id: 'faq', label: tLang.tabs.faq, icon: HelpCircle },
             ].map(tab => {
               const active = activeTab === tab.id;
@@ -685,7 +762,70 @@ const UserGuide = () => {
           </div>
         )}
 
-        {/* 6. FAQ */}
+        {/* 6. ANALYTICS & WALLBOARD */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-8">
+            <div className="bg-white rounded-2xl p-6 lg:p-8 border border-slate-200/80 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5">
+                  <BarChart3 className="text-blue-600" size={22} />
+                  <span>{tLang.analytics.heading}</span>
+                </h2>
+                <button
+                  onClick={() => navigate('/analytics')}
+                  className="inline-flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all self-start sm:self-auto"
+                >
+                  <span>{isArabic ? 'الانتقال لصفحة التحليلات' : 'Go to Analytics'}</span>
+                  <ExternalLink size={13} />
+                </button>
+              </div>
+              <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                {tLang.analytics.desc}
+              </p>
+
+              {/* Feature Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {tLang.analytics.features.map((feat, idx) => {
+                  const Icon = feat.icon;
+                  return (
+                    <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                            <Icon size={17} />
+                          </div>
+                          <h3 className="font-bold text-slate-900 text-sm">{feat.title}</h3>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 text-slate-700">
+                          {feat.badge}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">{feat.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* KPIs & Visualization breakdown */}
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b pb-2">
+                {tLang.analytics.kpisTitle}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {tLang.analytics.kpis.map((kpi, idx) => (
+                  <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-slate-50/70">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="font-bold text-slate-800 text-xs">{kpi.name}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{kpi.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 7. FAQ */}
         {activeTab === 'faq' && (
           <div className="bg-white rounded-2xl p-6 lg:p-8 border border-slate-200/80 shadow-sm">
             <h2 className="text-xl font-black text-slate-900 mb-2 flex items-center gap-2.5">
