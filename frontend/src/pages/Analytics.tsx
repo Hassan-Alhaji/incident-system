@@ -38,6 +38,7 @@ interface VialCardProps {
   textColor: string;
   borderColor: string;
   fillColor: string;
+  icon?: string;
   isActive?: boolean;
   onClick?: () => void;
   isDark?: boolean;
@@ -52,30 +53,31 @@ const VialCard: React.FC<VialCardProps> = ({
   textColor,
   borderColor,
   fillColor,
+  icon,
   isActive = false,
   onClick,
   isDark = false,
   isFlashing = false,
 }) => {
-  const pct = total > 0 ? Math.min(100, Math.max(12, Math.round((count / total) * 100))) : 15;
+  const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
 
   return (
     <div
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`flex flex-col items-center justify-between p-1.5 sm:p-2 rounded-2xl transition-all select-none relative ${
-        onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-[0.98]' : ''
+      className={`flex flex-col justify-between p-2 sm:p-2.5 rounded-2xl transition-all select-none relative w-full ${
+        onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
       } ${
         isFlashing
-          ? 'ring-4 ring-emerald-400 dark:ring-emerald-300 animate-pulse shadow-2xl shadow-emerald-500/80 scale-[1.05]'
+          ? 'ring-4 ring-emerald-400 dark:ring-emerald-300 animate-pulse shadow-2xl shadow-emerald-500/80 scale-[1.03]'
           : isActive
           ? 'ring-2 ring-blue-500 shadow-lg shadow-blue-500/30'
           : ''
       } ${
         isDark
-          ? 'bg-slate-900/90 border border-slate-800 text-slate-200 hover:border-slate-700 shadow-md'
-          : 'bg-white border border-slate-200/90 text-slate-800 shadow-sm hover:shadow-md'
+          ? 'bg-slate-900/95 border border-slate-800 text-slate-200 hover:border-slate-700 shadow-md'
+          : 'bg-white border border-slate-200 text-slate-800 shadow-sm hover:shadow-md'
       }`}
     >
       {isFlashing && (
@@ -85,29 +87,32 @@ const VialCard: React.FC<VialCardProps> = ({
         </span>
       )}
 
-      <span className={`text-[11px] sm:text-xs font-black text-center mb-1 h-5 flex items-center justify-center leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-        {label}
-      </span>
-      
-      {/* 3D Glass Cylinder (Compact) */}
-      <div className={`relative w-10 h-14 sm:w-12 sm:h-16 rounded-xl border-2 ${borderColor} ${isDark ? 'bg-slate-950/80' : 'bg-slate-50/80'} overflow-hidden flex flex-col justify-end p-0.5 shadow-inner`}>
-        {/* Liquid level */}
-        <div 
-          className={`w-full rounded-lg transition-all duration-700 ease-out flex items-center justify-center relative overflow-hidden ${gradient}`}
-          style={{ height: `${pct}%`, minHeight: '18px' }}
-        >
-          {/* Subtle liquid shimmer */}
-          <div className="absolute inset-0 bg-white/20 opacity-40 animate-pulse" />
-          <span className="font-black text-[11px] sm:text-xs text-white drop-shadow-sm z-10 font-mono">
+      {/* Top Header: Label & Big Prominent Number */}
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {icon && <span className="text-xs">{icon}</span>}
+          <span className={`text-xs sm:text-[13px] font-black truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+            {label}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0 font-mono">
+          <span className={`text-xl sm:text-2xl font-black ${textColor}`}>
             {count}
           </span>
+          <span className="text-[10px] text-slate-400 font-bold">({pct}%)</span>
         </div>
       </div>
 
-      <div className="mt-1 text-center">
-        <span className={`text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-full ${fillColor} ${textColor} font-mono shadow-sm`}>
-          {count}
-        </span>
+      {/* Horizontal 3D Glass Cylinder (Wide & Clear) */}
+      <div className={`relative w-full h-3.5 sm:h-4 rounded-full border-2 ${borderColor} ${isDark ? 'bg-slate-950' : 'bg-slate-100'} overflow-hidden p-0.5 shadow-inner`}>
+        {/* Horizontal Liquid Level */}
+        <div
+          className={`h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden ${gradient}`}
+          style={{ width: `${Math.max(6, pct)}%` }}
+        >
+          {/* Subtle liquid shimmer */}
+          <div className="absolute inset-0 bg-white/25 opacity-50 animate-pulse" />
+        </div>
       </div>
     </div>
   );
@@ -884,13 +889,14 @@ const Analytics = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {/* 1. Total */}
             <VialCard
+              icon="📊"
               label={isRtl ? 'المجموع' : 'Total'}
               count={kpis.total}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-slate-800 to-slate-600"
+              gradient="bg-gradient-to-r from-slate-800 to-slate-600"
               textColor="text-slate-800 dark:text-slate-200"
               borderColor="border-slate-500"
               fillColor="bg-slate-100 dark:bg-slate-800"
@@ -901,10 +907,11 @@ const Analytics = () => {
             />
             {/* 2. Resolved */}
             <VialCard
+              icon="✅"
               label={isRtl ? 'تمت معالجتها' : 'Resolved'}
               count={kpis.resolved}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-emerald-700 to-emerald-500"
+              gradient="bg-gradient-to-r from-emerald-700 to-emerald-500"
               textColor="text-emerald-700 dark:text-emerald-300"
               borderColor="border-emerald-500"
               fillColor="bg-emerald-100 dark:bg-emerald-950/80"
@@ -915,10 +922,11 @@ const Analytics = () => {
             />
             {/* 3. In Progress */}
             <VialCard
+              icon="⏳"
               label={isRtl ? 'جاري المعالجة' : 'In Progress'}
               count={kpis.inProgress}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-amber-600 to-yellow-500"
+              gradient="bg-gradient-to-r from-amber-600 to-yellow-500"
               textColor="text-amber-700 dark:text-amber-300"
               borderColor="border-amber-500"
               fillColor="bg-amber-100 dark:bg-amber-950/80"
@@ -929,10 +937,11 @@ const Analytics = () => {
             />
             {/* 4. On Track */}
             <VialCard
+              icon="🎯"
               label={isRtl ? 'وفق الخطة' : 'On Track'}
               count={kpis.onTrack}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-teal-700 to-cyan-500"
+              gradient="bg-gradient-to-r from-teal-700 to-cyan-500"
               textColor="text-teal-700 dark:text-teal-300"
               borderColor="border-teal-500"
               fillColor="bg-teal-100 dark:bg-teal-950/80"
@@ -943,10 +952,11 @@ const Analytics = () => {
             />
             {/* 5. Overdue */}
             <VialCard
+              icon="⚠️"
               label={isRtl ? 'متأخرة' : 'Overdue'}
               count={kpis.overdue}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-rose-700 to-rose-500"
+              gradient="bg-gradient-to-r from-rose-700 to-rose-500"
               textColor="text-rose-700 dark:text-rose-300"
               borderColor="border-rose-500"
               fillColor="bg-rose-100 dark:bg-rose-950/80"
@@ -957,10 +967,11 @@ const Analytics = () => {
             />
             {/* 6. Critical / Major */}
             <VialCard
+              icon="🚨"
               label={isRtl ? 'عالية الخطورة' : 'Critical'}
               count={kpis.critical}
               total={kpis.total}
-              gradient="bg-gradient-to-t from-red-700 to-red-500"
+              gradient="bg-gradient-to-r from-red-700 to-red-500"
               textColor="text-red-700 dark:text-red-300"
               borderColor="border-red-600"
               fillColor="bg-red-100 dark:bg-red-950/80"
