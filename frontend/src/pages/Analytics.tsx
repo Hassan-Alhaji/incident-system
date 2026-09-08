@@ -155,6 +155,7 @@ const Analytics = () => {
   const [wallboardTheme, setWallboardTheme] = useState<'LIGHT' | 'DARK'>(() => {
     return (localStorage.getItem('hse_analytics_theme') as 'LIGHT' | 'DARK') || 'LIGHT';
   });
+  const isDark = wallboardTheme === 'DARK';
   const [activeFilter, setActiveFilter] = useState<{
     type: 'VIAL' | 'SEVERITY' | 'DEPARTMENT';
     key: string;
