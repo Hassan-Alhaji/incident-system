@@ -8,7 +8,7 @@ import LocationPickerMap from '../components/LocationPickerMap';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, Camera, Check, Clock,
   FileImage, Loader2, MapPin, Plus, Send, ShieldAlert, Trash2,
-  Upload, User, X, Phone, CheckCircle, Eye, Search
+  Upload, User, X, Phone, CheckCircle, Eye, Search, RotateCcw
 } from 'lucide-react';
 
 const NavArrowRight = ({ size, isRtl }: { size: number; isRtl: boolean }) =>
@@ -69,6 +69,7 @@ const TicketWizard = () => {
   const [showAttachmentConfirm, setShowAttachmentConfirm] = useState(false);
   const [attachmentConfirmed, setAttachmentConfirmed] = useState(false);
   const submittingRef = React.useRef(false);
+  const createdTicketIdRef = React.useRef<string | null>(null);
 
   // Stale draft detection: record when wizard was opened
   const wizardOpenedAt = React.useRef<number>(Date.now());
@@ -168,7 +169,10 @@ const TicketWizard = () => {
       const maxBytes = 10 * 1024 * 1024; // 10MB
       const allFiles = Array.from(e.target.files);
       const validFiles = allFiles.filter(f => f.size <= maxBytes);
-      if (validFiles.length < allFiles.length) showToast(t('errors.fileTooLarge', 'Some files skipped (exceeds 10MB).'), 'warning');
+      if (validFiles.length < allFiles.length) {
+        showToast(isRtl ? 'تم استبعاد بعض الملفات لأن حجمها يتجاوز 10 ميجابايت' : t('errors.fileTooLarge', 'Some files skipped (exceeds 10MB).'), 'warning');
+      }
+      setError('');
       setFiles([...files, ...validFiles]);
     }
   };
@@ -179,7 +183,10 @@ const TicketWizard = () => {
         const maxBytes = 10 * 1024 * 1024;
         const allFiles = Array.from(e.target.files as FileList);
         const validFiles = allFiles.filter(f => f.size <= maxBytes);
-        if (validFiles.length < allFiles.length) showToast(t('errors.fileTooLarge', 'File is too large (exceeds 10MB).'), 'warning');
+        if (validFiles.length < allFiles.length) {
+          showToast(isRtl ? 'حجم الصورة كبير جداً (يتجاوز 10 ميجابايت)' : t('errors.fileTooLarge', 'File is too large (exceeds 10MB).'), 'warning');
+        }
+        setError('');
         setFiles([...files, ...validFiles]);
       }
     }; 
@@ -255,35 +262,84 @@ const TicketWizard = () => {
   const handleSubmit = async () => {
     if (submittingRef.current) return; // Prevent double-submit
     submittingRef.current = true;
-    setSubmitting(true); setError('');
+    setSubmitting(true);
+    setError('');
+
+    // Pre-check total files size before uploading
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+    const MAX_TOTAL_BYTES = 48 * 1024 * 1024; // 48MB limit
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      const sizeMb = (totalBytes / (1024 * 1024)).toFixed(1);
+      const limitMb = (MAX_TOTAL_BYTES / (1024 * 1024)).toFixed(0);
+      setError(
+        isRtl
+          ? `حجم المرفقات الإجمالي (${sizeMb} ميجابايت) يتجاوز الحد الأقصى المسموح (${limitMb} ميجابايت). يُرجى إزالة بعض الملفات أو تقليل حجمها وإعادة المحاولة.`
+          : `Total attachments size (${sizeMb}MB) exceeds maximum limit (${limitMb}MB). Please remove or reduce some files and try again.`
+      );
+      setSubmitting(false);
+      submittingRef.current = false;
+      return;
+    }
+
     try {
-      const payload = { 
-        incidentType, 
-        incidentDate, 
-        incidentTime, 
-        locationLat, 
-        locationLng, 
-        locationAddress, 
-        locationDescription, 
-        whatHappened, 
-        hasInjury, 
-        injuredPersons: hasInjury ? injuredPersons : [], 
-        witnesses: hasInjury ? witnesses : [], 
-        lateReportReason: isLateReport() ? lateReportReason : null, 
-        serviceProviderId: selectedServiceProviderId || null, 
-        zoneId: zoneId || null, 
-        eventId: eventId || null, 
-        reporterDepartmentId: reporterDepartmentId || null,
-        detectionSource
-      };
-      const res = await api.post('/tickets', payload);
-      const ticketId = res.data.id;
-      if (files.length > 0) { const fd = new FormData(); files.forEach(f => fd.append('files', f)); await api.post(`/tickets/${ticketId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
-      setSubmittedId(ticketId); setSubmitted(true);
+      let ticketId = createdTicketIdRef.current;
+
+      // 1. Create ticket if not already created in a previous attempt
+      if (!ticketId) {
+        const payload = { 
+          incidentType, 
+          incidentDate, 
+          incidentTime, 
+          locationLat, 
+          locationLng, 
+          locationAddress, 
+          locationDescription, 
+          whatHappened, 
+          hasInjury, 
+          injuredPersons: hasInjury ? injuredPersons : [], 
+          witnesses: hasInjury ? witnesses : [], 
+          lateReportReason: isLateReport() ? lateReportReason : null, 
+          serviceProviderId: selectedServiceProviderId || null, 
+          zoneId: zoneId || null, 
+          eventId: eventId || null, 
+          reporterDepartmentId: reporterDepartmentId || null,
+          detectionSource
+        };
+        const res = await api.post('/tickets', payload);
+        ticketId = res.data.id;
+        createdTicketIdRef.current = ticketId;
+      }
+
+      // 2. Upload attachments if any
+      if (files.length > 0 && ticketId) {
+        const fd = new FormData();
+        files.forEach(f => fd.append('files', f));
+        await api.post(`/tickets/${ticketId}/attachments`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
+      setSubmittedId(ticketId!);
+      setSubmitted(true);
       setTimeout(() => navigate(`/tickets/${ticketId}`), 5000);
     } catch (err: any) {
-      setError(err.response?.data?.message || t('errors.failedToSubmit'));
-      submittingRef.current = false; // ✅ Reset so user can retry after failure
+      // Formulate detailed, actionable error message for the user
+      let errMsg = '';
+      if (err.response?.status === 413) {
+        errMsg = isRtl
+          ? 'حجم المرفقات يتجاوز الحد المسموح به في الخادم (10MB لكل ملف / 50MB للإجمالي). يُرجى إزالة بعض الصور أو المستندات الكبيرة ثم الضغط على "إعادة إرسال التقرير".'
+          : 'Attached files exceed the server limit (10MB per file / 50MB total). Please remove or reduce large files and click "Retry Submission".';
+      } else if (err.response?.data?.message) {
+        errMsg = err.response.data.message;
+      } else if (!err.response) {
+        errMsg = isRtl
+          ? 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت والضغط على إعادة الإرسال.'
+          : 'Network error: could not reach the server. Please check your internet connection and retry.';
+      } else {
+        errMsg = t('errors.failedToSubmit', 'Failed to submit report. Please review details and try again.');
+      }
+      setError(errMsg);
+      submittingRef.current = false; // ✅ Allow instant retry
     } finally {
       setSubmitting(false);
     }
@@ -752,13 +808,68 @@ const TicketWizard = () => {
         </div>
       )}
 
+      {/* In-place Error Notification & Guidance */}
+      {error && (
+        <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 shadow-md space-y-2.5 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="space-y-1.5 flex-1">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-red-900">
+                  {isRtl ? 'تعذر إرسال التقرير / المرفقات' : 'Submission Failed'}
+                </h4>
+                {step === 3 && files.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-blue-700 hover:text-blue-900 underline flex items-center gap-1"
+                  >
+                    {isRtl ? '✏️ تعديل المرفقات' : '✏️ Edit Attachments'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-red-700 leading-relaxed font-medium">
+                {error}
+              </p>
+              {createdTicketIdRef.current && (
+                <div className="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-2.5 border border-amber-200 mt-1.5 flex items-start gap-2">
+                  <span className="text-amber-600 font-bold">💡</span>
+                  <span>
+                    {isRtl
+                      ? 'تم حفظ تفاصيل البلاغ بنجاح في النظام. يمكنك تعديل أو حذف المرفقات الكبيرة والضغط على زر "إعادة إرسال التقرير" في الأسفل فوراً.'
+                      : 'Initial report details are saved. You can adjust or remove oversized attachments and click "Retry Submission" below right now.'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="flex gap-3 pt-2">
         {step > 1 && <button onClick={() => { setStep(step - 1); setShowErrors(false); }} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"><NavArrowLeft size={16} isRtl={isRtl} /> {t('oc.wizard.back', 'Back')}</button>}
         {step < TOTAL_STEPS ? (
           <button onClick={handleNext} className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:from-blue-700 hover:to-blue-600 transition-all">{t('oc.wizard.next', 'Next')} <NavArrowRight size={16} isRtl={isRtl} /></button>
         ) : (
-          <button onClick={handleSubmit} disabled={submitting} className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all">{submitting ? <Loader2 className="animate-spin" size={18} /> : <Check size={16} />}{submitting ? t('oc.wizard.submitting', 'Submitting...') : t('oc.wizard.submit', 'Submit Report')}</button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={`flex-1 ${error ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600' : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600'} text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all`}
+          >
+            {submitting ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : error ? (
+              <RotateCcw size={16} />
+            ) : (
+              <Check size={16} />
+            )}
+            {submitting
+              ? t('oc.wizard.submitting', 'Submitting...')
+              : error
+                ? (isRtl ? 'إعادة إرسال التقرير' : 'Retry Submission')
+                : t('oc.wizard.submit', 'Submit Report')}
+          </button>
         )}
       </div>
 
