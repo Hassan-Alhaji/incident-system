@@ -4,6 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { protect, authorize } = require('../middleware/authMiddleware');
 const bcrypt = require('bcryptjs');
+const { sendDepartmentAssignmentNotification } = require('../utils/emailService');
 
 // Detect special department types by name pattern to assign correct role
 const FINANCE_PATTERN = /financ|مالي|حساب/i;
@@ -105,13 +106,34 @@ router.post('/', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER')
                      });
                  }
              }
+        // 4. Send official role assignment notification emails asynchronously
+        const deptTitle = nameEn || 'Department';
+        if (manager && manager.email) {
+            sendDepartmentAssignmentNotification({
+                to: manager.email,
+                recipientName: manager.name,
+                role: 'DEP_MANAGER',
+                departmentName: deptTitle
+            }).catch(err => console.error('[Dept Email] Manager assignment error:', err.message));
+        }
+        if (representatives && Array.isArray(representatives)) {
+            for (const rep of representatives) {
+                if (rep && rep.email) {
+                    sendDepartmentAssignmentNotification({
+                        to: rep.email,
+                        recipientName: rep.name,
+                        role: repRole,
+                        departmentName: deptTitle
+                    }).catch(err => console.error('[Dept Email] Rep assignment error:', err.message));
+                }
+            }
         }
 
         const freshDept = await prisma.department.findUnique({
             where: { id: dept.id },
             include: {
-                manager: { select: { id: true, name: true } },
-                representatives: { select: { id: true, name: true } }
+                manager: { select: { id: true, name: true, email: true, mobile: true } },
+                representatives: { select: { id: true, name: true, email: true, mobile: true } }
             }
         });
         res.status(201).json(freshDept);
@@ -164,6 +186,27 @@ router.put('/:id', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER
                         where: { id: rUser.id },
                         data: { repDepartmentId: req.params.id }
                     });
+                }
+            }
+        // 4. Send official role assignment notification emails asynchronously
+        const deptTitle = effectiveName || 'Department';
+        if (manager && manager.email) {
+            sendDepartmentAssignmentNotification({
+                to: manager.email,
+                recipientName: manager.name,
+                role: 'DEP_MANAGER',
+                departmentName: deptTitle
+            }).catch(err => console.error('[Dept Email] Manager update notification error:', err.message));
+        }
+        if (representatives && Array.isArray(representatives)) {
+            for (const rep of representatives) {
+                if (rep && rep.email) {
+                    sendDepartmentAssignmentNotification({
+                        to: rep.email,
+                        recipientName: rep.name,
+                        role: repRole,
+                        departmentName: deptTitle
+                    }).catch(err => console.error('[Dept Email] Rep update notification error:', err.message));
                 }
             }
         }

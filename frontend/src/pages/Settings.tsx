@@ -34,9 +34,141 @@ const roleColors: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
- ACTIVE: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
- PENDING: 'bg-blue-600/10 border-blue-600/30 text-blue-500',
- SUSPENDED: 'bg-red-500/10 border-red-500/30 text-red-400',
+  ACTIVE: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+  PENDING: 'bg-blue-600/10 border-blue-600/30 text-blue-500',
+  SUSPENDED: 'bg-red-500/10 border-red-500/30 text-red-400',
+};
+
+// Reusable Autocomplete Row for Department Manager and Representatives
+const PersonAutocompleteRow = ({
+  name,
+  email,
+  mobile,
+  usersList,
+  onChange,
+  onRemove,
+  isRemovable,
+  isArabic
+}: {
+  name: string;
+  email: string;
+  mobile: string;
+  usersList: any[];
+  onChange: (updated: { name: string; email: string; mobile: string }) => void;
+  onRemove?: () => void;
+  isRemovable?: boolean;
+  isArabic?: boolean;
+}) => {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const filteredUsers = trimmedQuery.length >= 1
+    ? usersList.filter(u => {
+        const n = (u.name || '').toLowerCase();
+        const e = (u.email || '').toLowerCase();
+        return n.includes(trimmedQuery) || e.includes(trimmedQuery);
+      }).slice(0, 6)
+    : [];
+
+  const handleSelect = (u: any) => {
+    onChange({
+      name: u.name || '',
+      email: u.email || '',
+      mobile: u.mobile || ''
+    });
+    setShowSuggestions(false);
+    setQuery('');
+  };
+
+  return (
+    <div className="flex gap-2 items-start relative">
+      <div className="grid md:grid-cols-3 gap-2 flex-1">
+        {/* Full Name with Smart Autocomplete */}
+        <div className="relative">
+          <input
+            placeholder={isArabic ? 'الاسم الكامل (ابحث بالاسم...)' : 'Full Name (type to search...)'}
+            className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            value={name}
+            onChange={e => {
+              const val = e.target.value;
+              onChange({ name: val, email, mobile });
+              setQuery(val);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => {
+              if (name) {
+                setQuery(name);
+                setShowSuggestions(true);
+              }
+            }}
+          />
+          {showSuggestions && filteredUsers.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-blue-200 rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              <div className="px-2.5 py-1.5 bg-blue-50/70 text-[10px] font-bold text-blue-600 uppercase tracking-wider flex items-center justify-between">
+                <span>{isArabic ? `المستخدمون المطابقون (${filteredUsers.length})` : `Matching Users (${filteredUsers.length})`}</span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); }}
+                  className="text-gray-400 hover:text-gray-700 text-xs px-1"
+                >
+                  ✕
+                </button>
+              </div>
+              {filteredUsers.map((u: any) => (
+                <div
+                  key={u.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(u);
+                  }}
+                  className="px-3 py-2 hover:bg-blue-50 cursor-pointer transition-colors flex items-center justify-between text-left"
+                >
+                  <div className="min-w-0 flex-1 mr-2">
+                    <p className="text-xs font-bold text-slate-800 truncate">{u.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate font-mono">{u.email}</p>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 whitespace-nowrap">
+                    {u.role || 'USER'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Email */}
+        <input
+          placeholder="Email"
+          type="email"
+          className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          value={email}
+          onChange={e => onChange({ name, email: e.target.value, mobile })}
+        />
+
+        {/* Mobile */}
+        <input
+          placeholder="Mobile"
+          type="tel"
+          inputMode="numeric"
+          className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          value={mobile}
+          onChange={e => onChange({ name, email, mobile: e.target.value.replace(/[^0-9+]/g, '') })}
+        />
+      </div>
+
+      {isRemovable && onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-2 text-gray-400 hover:text-red-500 bg-white hover:bg-red-50 rounded-lg border border-gray-200 transition-colors flex-shrink-0"
+          title="Remove"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+    </div>
+  );
 };
 
 const Settings = () => {
@@ -93,7 +225,7 @@ const Settings = () => {
  useEffect(() => { 
  if (activeTab === 'users') { fetchUsers(); api.get('/departments').then(res => setUserDepartments(res.data)).catch(() => {}); }
  if (activeTab === 'zones') fetchZones();
- if (activeTab === 'departments') fetchDepartments();
+  if (activeTab === 'departments') { fetchDepartments(); fetchUsers(); }
  if (activeTab === 'providers') fetchServiceProviders();
  if (activeTab === 'events') fetchEvents();
  if (activeTab === 'system') fetchMaintenanceStatus();
@@ -936,34 +1068,64 @@ const Settings = () => {
  </div>
 
  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
- <h4 className="text-base font-bold text-blue-500 mb-3 border-b border-gray-200 pb-2">Department Manager</h4>
- <div className="grid md:grid-cols-3 gap-3">
- <div><label className="block text-base text-gray-800 mb-1">Full Name</label><input className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.name} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, name: e.target.value}})} /></div>
- <div><label className="block text-base text-gray-800 mb-1">Email</label><input type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.email} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, email: e.target.value}})} /></div>
- <div><label className="block text-base text-gray-800 mb-1">Mobile</label><input type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={departmentFormData.manager.mobile} onChange={e => setDepartmentFormData({...departmentFormData, manager: {...departmentFormData.manager, mobile: e.target.value.replace(/[^0-9+]/g, '')}})} /></div>
- </div>
- </div>
+    <div className="flex items-center justify-between mb-3 border-b border-gray-200 pb-2">
+      <h4 className="text-base font-bold text-blue-500">Department Manager</h4>
+      <span className="text-xs text-gray-400">💡 {isRtl ? 'اكتب اسم الموظف للاختيار التلقائي من المسجلين أو أدخل بياناته يدوياً' : 'Type name to select registered user or enter manually'}</span>
+    </div>
+    <PersonAutocompleteRow
+      name={departmentFormData.manager.name}
+      email={departmentFormData.manager.email}
+      mobile={departmentFormData.manager.mobile}
+      usersList={users}
+      isArabic={isRtl}
+      onChange={({ name, email, mobile }) => setDepartmentFormData({
+        ...departmentFormData,
+        manager: { name, email, mobile }
+      })}
+    />
+  </div>
 
- <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
- <div className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
- <h4 className="text-base font-bold text-emerald-400">Representatives</h4>
- <button onClick={() => setDepartmentFormData({...departmentFormData, representatives: [...departmentFormData.representatives, {name:'', email:'', mobile:''}]})} className="text-base bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded flex items-center gap-1"><Plus size={12}/> Add Rep</button>
- </div>
- <div className="space-y-3">
- {departmentFormData.representatives.map((rep, idx) => (
- <div key={idx} className="flex gap-2 items-start">
- <div className="grid md:grid-cols-3 gap-2 flex-1">
- <input placeholder="Full Name" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.name} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].name = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
- <input placeholder="Email" type="email" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.email} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].email = e.target.value; setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
- <input placeholder="Mobile" type="tel" inputMode="numeric" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-base text-gray-800" value={rep.mobile} onChange={e => { const newReps = [...departmentFormData.representatives]; newReps[idx].mobile = e.target.value.replace(/[^0-9+]/g, ''); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} />
- </div>
- {departmentFormData.representatives.length > 1 && (
- <button onClick={() => { const newReps = [...departmentFormData.representatives]; newReps.splice(idx, 1); setDepartmentFormData({...departmentFormData, representatives: newReps}); }} className="p-2 text-gray-800 hover:text-red-400 bg-white rounded-lg border border-gray-200"><Trash2 size={16}/></button>
- )}
- </div>
- ))}
- </div>
- </div>
+  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+    <div className="flex justify-between items-center mb-3 border-b border-gray-200 pb-2">
+      <div>
+        <h4 className="text-base font-bold text-emerald-500">Representatives</h4>
+        <span className="text-xs text-gray-400">💡 {isRtl ? 'ابحث عن الممثل بالاسم أو أدخل ممثلاً جديداً' : 'Search by name or enter new representative'}</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => setDepartmentFormData({
+          ...departmentFormData,
+          representatives: [...departmentFormData.representatives, { name: '', email: '', mobile: '' }]
+        })}
+        className="text-sm bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-colors"
+      >
+        <Plus size={14} /> Add Rep
+      </button>
+    </div>
+    <div className="space-y-3">
+      {departmentFormData.representatives.map((rep, idx) => (
+        <PersonAutocompleteRow
+          key={idx}
+          name={rep.name}
+          email={rep.email}
+          mobile={rep.mobile}
+          usersList={users}
+          isArabic={isRtl}
+          isRemovable={departmentFormData.representatives.length > 1}
+          onRemove={() => {
+            const newReps = [...departmentFormData.representatives];
+            newReps.splice(idx, 1);
+            setDepartmentFormData({ ...departmentFormData, representatives: newReps });
+          }}
+          onChange={({ name, email, mobile }) => {
+            const newReps = [...departmentFormData.representatives];
+            newReps[idx] = { name, email, mobile };
+            setDepartmentFormData({ ...departmentFormData, representatives: newReps });
+          }}
+        />
+      ))}
+    </div>
+  </div>
  
  <button onClick={handleDepartmentSubmit} disabled={!departmentFormData.nameEn} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-bold rounded-xl shadow-md shadow-blue-500/20 text-white transition-all text-base disabled:opacity-50">{editingDepartmentId ? 'Update Department (تحديث القسم)' : 'Create Department & Provision Users'}</button>
  </div>

@@ -27,7 +27,7 @@ const BASE_URL   = (args.url || process.env.QA_BASE_URL || 'http://localhost:300
 const FRONTEND   = (args.frontend || process.env.QA_FRONTEND_URL || BASE_URL).replace(/\/$/, '');
 const VERSION    = args.version || process.env.APP_VERSION || '—';
 const REPORT_DIR = path.join(__dirname, 'uat_reports');
-const COMMIT     = (() => { try { return execSync('git rev-parse --short HEAD 2>/dev/null').toString().trim(); } catch { return 'unknown'; } })();
+const COMMIT     = (() => { try { return execSync('git rev-parse --short HEAD').toString().trim(); } catch { return 'unknown'; } })();
 const NOW        = new Date();
 const DATE_STR   = NOW.toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' });
 const DATE_EN    = NOW.toLocaleDateString('en-GB', { year:'numeric', month:'long', day:'numeric' });
@@ -80,7 +80,7 @@ async function runAutomatedChecks() {
   add('Backend', 'Maintenance endpoint متاح', [200,304].includes(maint.status), `HTTP ${maint.status}`);
 
   // 3. Frontend
-  const frontendUrl = FRONTEND.startsWith('http://localhost') ? `${FRONTEND}/` : 'http://localhost:80/';
+  const frontendUrl = `${FRONTEND}/`;
   const fe = await request(frontendUrl);
   const feOk = fe.status === 200 && (fe.body.includes('<html') || fe.body.includes('<!DOCTYPE'));
   add('Frontend', 'الواجهة الأمامية تحمّل بنجاح', feOk, feOk ? 'HTML صالح' : `HTTP ${fe.status}`);
@@ -124,8 +124,9 @@ async function runAutomatedChecks() {
   add('Security', 'Rate limiting headers موجودة', !!(sec.headers['x-ratelimit-limit'] || sec.headers['ratelimit-limit']), '—');
 
   // 12. Path Traversal
-  const trav = await request(`${BASE_URL}/api/../etc/passwd`);
-  add('Security', 'منع Path Traversal', trav.status !== 200, `HTTP ${trav.status}`);
+  const trav = await request(`${BASE_URL}/uploads/..%2f..%2fetc/passwd`);
+  const travPassed = trav.status !== 200 || !trav.body.includes('root:');
+  add('Security', 'منع Path Traversal', travPassed, travPassed ? 'محمي بنجاح' : `HTTP ${trav.status}`);
 
   return checks;
 }

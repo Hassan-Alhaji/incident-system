@@ -1,6 +1,54 @@
 const prisma = require('../prismaClient');
 const { createNotification, createNotificationsBulk } = require('./notificationController');
+const { sendDepartmentIncidentNotification } = require('../utils/emailService');
 const logger = require('../lib/logger').child({ module: 'ticketWorkflow' });
+
+/**
+ * Dispatch high-priority email notification to department manager and all representatives
+ */
+async function notifyDepartmentMembersByEmail(targetDepartmentId, ticketData) {
+    if (!targetDepartmentId) return;
+    try {
+        const dept = await prisma.department.findUnique({
+            where: { id: targetDepartmentId },
+            include: {
+                manager: { select: { id: true, name: true, email: true } },
+                representatives: { where: { status: 'ACTIVE' }, select: { id: true, name: true, email: true } }
+            }
+        });
+        if (!dept) return;
+
+        const emailSet = new Set();
+        if (dept.manager?.email) emailSet.add(dept.manager.email.trim());
+        if (dept.representatives && Array.isArray(dept.representatives)) {
+            dept.representatives.forEach(r => {
+                if (r.email) emailSet.add(r.email.trim());
+            });
+        }
+
+        // Also fetch any users assigned to this department with DEP_REP or DEP_MANAGER role
+        const additionalMembers = await prisma.user.findMany({
+            where: { repDepartmentId: targetDepartmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' },
+            select: { email: true }
+        });
+        additionalMembers.forEach(u => {
+            if (u.email) emailSet.add(u.email.trim());
+        });
+
+        const recipients = Array.from(emailSet);
+        if (recipients.length > 0) {
+            const deptName = dept.name || dept.nameAr || 'Department';
+            await sendDepartmentIncidentNotification({
+                recipients,
+                ticket: ticketData,
+                departmentName: deptName
+            });
+            logger.info({ recipients, targetDepartmentId, ticketNo: ticketData.ticketNo }, 'Dispatched incident email notification to department');
+        }
+    } catch (err) {
+        logger.error({ err: err.message, targetDepartmentId }, 'Failed to dispatch department incident email');
+    }
+}
 
 // B3: Never leak internal error details (Prisma messages, stack traces) to the client in production.
 const isProd = process.env.NODE_ENV === 'production';
@@ -286,13 +334,22 @@ const controllerAction = async (req, res) => {
                 data: ticketUpdateData
             });
 
-            const depReps = await prisma.user.findMany({ where: { repDepartmentId: targetDepartmentId, role: 'DEP_REP', status: 'ACTIVE' }, select: { id: true } });
-            if (depReps.length > 0) {
+            const depMembers = await prisma.user.findMany({ where: { repDepartmentId: targetDepartmentId, role: { in: ['DEP_REP', 'DEP_MANAGER'] }, status: 'ACTIVE' }, select: { id: true } });
+            if (depMembers.length > 0) {
                 const notifMessage = isDelegated
                     ? `Ticket ${ticket.ticketNo} assigned to your department. Please complete RCA and Action Plans.`
                     : `Ticket ${ticket.ticketNo} assigned to your department. RCA is ready for review.`;
-                await createNotificationsBulk(depReps.map(rep => rep.id), 'Ticket Assigned', notifMessage, 'ASSIGNED', `/tickets/${ticket.id}`);
+                await createNotificationsBulk(depMembers.map(rep => rep.id), 'Ticket Assigned', notifMessage, 'ASSIGNED', `/tickets/${ticket.id}`);
             }
+
+            // Dispatch high-priority email alert to department manager & all representatives
+            notifyDepartmentMembersByEmail(targetDepartmentId, {
+                id: ticket.id,
+                ticketNo: ticket.ticketNo,
+                title: ticket.title || ticket.type || 'Safety Incident',
+                severityLevel: severity,
+                location: ticket.location
+            });
             
             // Check for employee injury — only notify HR if controller explicitly confirms
             let hasEmployeeInjury = false;
@@ -704,6 +761,16 @@ const safetyManagerAction = async (req, res) => {
                     activityLogs: { create: { actorId: req.user.id, action: 'ESCALATED_TO_DEPT', details: `Escalated to department: ${deptName}. Notes: ${notes || ''}` } } 
                 } 
             });
+
+            // Dispatch high-priority email alert to department manager & all representatives
+            notifyDepartmentMembersByEmail(targetDepartmentId, {
+                id: ticket.id,
+                ticketNo: ticket.ticketNo,
+                title: ticket.title || ticket.type || 'Safety Incident',
+                severityLevel: ticket.severityLevel || 'HIGH',
+                location: ticket.location
+            });
+
             return res.json({ message: 'Escalated to department', status: 'ASSIGNED' });
         }
 
