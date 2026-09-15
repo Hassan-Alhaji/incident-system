@@ -106,6 +106,8 @@ router.post('/', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER')
                      });
                  }
              }
+        }
+
         // 4. Send official role assignment notification emails asynchronously
         const deptTitle = nameEn || 'Department';
         if (manager && manager.email) {
@@ -188,6 +190,8 @@ router.put('/:id', protect, authorize('ADMIN', 'HSE_CONTROLLER', 'OC_HSE_MANAGER
                     });
                 }
             }
+        }
+
         // 4. Send official role assignment notification emails asynchronously
         const deptTitle = effectiveName || 'Department';
         if (manager && manager.email) {
