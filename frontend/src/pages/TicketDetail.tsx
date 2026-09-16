@@ -1019,18 +1019,24 @@ const TicketDetail = () => {
                 const textColor = isCompleted 
                     ? 'text-emerald-700'
                     : hrs < 24 ? 'text-emerald-700' : hrs < 48 ? 'text-amber-700' : 'text-red-700';
+                const deptName = ticket.department ? (isRtl && ticket.department.nameAr ? ticket.department.nameAr : ticket.department.name) : null;
                 return (
                     <div className={`bg-gradient-to-r ${kpiColor} border rounded-xl p-3 flex items-center gap-3`}>
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isCompleted ? 'bg-emerald-100' : hrs < 24 ? 'bg-emerald-100' : hrs < 48 ? 'bg-amber-100' : 'bg-red-100'}`}>
                             <span className="text-lg">{isCompleted ? '✅' : '⏱️'}</span>
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <h4 className={`font-bold text-xs ${textColor}`}>
                                 {isRtl ? (isCompleted ? 'زمن استجابة القسم' : 'في انتظار رد القسم') : (isCompleted ? 'Department Response Time' : 'Awaiting Department Response')}
                             </h4>
+                            {deptName && (
+                                <p className={`text-[11px] ${textColor} opacity-80 truncate max-w-[220px] sm:max-w-xs`}>
+                                    🏢 {deptName}
+                                </p>
+                            )}
                             <p className={`text-sm font-black ${textColor} mt-0.5`}>{kpiText}</p>
                         </div>
-                        {isCompleted && <span className="text-[10px] text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">{isRtl ? 'تم الرد' : 'Responded'}</span>}
+                        {isCompleted && <span className="text-[10px] text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full font-bold flex-shrink-0">{isRtl ? 'تم الرد' : 'Responded'}</span>}
                     </div>
                 );
             })()}
