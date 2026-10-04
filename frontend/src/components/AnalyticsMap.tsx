@@ -126,8 +126,10 @@ const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl, className }) 
     <div className={className || "w-full h-[400px] md:h-[550px] rounded-xl overflow-hidden shadow-inner border border-slate-200 relative"}>
       <MapContainer center={defaultCenter} zoom={5} className="w-full h-full z-0">
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+          crossOrigin="anonymous"
         />
         <MapBounds cases={validCases} />
         {validCases.map(c => {
