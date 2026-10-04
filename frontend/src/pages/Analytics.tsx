@@ -204,6 +204,51 @@ const HorizontalCapsule: React.FC<HorizontalCapsuleProps> = ({
   );
 };
 
+// ── Prominent Unified Live Clock & Live Monitoring Badge ──
+const LiveClockBadge: React.FC<{ isRtl: boolean }> = ({ isRtl }) => {
+  const [time, setTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeStr = time.toLocaleTimeString(isRtl ? 'ar-SA' : 'en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+  const dateStr = time.toLocaleDateString(isRtl ? 'ar-SA' : 'en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return (
+    <div className="flex items-center justify-center gap-2.5 my-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-inner w-full max-w-sm">
+      <div className="flex items-center gap-1.5">
+        <Clock size={17} className="text-emerald-400 animate-pulse" />
+        <span className="font-mono text-base sm:text-lg font-black text-white tracking-wider">
+          {timeStr}
+        </span>
+      </div>
+      <div className="h-4 w-px bg-slate-700" />
+      <span className="text-xs font-bold text-slate-300">
+        {dateStr}
+      </span>
+      <div className="h-4 w-px bg-slate-700" />
+      <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-full border border-emerald-500/60 shadow-sm">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>{isRtl ? 'مباشر' : 'LIVE'}</span>
+      </div>
+    </div>
+  );
+};
+
 // ── Main Analytics Component ──────────────────────────────────────────────────
 const Analytics = () => {
   const { t, i18n } = useTranslation();
@@ -220,7 +265,6 @@ const Analytics = () => {
   // ── Executive Wallboard (Single-Page Fullscreen) State ─────────────────────
   const [isExecutiveMode, setIsExecutiveMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [wallboardTheme, setWallboardTheme] = useState<'LIGHT' | 'DARK'>(() => {
     return (localStorage.getItem('hse_analytics_theme') as 'LIGHT' | 'DARK') || 'LIGHT';
   });
@@ -280,13 +324,6 @@ const Analytics = () => {
     };
     document.addEventListener('fullscreenchange', handleFsChange);
     return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -525,19 +562,6 @@ const Analytics = () => {
     { num: 12, ar: 'ديسمبر', en: 'December' },
   ];
 
-  const timeStr = currentTime.toLocaleTimeString(isRtl ? 'ar-SA' : 'en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-  });
-  const dateStr = currentTime.toLocaleDateString(isRtl ? 'ar-SA' : 'en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
   const dashboardBody = (
     <>
       {/* ── TOP HEADER ROW: FIELD ENGAGEMENT | BRANDING & CONTROLS | STATUS BY UNIT (Compact) ── */}
@@ -605,23 +629,7 @@ const Analytics = () => {
           )}
 
           {/* ── Prominent Unified Live Clock & Live Monitoring Badge ── */}
-          <div className="flex items-center justify-center gap-2.5 my-1.5 bg-slate-950/90 border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-inner w-full max-w-sm">
-            <div className="flex items-center gap-1.5">
-              <Clock size={17} className="text-emerald-400 animate-pulse" />
-              <span className="font-mono text-base sm:text-lg font-black text-white tracking-wider">
-                {timeStr}
-              </span>
-            </div>
-            <div className="h-4 w-px bg-slate-700" />
-            <span className="text-xs font-bold text-slate-300">
-              {dateStr}
-            </span>
-            <div className="h-4 w-px bg-slate-700" />
-            <div className="inline-flex items-center gap-1 text-xs font-black text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-full border border-emerald-500/60 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{isRtl ? 'مباشر' : 'LIVE'}</span>
-            </div>
-          </div>
+          <LiveClockBadge isRtl={isRtl} />
 
           {/* Controls: Mode Switcher + Theme Switcher + Fullscreen */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700">

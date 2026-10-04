@@ -769,11 +769,15 @@ const getAnalytics = async (req, res) => {
                 };
             })(),
 
-            detailsList: tickets.slice(0, 50).map(t => {
+            detailsList: tickets.map(t => {
                 const isSec = ['SECURITY', 'SECURITY_BREACH', 'VIOLATION'].includes(t.type);
                 const isHealth = ['HEALTH', 'INJURY', 'PROPERTY_DAMAGE'].includes(t.type);
                 const unitNameAr = isSec ? 'الأمن' : isHealth ? 'الصحة والبيئة' : 'السلامة';
                 const unitNameEn = isSec ? 'Security' : isHealth ? 'Health & Env' : 'Safety';
+                const isTicketOverdue = Boolean(
+                    (t.status !== 'CLOSED' && overdueActionPlans.some(p => p.ticketId === t.id)) ||
+                    t.offCircuitReport?.isLateReport
+                );
                 return {
                     id: t.id,
                     ticketNo: t.ticketNo,
@@ -787,7 +791,9 @@ const getAnalytics = async (req, res) => {
                     location: t.location || t.offCircuitReport?.locationAddress || '-',
                     departmentName: t.department?.name || 'N/A',
                     departmentNameAr: t.department?.nameAr || t.department?.name || 'N/A',
-                    detectionSource: t.offCircuitReport?.detectionSource || 'INTERNAL_OBSERVATION'
+                    detectionSource: t.offCircuitReport?.detectionSource || 'INTERNAL_OBSERVATION',
+                    isOverdue: isTicketOverdue,
+                    overdue: isTicketOverdue
                 };
             }),
 

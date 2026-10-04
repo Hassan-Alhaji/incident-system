@@ -68,11 +68,17 @@ interface AnalyticsMapProps {
 
 const MapBounds: React.FC<{ cases: MapCase[] }> = ({ cases }) => {
   const map = useMap();
+  const prevKeyRef = React.useRef<string>('');
+
   useEffect(() => {
     if (cases.length > 0) {
-      const bounds = L.latLngBounds(cases.map(c => [c.locationLat!, c.locationLng!]));
-      if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+      const currentKey = cases.map(c => c.id).sort().join(',');
+      if (currentKey !== prevKeyRef.current) {
+        prevKeyRef.current = currentKey;
+        const bounds = L.latLngBounds(cases.map(c => [c.locationLat!, c.locationLng!]));
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
+        }
       }
     }
   }, [cases, map]);
@@ -117,7 +123,7 @@ const getStatusLabel = (status: string, isRtl: boolean) => {
 
 const AnalyticsMap: React.FC<AnalyticsMapProps> = ({ cases, isRtl, className }) => {
   const navigate = useNavigate();
-  const validCases = cases.filter(c => c.locationLat && c.locationLng);
+  const validCases = React.useMemo(() => cases.filter(c => c.locationLat && c.locationLng), [cases]);
 
   // Default center (Saudi Arabia)
   const defaultCenter: [number, number] = [23.8859, 45.0792];
